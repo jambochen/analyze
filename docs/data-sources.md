@@ -1,38 +1,433 @@
 # 資料源清單
 
-優先級與規則見 CLAUDE.md。已淘汰的資料源保留紀錄，不刪除。
+記錄搜尋過的資料源、取得方式與狀態。已淘汰者保留，避免重複嘗試。
 
-| 優先級 | 資料源 | 需登入 | 取得方式 | 可自動取得 | 狀態 |
-|---|---|---|---|---|---|
-| 1 | Kaggle | MCP 已設定 | MCP | 是 | 可用 |
-| 2 | 政府資料開放平臺 data.gov.tw | 否 | 直接 CSV 下載 | 待驗證 | 待驗證 |
-| 2 | 內政部戶政司人口統計 | 否 | 網頁下載 | 待驗證 | 待驗證 |
-| 3 | TCCIP | 是（需註冊） | 網頁下載 | 否 | 待驗證 |
-| 3 | SEGIS 內政大數據 | 是 | 網頁下載，有下載限制 | 否 | 待驗證 |
-| 4 | World Bank / OWID / 體育 / 遊戲數據 | 視來源 | API 或 CSV | 多數可 | 待驗證 |
-| 5 | SRDA 學術調查研究資料庫 | 是（需申請） | 申請後下載 | 否 | 優先級最低 |
+---
 
-## 資料源細節
+## Kaggle
 
-### Kaggle
-- MCP server 已於 `.mcp.json` 設定
-- 可直接搜尋 dataset、competition，並下載檔案
+- **需登入或申請**：否（本專案已設定 Kaggle MCP，可直接呼叫）
+- **取得方式**：MCP 工具 `search_datasets` / `get_dataset_info` / `download_dataset`
+- **我能否自動取得**：能。搜尋、查詢 metadata、下載皆可自動化
+- **狀態**：可用
 
-### 政府資料開放平臺 data.gov.tw
-- https://data.gov.tw/
-- 待驗證：是否有穩定的資料集 API
+### 已執行的搜尋（2026-09-18）
 
-### 內政部戶政司人口統計
-- https://www.ris.gov.tw/app/portal/346
+排除 LLM / CV / NLP 導向資料集，掃描十個主題方向，每向取票數前 20 名：
 
-### TCCIP
-- https://tccip.ncdr.nat.gov.tw
-- 需註冊帳號。若無法自動取得，需使用者手動下載並放入 `data/raw/`
+| 方向 | 搜尋關鍵字 | 結果品質 |
+|---|---|---|
+| 公共衛生 | health public health survey | 佳，有 BRFSS 等大型調查 |
+| 運動賽事 | sports performance statistics | 中，多為球員統計表，變數維度有限 |
+| 能源與氣候 | energy consumption electricity climate | 佳，有 London Smart Meters |
+| 房地產與經濟 | housing price real estate economics | 差，多為 Boston Housing 類教學集 |
+| 交通事故 | traffic accident transportation | 佳，US Accidents、UK STATS19 |
+| 零售需求 | retail sales demand forecasting time series | 差，多疑似合成 |
+| 教育 | education student performance school | 差，主流資料集皆 < 1MB 且被做爛 |
+| 農業 | agriculture crop yield farming | 差，Crop Recommendation 系列為合成資料 |
+| 勞動與薪資 | employment labor wage salary survey | 中，Spanish Household Budget Survey 值得注意 |
+| 遊戲電競 | esports video game player behavior | 差，僅 2 筆結果且皆為千列小表 |
+| 空氣品質 | air quality sensor monitoring stations hourly | 差，最高票僅 v38，多為合成或模擬 |
+| 共享單車 | bike sharing trips mobility city | 差，僅 4 筆且全為認證課程作業成品 |
+| 城市犯罪 | crime incidents city records | **佳，Chicago Crime 六百萬筆、四層地理分區** |
+| 跨國發展指標 | world development indicators panel countries | 中，SEDAC 高維但樣本僅約 200 國 |
+| 航班延誤 | flight delays airline on-time performance | **佳，BTS 官方資料、延誤成因已分解、CC0** |
+| 醫院住院紀錄 | hospital patient admissions clinical records | 差（多為合成），**唯一例外：巴西 SIH/SUS** |
+| 計程車行程 | taxi trip records pickup dropoff | 差，僅 6 筆零散月份切片，應改用 NYC TLC 官方 |
+| 顧客流失 | customer churn telecom subscription retention | 差，幾乎全為合成或 IBM Telco 教學集搬運 |
+| 選舉投票 | election results voting county precinct | 差，僅 2 筆。資料在 MIT MEDSL 不在 Kaggle |
+| 地震災害 | earthquake seismic catalog magnitude | 差，資料真實但欄位單薄（僅經緯度、深度、規模） |
+| 專利引用網路 | patent citation network scientific publications | **無結果**。Kaggle 完全沒有此類資料 |
+| 人口遷徙 | migration population census demographics | 差，國家層級彙總或 51×51 小矩陣 |
+| 餐飲衛生稽查 | restaurant food inspection violations | 差，資料真實但欄位薄且單位間無關係 |
+| 建築執照地政 | building permits property assessment parcel | **無結果** |
+| 311 市政通報 | 311 service requests city complaints | 差，僅零碎搬運。完整資料在 NYC Open Data |
+| 藥物不良事件 | adverse drug event reporting FDA surveillance | 差，官方版停在 2017；FAERS 版已是彙總統計量 |
+| 捷運閘門流量 | metro subway station entry exit ridership | **無結果** |
+| 運輸智慧卡 | public transit smart card passenger flow | 差，僅 1 筆 158 KB 日彙總 |
+| 國際貿易流量 | international trade flows imports exports bilateral | **無結果** |
+| 電網負載 | electricity grid load hourly demand region | **佳，Arimancy 的 PJM/CAISO/ERCOT 系列** |
+| 水質監測 | water quality river monitoring stations | 差，最高票僅 20 KB 單站資料 |
+| 野火 | wildfire forest fire incidents perimeter | **無結果** |
+| 運動逐事件 | sports match events player tracking season | 差，僅 2 筆，其一為 417 bytes 的 API 廣告 |
+| **發布者檢索** | `user: arimancy` | **極佳，找到候選 I（本專案最強候選）** |
 
-### SEGIS 內政大數據模擬資料
-- https://segis.moi.gov.tw/STATCloud/BigData
-- 有下載限制。同上，可能需使用者手動操作
+### Kaggle 資料集品質判準
 
-### SRDA
-- https://srda.sinica.edu.tw/
-- 需申請帳號，審核流程慢。優先級最低，其他來源都用盡再考慮
+搜尋過程中歸納出的排除規則，後續沿用：
+
+- **合成資料**：2024 年後上傳、檔案 < 1MB、標題含「Prediction Dataset」、usability 1.0 但無來源說明者，多為 LLM 生成。無真實性，不可用於嚴謹推論
+- **教學經典集**：Boston Housing、Titanic、Iris 等。被做過上萬次，無新穎度
+- **搬運版本**：同一底層資料（如 UCI Student Performance）有數十個重複上傳。若採用，須追溯原始出處並在 SOURCE.md 記錄原始 URL 而非搬運版
+- **課程作業成品**：Google Data Analytics 認證的 Cyclistic/Divvy 案例是最常見的一種。特徵為票數個位數、標題含 Capstone 或 Cleaned、經個人清理但未說明清理步驟。清理過程不透明，不可用
+- **官方資料的搬運版授權標示不可信**：Kaggle 上的授權欄位由上傳者自填，常見 Unknown 或誤填。凡採用政府開放資料的搬運版本，一律回原始平台確認條款
+
+### 找到好資料的規律
+
+十四個方向掃下來，能用的資料集中在兩類來源：
+
+1. **政府或機關的作業系統直出**（Chicago CLEAR、CDC BRFSS、UK Power Networks）。特徵是有官方 codebook、逐欄定義、免責聲明。免責聲明本身是品質訊號——願意講清楚限制的資料，限制是已知的
+2. **有論文背書的研究資料集**（US Accidents 附兩篇 SIGSPATIAL 論文）
+
+反之，「主題聽起來很適合」不代表資料存在。空氣品質、共享單車、顧客流失三個方向的資料結構本應理想，但 Kaggle 上就是沒有可信版本。**方向的好壞與該方向在 Kaggle 上的資料品質無關**，不可因主題吸引人就放寬品質標準。
+
+補充兩條判準：
+
+- **檔案大小完全相同 = 同源搬運**。顧客流失方向出現多筆 175,722 / 175,734 / 175,758 / 175,782 bytes 的檔案，全是同一份 IBM Telco 教學資料的重複上傳。比對 `total_bytes` 是最快的去重方法
+- **隱私敏感領域的「真實」資料要特別懷疑**。病患層級臨床紀錄受法規保護，不會公開釋出。此類方向若出現高票數資料集，預設是合成。反之，政府的*行政給付*紀錄（如巴西 SIH）屬公開統計，是該領域唯一可信的資料型態
+
+### Kaggle 的覆蓋邊界
+
+掃完 18 個方向後，Kaggle 的資料分布有明顯的形狀。**它擅長的是單一機構直出的大型作業系統資料**（警政、交通、健保、電網），這類資料因為是機關為自己營運而產生，欄位定義嚴謹、量體大、有官方 codebook。候選 D、F、G 全部屬於這類。
+
+**它系統性缺席的領域有三種**：
+
+1. **需要跨機構整合的資料**：選舉（各州各郡自行公告）、專利引用（需連結專利庫與引用關係）。整合成本高，沒有個人會做，而做了的機構（MEDSL、PatentsView）有自己的發布平台
+2. **隱私敏感的個體資料**：病患臨床紀錄、個人金融交易。法規使其不可能公開
+3. **需要 API 持續抓取的資料**：空氣品質多站點長期監測、即時交通流量。Kaggle 的靜態上傳模式不適合
+
+**實務含意**：若某方向搜尋結果稀少或全是合成資料，通常不是搜尋詞的問題，而是該類資料在 Kaggle 上結構性地不存在。此時應直接判斷「不在 Kaggle」並轉向專門平台，不要換關鍵字重試。專利引用網路的搜尋回傳空結果，是這個判斷最乾淨的例證。
+
+若日後需再擴散，仍未觸及的領域：金融市場與信用、保險理賠、供應鏈與物流、水資源與水質。但依上述邊界判斷，保險理賠與供應鏈屬企業內部資料，預期同樣稀缺。
+
+### 第五輪的驗證與例外
+
+第五輪依「結構可衍生複雜度」判準搜尋了 8 個方向，結果**同時驗證了邊界，也找到一個重要例外**。
+
+**驗證**：捷運閘門、國際貿易、建築執照三個關鍵字全部回傳**空結果**。這三類正是最符合新判準的目標型態（窄表但單位間有關係），卻完全不在 Kaggle。原因一致——它們是機構內部營運系統，只提供 API 或需個別向各市政府申請。311 與餐飲稽查雖有資料，但前者只有零碎搬運、後者單位間無關係結構。
+
+**例外：加值型資料工程者**。`arimancy`（Arimancy LLC）發布的電網系列（PJM / CAISO / ERCOT）打破了「Kaggle 只有機構直出或個人搬運」的二分。這是第三種型態：**專業者將多個上游來源正確整合後發布**。其品質特徵值得記下，作為未來辨識同類資料的依據：
+
+- 明確交代每個上游來源與其授權（EIA-930 → PUDL → EIA API、Open-Meteo ERA5、Census 人口權重）
+- 說明join 的技術決策與理由（為何用 UTC 而非本地時間、DST 如何處理）
+- 每個插補、內插、初步值都有**旗標欄位**，而非默默填補
+- 附 `data_dictionary.md` 與 JSON manifest 記錄建置指紋
+- **主動揭露自身限制**：做了控制消融實驗、設定洩漏警戒帶、警告回測用的是實際氣象而非預報
+- 已知限制獨立成節，包括對自己不利的資訊
+
+**辨識訊號**：這類資料集的描述文字會談方法論而非行銷。若描述中出現「ablation」「provenance」「known limitations」「leakage」等詞，且有具體數字，通常是可信的。反之，描述充滿 emoji 與「Intelligence Dataset」「Real-World Patterns」等詞彙的，多為合成。
+
+**實務含意**：搜尋時若看到票數不高（Arimancy 的 PJM 僅 v1）但描述異常詳盡的資料集，不應因票數低而略過。Kaggle 的票數反映的是熱門度而非品質，**新發布的高品質資料集票數必然偏低**。
+
+### 第六輪：最有效的一次搜尋
+
+第六輪掃了 4 個方向，其中 3 個（水質、野火、運動逐事件）結果平庸或空白，但第 4 個動作找到了本專案目前最強的候選。那個動作不是關鍵字搜尋，而是**用發布者檢索**：`search_datasets({user: "arimancy", group: "User"})`。
+
+這推翻了先前「繼續在 Kaggle 擴散的邊際報酬已經很低」的判斷。真正的情況是：**主題關鍵字的邊際報酬低，但發布者檢索是另一個維度，而且幾乎沒被用過**。
+
+邏輯很簡單——高品質資料集不是隨機分布的，它們聚集在少數認真的發布者手上。找到一個好資料集，就等於找到一個好發布者，而那個發布者的其他資料集大概率同樣好。`arimancy` 的五個資料集涵蓋電網（3 個區域）、期貨部位、航班氣象，主題毫不相關，但工程標準完全一致。
+
+**這條策略應該更早用，而且在任何專案的資料搜尋階段都值得列為標準動作**：
+
+1. 用主題關鍵字找到第一個高品質資料集
+2. 立刻用 `user:` 檢索該發布者的全部作品
+3. 若該發布者是機構帳號（如 `organizations/chicago`、`organizations/fda`），同樣值得整份清單掃過
+
+值得追的發布者帳號（本專案已驗證）：
+- **`arimancy`**（Arimancy LLC）：電網負載 × 3、CFTC 期貨部位、航班實測氣象。全部 CC BY 4.0、全部附資料字典與洩漏防護說明
+- **`organizations/chicago`**、**`organizations/new-york-city`**：市政府官方帳號，資料為作業系統直出
+- **`robikscube`**（Rob Mulla）：航班延誤原始整理版，Kaggle 高知名度使用者
+
+### 第六輪的另一個教訓：好資料集會反駁你的假設
+
+候選 I 的發現同時**推翻了候選 F 的核心賣點**。F 原本的最大優勢是「官方已將延誤分解成五種成因」，但 I 的描述引用了 DOT OIG 在 2024 年 10 月的稽核——BTS 無法驗證航空公司是否回報所有航班、成因指引不明確、回報與 FAA 資料歧異率高。
+
+若沒讀到 I 的描述，F 會帶著一個已被官方否定的假設進入正式分析。這說明**資料集描述中的「Why this dataset is different」段落有時比資料本身更有價值**——認真的發布者會說明既有資料的問題，那正是免費的文獻回顧。
+
+---
+
+## Harvard Dataverse / MIT Election Data and Science Lab（MEDSL）
+
+- **URL**：https://electionlab.mit.edu/data ；https://dataverse.harvard.edu/dataverse/medsl_election_returns
+- **需登入或申請**：否（公開下載，部分資料集可能需接受使用條款）
+- **取得方式**：直接下載 CSV，亦有 GitHub（https://github.com/MEDSL，28 個 repo）與 AWS Marketplace 管道
+- **我能否自動取得**：能。Dataverse 有 API
+- **狀態**：**可用（已於 2026-09-18 連外查證）**
+
+### 已確認的資料集內容（30 個）
+
+- **總統**：州層級 1976-2020、郡層級 2000-2024、**選區層級 2016 / 2020 / 2024**
+- **聯邦參議員**：州層級 1976-2020、郡層級 2022、**選區層級 2016 / 2018 / 2020 / 2024**
+- **聯邦眾議員**：選區（district）層級 1976-2024、**投票所選區層級 2016 / 2018 / 2020 / 2024**
+- **州與地方選舉**：多個年度的選區層級資料
+- **Cast Vote Records（逐張選票）**：2020 年、20 州、4,270 萬選民、**1.66 億列**。有 Nature *Scientific Data* 論文背書（見候選 J）
+
+**評價**：這是先前因「Kaggle 上只有 2 筆」而淘汰的選舉方向的正解。資料的地理粒度（選區層級）與時間跨度（1976-2024）皆遠超 Kaggle 上的任何版本，且有學術機構維護與論文背書。**應列為本專案的優先資料源之一**。
+
+---
+
+## NYC Open Data（Socrata 平台）
+
+- **URL**：https://data.cityofnewyork.us/
+- **需登入或申請**：否（匿名可用 API，但有速率限制；註冊取得 app token 可提高上限）
+- **取得方式**：**Socrata Open Data API（SODA）**，支援 SoQL 查詢語言
+- **我能否自動取得**：**能，且極為順暢**。已實測
+- **狀態**：**可用（已於 2026-09-18 實測）**
+
+### API 用法（已驗證可用）
+
+```bash
+# 取得資料集 metadata 與完整欄位清單
+curl "https://data.cityofnewyork.us/api/views/{dataset_id}.json"
+
+# 聚合查詢：不下載全量即可做篩選檢視
+curl "https://data.cityofnewyork.us/resource/{dataset_id}.json?\$select=count(*)"
+curl "https://data.cityofnewyork.us/resource/{dataset_id}.json?\$select=col,count(*)%20AS%20n&\$group=col&\$order=n%20desc&\$limit=10"
+curl "https://data.cityofnewyork.us/resource/{dataset_id}.json?\$select=min(date_col),max(date_col)"
+```
+
+### 踩過的坑
+
+**1. `$group` 的排序欄位**：`$group` 搭配 `count(*)` 時，**不可用 `count_1` 當排序欄位**（會報 `query.soql.no-such-column`），須用 `count(*) AS n` 明確命名別名再 `$order=n desc`。
+
+**2. 列級下載不可用 `$order` + `$offset` 分頁**（2026-09-19 實測，候選 K）
+
+這是取得列級資料時最重要的一條。實測數字：
+
+| 查詢 | 耗時 |
+|---|---|
+| `$limit=50000` + `$order=unique_key` | **逾時（>300 秒）** |
+| `$limit=50000` 無 `$order` | **2.9 秒** |
+
+差距超過 100 倍。原因是排序欄位無索引，Socrata 每一頁都對全表重做排序。
+資料集有 365 萬列時，74 頁分頁等同重排 74 次，實務上跑不完。
+
+但**不能單純拿掉 `$order`**——沒有穩定排序，`$offset` 分頁會漏列或重複。
+
+**正確解法：以時間欄位做切片，取代 offset 分頁。**
+
+```python
+# 每片是獨立的範圍查詢，不需排序；切片互斥且週延，天然保證不重不漏
+where = f"created_date >= '{lo}T00:00:00' and created_date < '{hi}T00:00:00'"
+params = {"$select": ",".join(cols), "$where": where, "$limit": "200000"}
+```
+
+切片寬度依資料密度決定（候選 K 為每 7 天約 7 萬列）。`$limit` 應設得比
+預期切片大小寬鬆，並在程式中檢查是否觸及上限——觸及即代表切片太寬、
+資料被截斷。
+
+實測驗證：53 個切片取得 3,655,040 列，與 `count(*)` 完全一致、
+`unique_key` 無重複。耗時從「跑不完」降到數分鐘。
+
+**3. App token 不解決效能問題**
+
+Socrata 對匿名請求以 IP 節流，官方聲明帶 token 者不節流。但**節流與上述的
+排序問題是兩回事**——候選 K 的瓶頸是 `$order`，加了 token 仍是 2 KB/s，
+改用日期切片後才解決。
+
+token 申請：https://evergreen.data.socrata.com/signup
+使用方式：`X-App-Token` 標頭（首選）或 `$$app_token` 查詢參數。
+token 無 secret 成分、不算認證，僅用於將請求歸屬到特定應用程式。
+
+另有 Secret Token（API Key ID + Secret，走 HTTP Basic Auth），
+用於**寫入**資料或讀取私有資料集。讀取公開資料集不需要，**不應設定**，
+以免多一份等同帳號密碼的憑證需要保管。
+
+**4. 重複的抓取進程會互相餓死**
+
+實測曾因兩個進程同時抓同一端點，速率被壓到 4 KB/s；殺掉其中一個後
+立即恢復 510 KB/s。若速率異常低，先確認沒有殘留的舊進程。
+
+**5. SODA 3.0 的變更**
+
+SODA 3.0（2025 年釋出）**強制要求 token**，且端點由
+`/resource/{id}.json` 改為 `/api/v3/{id}/query.json`，並建議改用 POST。
+目前 2.1 端點仍可用，但新寫的程式應考慮相容性。
+
+**這個平台的關鍵優勢**：SoQL 聚合查詢讓「篩選用檢視」幾乎零成本——筆數、欄位分布、時間範圍都能在不下載任何資料的情況下取得。相較於 Kaggle 必須先下載才能看內容，這是本質上更好的探索體驗。
+
+**但聚合查詢有其極限**（2026-09-19 修正）：候選 K 的前期數字確實全以聚合查詢取得，未下載任何檔案。然而判斷「生存分析素材是否成立」必須看列級資料——右設限比例、處理時間分布、同機關同類型下的地區差異，聚合查詢都看不出來。實際下載 2025 全年 365 萬列後，才發現右設限僅 1.52%、`due_date` 缺失 99.55%，兩項原始賣點皆不成立。
+
+**教訓**：聚合查詢適合快速篩掉明顯不合格的候選，但**不足以確認一個候選可用**。真正的判斷仍需列級資料。
+
+**同類平台**：Socrata 是許多美國城市與州政府的共用平台（芝加哥、洛杉磯、西雅圖、達拉斯等），**API 語法完全一致**。找到一個城市的用法即可套用到其他城市。
+
+---
+
+## OpenAQ（全球空氣品質）
+
+- **URL**：https://openaq.org/ ；API 文件 https://docs.openaq.org/
+- **需登入或申請**：API 需申請 key
+- **取得方式**：
+  - **API v3**：涵蓋 100+ 國家、數千個政府監測站、六種污染物（PM2.5、PM10、O3、NO2、SO2、CO）
+  - **完整歷史封存在 AWS S3**：每日 gzip CSV，屬 AWS Open Data Sponsorship Program，**不需 AWS 帳號即可用 AWS CLI 存取**
+- **我能否自動取得**：能（S3 路徑），但須逐日檔案拼接
+- **狀態**：可用（已查證機制，未實測下載）
+- **與先前判斷的關係**：第三輪因「Kaggle 上最高票僅 v38、多為合成」而淘汰空氣品質方向，並註記「真實的多站點長期監測資料須改從 OpenAQ API 或各國環保機關取得」。**此判斷經查證成立**。若要走此方向，S3 封存是正解，但相較候選 K 的 Socrata API，取得成本高一個量級（須自行拼接每日檔案）
+
+---
+
+## data.gov（美國聯邦開放資料平台）
+
+- **URL**：https://catalog.data.gov/
+- **需登入或申請**：否
+- **取得方式**：多數為直接 CSV 下載，部分有 API
+- **我能否自動取得**：能，但**網站為動態渲染，WebFetch 只能取到部分內容**。須配合搜尋引擎定位確切頁面，或使用其 CKAN API
+- **狀態**：可用（已查證平台可達）
+- **規模**：559,512 個資料集
+- **觀察**：熱門資料集多為單一主題的中小型表（電動車註冊、樂透號碼、殘障補助人數）。**此平台的價值在於廣度而非深度**——要找特定主題的權威資料很有用，但瀏覽熱門榜單找不到結構豐富的資料。應以明確主題定向搜尋，而非漫遊
+
+---
+
+## 政府資料開放平臺 data.gov.tw
+
+- **URL**：https://data.gov.tw/
+- **需登入或申請**：否
+- **取得方式**：直接 CSV 下載。**有 REST API**：`https://data.gov.tw/api/v2/rest/dataset/{datasetId}` 可取得完整 metadata（含欄位說明、涵蓋期間、更新頻率、下載 URL）
+- **我能否自動取得**：能。已實測成功
+- **狀態**：**可用（已於 2026-09-18 連外查證）**
+- **重要技術細節**：
+  - 網站本身為動態渲染，**WebFetch 直接抓搜尋頁會得到「無資料」**。須先用搜尋引擎定位資料集 ID，再用 API 取 metadata
+  - 許多資料集為「索引式」——主檔只是一張列出每月下載連結的表，實際資料在各月份的獨立檔案（常託管於 Azure blob）。須兩階段下載
+### 搜尋方式（2026-09-18 實測，重要）
+
+**網頁搜尋頁 `https://data.gov.tw/datasets/search?p=1&size=10&s=_score_desc` 無法直接抓取**。該站為 Nuxt SSR，搜尋結果由前端非同步載入，HTML 內的 `__NUXT_DATA__` 只含機關／格式／分類的下拉選單資料，**不含任何搜尋結果**（`href="/dataset/{id}"` 命中數為 0）。
+
+已試過且**失敗**的 API 端點：
+```
+/api/front/dataset/search      → 404
+/api/v1/dataset/search          → 404
+/api/dataset/search             → 404
+/api/v2/rest/dataset/search     → 200 但報錯 "Expected number, 'search' given"（此端點只吃數字 ID）
+/api/v2/rest/dataset?page=&size= → 405
+```
+
+**可用的三個管道：**
+
+| 管道 | URL | 內容 |
+|---|---|---|
+| 單筆 metadata | `/api/v2/rest/dataset/{id}` | 完整詮釋資料，含欄位說明、涵蓋期間、下載 URL |
+| 簡易清單 | `https://file.data.gov.tw/event/dataset.csv` | 2.7 MB、29,058 筆。僅 5 欄（機關、名稱、瀏覽數、下載數、評分） |
+| **完整中繼資料** | **`https://data.gov.tw/datasets/export/csv`** | **66 MB、53,194 筆、22 欄** |
+
+**`/datasets/export/csv` 是最有用的一個**，22 欄包含：資料集識別碼、名稱、服務分類、檔案格式、**資料下載網址**、編碼格式、**資料集描述**、**主要欄位說明**、提供機關、更新頻率、授權方式、上架日期、**資料量**。
+
+有了「主要欄位說明」與「資料量」兩欄，就能在本地離線篩選，不必逐一打 API。亦支援關鍵字過濾：`/datasets/export/csv?q=空氣`。
+
+### 用完整中繼資料檔篩選的四種策略與結果
+
+以 `/datasets/export/csv` 的 53,194 筆離線篩選，試過四種角度：
+
+| 策略 | 命中 | 結果 |
+|---|---|---|
+| 依欄位數排序 | 5,439 筆 ≥25 欄 | **失敗**。前 30 名全是政府預算書表（中央銀行資金流量表 1,201 欄） |
+| 依更新頻率（小時級以下） | 439 筆 | **多為即時快照**（公車到站、充電樁狀態、停車位），無歷史累積 |
+| 依描述中的年份跨度 | 295 筆（跨度≥5年、≥6欄） | 仍以預算、會計月報、統計彙編為主 |
+| **依逐筆語意詞 + 排除彙總詞** | **1,313 筆** | **成功**。找到不動產實價登錄（見候選 M） |
+
+**第四種策略是有效的**。正向詞：明細、逐筆、清冊、名錄、案件資料、個案、實價登錄、裁處、稽查、檢驗結果、監測資料。反向排除：統計表、概況、月報表、彙編、預算、決算、人數統計、家數。
+
+**關鍵發現：data.gov.tw 上的資料常被切成碎片**。不動產實價登錄在平台上有 **498 筆**，但幾乎都是各縣市甚至各行政區的單期切片（新北市地政局一家就 381 筆，細到「深坑區預售屋」）。**全國整合版不在 data.gov.tw，而在內政部專屬平台** `plvr.land.moi.gov.tw`。
+
+這揭示了一個通則：**在 data.gov.tw 找到某主題後，應追溯其主管機關的專屬平台**，那裡通常有整合版與歷史批次。
+
+**其他實測的篩選結果**：
+- 依欄位數排序（以「、」「;」分隔數估計）：前 30 名**全是政府預算書表**（中央銀行資金流量表 1,201 欄、各部會單位預算 300+ 欄）。寬表但無分析價值，此路不通
+- 依「資料量」排序（≥10 萬筆，147 筆命中）：主要是公司登記（250 萬筆）、地政公告土地現值（各縣市各年度約 100 萬筆）、門牌坐標。**多為靜態名錄或年度快照，缺時間維度**
+- **例外一：台電各機組發電量**（198 萬筆、10 分鐘解析度、151 機組），見候選 L
+- **例外二：不動產實價登錄**（33 欄、全國、14 年、推估數百萬筆），見候選 M
+
+---
+
+## 內政部不動產成交案件實際資訊資料供應系統（plvr.land.moi.gov.tw）
+
+- **URL**：https://plvr.land.moi.gov.tw/DownloadOpenData
+- **需登入或申請**：**否**（當期與歷史批次皆可免費下載；僅「書面申請」管道需付費，開放資料管道不需要）
+- **取得方式**：ZIP 批次下載
+- **我能否自動取得**：**能，已實測成功**
+- **狀態**：**可用（2026-09-18 實測）**
+
+### 兩個下載端點（皆已實測回傳 HTTP 200）
+
+```bash
+# 本期（每月 1、11、21 日發布，僅約 10 日份，1.9 MB）
+curl -L "https://plvr.land.moi.gov.tw/Download?type=zip&fileName=lvr_landcsv.zip" -o lvr.zip
+
+# 歷史季度（13-19 MB/季，這才是要用的）
+# season 格式：民國年 + S + 季，如 111S1、113S2、114S1
+curl -L "https://plvr.land.moi.gov.tw/DownloadSeason?season=114S1&type=zip&fileName=lvr_landcsv.zip" -o q.zip
+```
+
+### ZIP 內部結構（實測）
+
+單季解壓後 **225 個檔案**，命名規則 `{縣市代碼}_lvr_land_{類型}{子表}.csv`：
+- 縣市代碼：a=台北市、b=台中市、c=基隆市…共 22 個
+- 類型：`a`=買賣、`b`=預售屋、`c`=租賃
+- 子表：主檔（無後綴，33 欄）、`_build`（建物）、`_land`（土地）、`_park`（車位），經「編號」關聯
+- 另有 `schema-*.csv` 與 `MANIFEST.CSV`
+
+實測 114S1 規模：買賣 78,901 筆、預售屋 13,839 筆、租賃 35,214 筆。
+
+**踩過的坑**：CSV 首兩列都是標頭（第一列中文欄名、第二列英文欄名），計算列數時要減 2。編碼為 UTF-8 with BOM，須用 `utf-8-sig`。
+
+### 已查證的資料集
+
+| 資料集 | ID | 結論 |
+|---|---|---|
+| 臺北捷運各站分時進出量統計 | 128506 | 2017-01 至 2026-08、116 個月檔、月更新、CSV/UTF-8。品質佳但**題目已被其他組選走** |
+| 警政署 歷史交通事故資料 | 12197 | **淘汰**。僅 4 欄，停在 110 年度。**但這是誤導**——見下一列 |
+| 警政署 即時交通事故資料 A1/A2 | 02D40248… / 986931B3… | **候選 N**。**51 欄**、名稱已解碼、**含經緯度**、當事者層級。A2 單月 80,620 列 |
+| 臺中市警察局 交通事故 | 128 個月檔 | **53 欄含 GPS，民國 100-115 年共 16 年**。但為代碼值須對照 |
+
+> **重要教訓**：同一機關（警政署）在同一平台上，「歷史交通事故資料」只有 4 欄，「即時交通事故資料」卻有 51 欄。**第七輪只查了前者就判定此方向不可用，是錯誤的**。資料集名稱無法反映品質，**同主題應把所有同名資料集都查過再下結論**。
+
+### 依下載次數掃描 29,058 個資料集的結論
+
+以「明細、逐筆、分時、各站、流量、案件、就診」等結構訊號詞篩選，命中 3,007 筆。檢視前 45 名後的判斷：
+
+**台灣政府開放資料的主流型態是「統計彙總表」而非「逐筆明細」**。下載排行前段幾乎都是：公司登記清冊（月份）、各村里戶籍人口統計月報表、用電統計資料、個股日成交資訊、違規廣告資料集。這些多為機關按月或按年產出的彙總表，欄位少、粒度粗。
+
+這與美國的情況形成對比——NYC 311 是 4,000 萬列逐筆案件、48 欄；而台灣同類的「消防局受理案件」「災情案件資料」多為統計表。**根本差異在於釋出哲學：美國城市傾向釋出作業系統的原始紀錄，台灣傾向釋出統計處理後的報表**。
+
+**例外（真正的逐筆或細粒度資料）**：
+- 臺北捷運分時 OD 流量（已被佔用）
+- 臺鐵每日各站點進出站人數（下載 1,887）
+- 臺灣高鐵各站旅運量（下載 1,667）
+- 環境部空品監測小時值（見下方獨立資料源卡）
+
+---
+
+## 環境部環境資料開放平臺（data.moenv.gov.tw）
+
+- **URL**：https://data.moenv.gov.tw/ ；空品監測網 https://airtw.moenv.gov.tw/
+- **需登入或申請**：**是，API 需申請 api_key**（免費）
+- **取得方式**：REST API `https://data.moenv.gov.tw/api/v2/{dataset_id}?api_key={key}&limit=&format=JSON`
+- **我能否自動取得**：**否，目前受阻**。已實測，無 key 一律回傳「api_key 不存在」
+- **狀態**：**待驗證（需使用者手動取得 API key）**
+
+### 已查證的規格（經網頁查證，未實測 API）
+
+- **空氣品質監測小時值**（`aqx_p_15`）：**31 欄**，含測站代碼、測站中文名稱、測項代碼，以及 00-23 時逐小時測值。每日更新
+- **關鍵發現：有 530+ 個月度封存檔**，約合 44 年的歷史資料。這是先前第三輪淘汰空氣品質方向時所缺的長期多站點資料
+- 另有測站基本資料（`AQX_P_07`，含地理座標）可與測值串接
+- 格式：CSV / XML / JSON，UTF-8
+
+### 若要使用，使用者須執行的步驟
+
+1. 前往 https://data.moenv.gov.tw/ 註冊帳號
+2. 於會員專區申請 API key（免費、即時核發）
+3. 將 key 提供給我，或直接在終端機執行：
+   ```
+   ! curl "https://data.moenv.gov.tw/api/v2/aqx_p_15?api_key=<你的key>&limit=5&format=JSON"
+   ```
+4. 檔案放置位置：`data/raw/moenv-air-quality/`
+
+### 評價
+
+這是**台灣資料中唯一在結構上可與國外候選匹敵的**：測站 × 逐小時 × 多污染物 × 44 年，且測站有座標可做空間分析。符合「窄表但單位間有關係」的判準（測站構成空間網路）。**但取得受阻於 API key，且第三輪已記錄的教訓仍適用——空品是台灣熱門開放資料，被其他組選中的機率須先確認**
+
+## 內政部戶政司人口統計
+
+- **狀態**：待驗證（尚未搜尋）
+
+## TCCIP 臺灣氣候變遷推估資訊平台
+
+- **狀態**：待驗證（需註冊，尚未嘗試）
+
+## SEGIS 內政大數據模擬資料
+
+- **狀態**：待驗證（有下載限制，尚未嘗試）
+
+## SRDA 學術調查研究資料庫
+
+- **狀態**：待驗證（需申請，流程慢，優先級最低）
