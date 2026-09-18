@@ -1,0 +1,12 @@
+
+{
+  "mcpServers": {
+     "kaggle": {
+      "command": "npx",
+      "args": [
+          "mcp-remote",
+          "https://www.kaggle.com/mcp"
+      ]
+    }
+  }
+}
