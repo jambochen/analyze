@@ -15,5 +15,8 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "ipykernel>=7.3.0",
+    "jupytext>=1.19.5",
     "kaggle>=2.2.4",
+    "nbconvert>=7.17.1",
 ]

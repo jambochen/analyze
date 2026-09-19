@@ -11,6 +11,13 @@
 """
 
 # %%
+from pathlib import Path as _Path
+
+PROJECT_ROOT = _Path.cwd()
+while not (PROJECT_ROOT / "data" / "raw").exists() \
+        and PROJECT_ROOT != PROJECT_ROOT.parent:
+    PROJECT_ROOT = PROJECT_ROOT.parent
+
 """台電各機組過去發電量（dataset/37331）的篩選用檢視。
 
 僅供判斷此候選是否適合作為選題，非分析結果。
@@ -30,10 +37,10 @@ import polars as pl
 
 
 
-SRC = (Path(__file__).resolve().parents[2]
+SRC = (PROJECT_ROOT
        / "data" / "raw" / "taipower-unit-netp" / "001.json")
 
-FIGDIR = Path(__file__).resolve().parents[2] / "outputs" / "figures"
+FIGDIR = PROJECT_ROOT / "outputs" / "figures"
 
 FIGDIR.mkdir(parents=True, exist_ok=True)
 

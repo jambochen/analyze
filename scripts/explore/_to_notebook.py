@@ -29,14 +29,34 @@ def for_notebook(code: str) -> str:
     outputs/figures。
     """
     code = re.sub(r'^matplotlib\.use\("Agg"\)\n?', "", code, flags=re.M)
-    # savefig 之後補 show，並移除隨後的 close
+
+    # notebook 沒有 __file__，改用 cwd 往上找專案根
     code = re.sub(
-        r"(^(\s*)(?:fig\.|plt\.)savefig\([^\n]*\)\n)(\s*plt\.close\([^\n]*\)\n)?",
-        lambda m: f"{m.group(1)}{m.group(2)}plt.show()\n",
+        r"Path\(__file__\)\.resolve\(\)\.parents\[\d+\]",
+        "PROJECT_ROOT",
+        code,
+    )
+
+    # savefig 之後補 show。close 會在 notebook 捕捉到圖之前關掉它，一律移除
+    code = re.sub(
+        r"^(\s*)(?:fig\.|plt\.)savefig\(([^\n]*)\)\n",
+        lambda m: f"{m.group(1)}fig.savefig({m.group(2)})\n{m.group(1)}plt.show()\n",
         code,
         flags=re.M,
     )
+    code = re.sub(r"^\s*plt\.close\([^\n]*\)\n", "", code, flags=re.M)
     return code
+
+
+ROOT_PREAMBLE = "\n".join([
+    "from pathlib import Path as _Path",
+    "",
+    "PROJECT_ROOT = _Path.cwd()",
+    'while not (PROJECT_ROOT / "data" / "raw").exists() \\',
+    "        and PROJECT_ROOT != PROJECT_ROOT.parent:",
+    "    PROJECT_ROOT = PROJECT_ROOT.parent",
+])
+
 
 
 def split_main(source: str) -> tuple[str, list[tuple[str, str]]]:
@@ -93,7 +113,7 @@ def render(src_name: str, setup: str, cells: list[tuple[str, str]], doc: str) ->
         '"""',
         "",
         "# %%",
-        setup,
+        ROOT_PREAMBLE.strip() + "\n\n" + setup if "PROJECT_ROOT" in setup else setup,
     ]
     for title, code in cells:
         if not code.strip():

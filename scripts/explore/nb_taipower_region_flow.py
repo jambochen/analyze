@@ -14,6 +14,13 @@
 """
 
 # %%
+from pathlib import Path as _Path
+
+PROJECT_ROOT = _Path.cwd()
+while not (PROJECT_ROOT / "data" / "raw").exists() \
+        and PROJECT_ROOT != PROJECT_ROOT.parent:
+    PROJECT_ROOT = PROJECT_ROOT.parent
+
 """台電各區域間過去電力潮流量（d006009，候選 L-3）的篩選用檢視。
 
 僅供判斷此候選是否適合作為選題，非分析結果。
@@ -38,7 +45,7 @@ import polars as pl
 
 
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = PROJECT_ROOT
 
 SRCDIR = ROOT / "data" / "raw" / "taipower-region-flow"
 
