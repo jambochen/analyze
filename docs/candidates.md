@@ -923,8 +923,9 @@ L 系列由三份資料組成，**須逐份評估**。腳本 `scripts/explore/ta
 
 - **規模不足**：8 欄中 5 個類別變數、3 個分數，無時間、無空間、無階層結構。
   依本文件的複雜度準則，欄位既不寬，單位之間也無可建構的關係
-- **無溯源**：授權標示為 Unknown，資料集頁面未說明學校、年份、國家或
-  取樣方式。`race/ethnicity` 編碼為無意義的 group A–E，連變數含意都不明
+- **無溯源**：資料集頁面未說明學校、年份、國家或取樣方式。
+  `race/ethnicity` 編碼為無意義的 group A–E，連變數含意都不明。
+  母體未定義，任何推論都沒有推論對象
 - **無新穎度**：513,193 次下載，Kaggle 上最被過度使用的教學資料集之一
 
 受益者門檻第三問答不出來：對任何教育決策者，這份資料沒有他們拿不到的東西。
@@ -952,27 +953,91 @@ L 系列由三份資料組成，**須逐份評估**。腳本 `scripts/explore/ta
 
 **4. AI 對就業與薪資的影響（`debayank2024/ai-impact-on-jobs-and-salaries-2020-2026`）**
 
-71,913 筆 × 17 欄，四者中資料品質最好的一份，溯源清楚（附
-`data_dictionary.md`，註明來自 foorilla/ai-jobs-net-salaries CC0 與 ILO 的
-Global Index of Occupational Exposure to Generative AI）。淘汰理由不是
-品質，而是**這份資料無法回答它標題所宣稱的問題**：
+71,913 筆 × 17 欄，四者中表面品質最好的一份：無任何 null 值（除
+`isco_group_hint`）、附 `data_dictionary.md`、溯源寫明上游為
+foorilla/ai-jobs-net-salaries 與 ILO 的 *Global Index of Occupational
+Exposure to Generative AI*。淘汰理由不是資料髒，而是
+**它不含回答自己標題所需的變數**。以下五點按嚴重度排列。
 
-- **年份分布極度不均**：2025 年 38,282 筆、2024 年 27,690 筆，
-  兩年佔 91.8%。2020 年僅 75 筆、2021 年 214 筆。
-  標題的「2020–2026」實際上是兩年橫斷面加上一條無法支撐推論的尾巴。
-  且資料最大年度為 2025，2026 根本不存在
-- **無法識別 AI 的影響**：資料是自我回報的職缺薪資快照，沒有同一個人或
-  同一家公司的前後對照，沒有未受 AI 衝擊的對照組。
-  能算的只有「不同 AI 曝險度職業的薪資差異」，這是橫斷面關聯，
-  不是「AI 的影響」。要做前者，早有大量文獻與更好的官方薪資調查
-- **選擇偏誤嚴重**：來源為 ai-jobs.net 的自願填報，填報者偏向高薪、遠端、
-  科技業。以此推論全體勞動市場不成立
-- **關鍵欄位是作者手工映射**：`role_family` 與 `isco_group_hint` 皆為人工
-  近似對照，作者自己在文件中註明 "not authoritative"。而 AI 曝險度的接合
-  正是靠 `isco_group_hint`，整個分析的核心接點建立在不權威的映射上
+**(a) AI 曝險分數不在資料裡。** 這是決定性的一點。資料集描述引用了
+Gmyrek et al. (2025) 的職業別生成式 AI 曝險指數，但實際的 17 個欄位是：
 
-受益者門檻第三問答不出來：勞動經濟研究者手上有官方薪資調查與縱橫資料，
-這份自願填報的橫斷面沒有他們拿不到的東西。
+```
+work_year, experience_level, employment_type, job_title, salary,
+salary_currency, salary_in_usd, employee_residence, remote_ratio,
+company_location, company_size, experience_level_label,
+employment_type_label, work_mode, salary_outlier_flag,
+role_family, isco_group_hint
+```
+
+**沒有任何一欄是曝險度。** 作者只做到「準備好一個可供接合的
+`isco_group_hint`」，接合本身沒有做。換言之這份資料去掉包裝後，
+就是 ai-jobs.net 的薪資表加兩個手工分類欄。標題裡的 "AI Impact"
+在資料中完全沒有對應物。要做這個題目，得自己去 ILO 取曝險指數再接——
+那麼這份 Kaggle 資料提供的加值只剩下那個作者自述 "not authoritative"
+的對照欄。
+
+**(b) 而那個接合鍵有 56.4% 是空的。** `isco_group_hint` 的 null 數為
+40,540 / 71,913。對應的 `role_family` 全部落在 `Other / Unclassified`。
+被丟進未分類的不是冷門職稱，而是樣本量最大的那些：
+
+| 被歸為 Other 的職稱 | 筆數 |
+|---|---|
+| Software Engineer | 4,921 |
+| Engineer | 4,375 |
+| Manager | 3,612 |
+| Analyst | 2,783 |
+| Analytics Engineer | 1,341 |
+| Product Manager | 1,326 |
+| Data Architect | 1,231 |
+
+`Software Engineer` 是全資料第 4 大職稱，卻未被歸入
+`Software and applications developers`，而 `Data Engineer` 有被歸入。
+分類規則不一致。剩下可接合的 43.6% 只分成 5 個 ISCO 組，
+其中 `Information and communications technology service managers`
+僅 495 筆。**即使自己去接 ILO 曝險指數，能接上的也只是一個被非隨機
+篩選過的子集**——而篩選機制（作者的手工規則）與職稱本身相關，
+因此這個遺漏不是隨機遺漏。
+
+**(c) 沒有識別因果所需的任何結構。** 資料是職缺薪資的自我回報快照：
+
+- 無個人 ID，同一人跨年無法追蹤
+- 無公司 ID，同一公司跨年無法追蹤
+- 無「未受 AI 衝擊」的對照組——全資料都是 AI／資料類職缺
+
+能算的上限是「不同職種在不同年度的薪資中位數差異」。實測 2024 → 2025
+同職種變化：Data Scientist 144,200 → 137,439、Data Engineer
+139,430 → 132,100、ML Engineer 175,000 → 181,657。這些差異無法區分
+是 AI 的影響、通膨、樣本組成改變，還是 ai-jobs.net 使用者結構變化。
+**任何把這些數字詮釋為「AI 的影響」的說法都是無根據的。**
+
+**(d) 樣本框極端偏斜，且偏斜隨時間變動。**
+
+- `company_location` 有 83.6% 為 US，前三國（US/CA/GB）合計 93.9%。
+  宣稱「全球」不成立
+- `employee_residence` 與 `company_location` 有 99.78% 相同，
+  跨國僱用實質不存在，無法做任何跨國比較
+- 年份分布：2025 年 38,282 筆、2024 年 27,690 筆（合計 91.8%），
+  2023 年 4,538、2022 年 1,114、2021 年 214、2020 年 75。
+  **標題的 2026 年完全沒有資料**
+- **時間趨勢被組成變化污染**：`remote_ratio` 年均值為 2020 年 62.0、
+  2021 年 69.6、2022 年 58.5、2023 年 36.8、2024 年 22.5、2025 年 23.3。
+  這條曲線看似完美呈現「疫情遠端高峰後回落」，但 2020–2021 年合計
+  僅 289 筆，且早期填報者是 ai-jobs.net 的早期採用者（偏遠端優先的
+  新創）。樣本組成的改變與真實趨勢完全混在一起，無法分離。
+  **任何跨年比較都踩在這個問題上**，包括 (c) 的薪資變化
+
+**(e) 測量本身不可靠。** `salary_in_usd` 有 39.6% 的值是 1,000 的整數倍、
+20.2% 是 5,000 的整數倍，顯示填報者在估算而非回報帳冊數字。
+換匯使用的匯率與基準日未說明（26 種幣別）。`salary_outlier_flag`
+標記 1,754 筆（2.4%）但未移除，且判準是對**全資料**做 1.5×IQR——
+跨國家、跨職級、跨年度用同一個門檻，這個旗標的統計意義不明。
+
+**小結。** 受益者門檻第三問答不出來：勞動經濟研究者手上有官方薪資調查
+與可追蹤的縱橫資料，這份自願填報的橫斷面沒有他們拿不到的東西。而更根本
+的問題在 (a)——資料集的名字承諾了一個它不含的變數。若真要做 AI 對勞動
+市場的影響，正確的起點是 ILO 曝險指數本身，或有個人追蹤的官方調查
+（如 CPS、台灣的人力運用調查），而非這份薪資表。
 
 ### 教育類（學生成績預測）
 - **代表**：`uciml/student-alcohol-consumption`、`lainguyn123/student-performance-factors`、`rabieelkharoua/students-performance-dataset`
