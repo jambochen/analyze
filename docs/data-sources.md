@@ -2,6 +2,28 @@
 
 記錄搜尋過的資料源、取得方式與狀態。已淘汰者保留，避免重複嘗試。
 
+## 總表
+
+| 資料源 | 需申請 | 取得方式 | 自動化 | 狀態 |
+|---|---|---|---|---|
+| [Kaggle](#kaggle) | 否 | MCP 工具 | 能 | 可用，已大量實測 |
+| [Harvard Dataverse / MEDSL](#harvard-dataverse--mit-election-data-and-science-labmedsl) | 否 | CSV 下載、API | 能 | 可用（2026-09-18 查證） |
+| [NYC Open Data](#nyc-open-datasocrata-平台) | 否（token 可選） | SODA API | 能 | **可用，已取得列級資料** |
+| [data.gov.tw](#政府資料開放平臺-datagovtw) | 否 | CSV 下載 | 能 | 可用 |
+| [台電開放資料](#台灣電力公司開放資料servicetaipowercomtw) | 否 | 直接下載 | 能 | **可用，但有滾動視窗風險** |
+| [內政部實價登錄](#內政部不動產成交案件實際資訊資料供應系統plvrlandmoigovtw) | 否 | ZIP 批次 | 能 | 可用（2026-09-18 實測） |
+| [環境部環境資料](#環境部環境資料開放平臺datamoenvgovtw) | 需 API key | API | 能 | 可用 |
+| [OpenAQ](#openaq全球空氣品質) | 需 API key | API | 能 | 可用但未深入 |
+| [data.gov（美國）](#datagov美國聯邦開放資料平台) | 否 | 多樣 | 視資料集 | 未深入 |
+| [內政部戶政司](#內政部戶政司人口統計) | — | — | — | 待驗證 |
+| [TCCIP](#tccip-臺灣氣候變遷推估資訊平台) | 需註冊 | — | — | 待驗證 |
+| [SEGIS](#segis-內政大數據模擬資料) | 有下載限制 | — | — | 待驗證 |
+| [SRDA](#srda-學術調查研究資料庫) | 需申請 | — | — | 待驗證，優先級最低 |
+
+**已取得資料的平台**：Kaggle（候選 I）、NYC Open Data（候選 K）、
+台電（候選 L、L-2、L-3）。各份資料的完整溯源見
+`data/raw/<name>/SOURCE.md`。
+
 ---
 
 ## Kaggle
@@ -11,128 +33,123 @@
 - **我能否自動取得**：能。搜尋、查詢 metadata、下載皆可自動化
 - **狀態**：可用
 
-### 已執行的搜尋（2026-09-18）
+### 已掃描的方向（2026-09-18 至 09-19，共 35 次搜尋）
 
-排除 LLM / CV / NLP 導向資料集，掃描十個主題方向，每向取票數前 20 名：
+排除 LLM / CV / NLP 導向資料集，每向取票數前 20 名。**此表的作用是防止
+重複搜尋**，各方向的失敗原因見下方「覆蓋邊界」。
 
-| 方向 | 搜尋關鍵字 | 結果品質 |
+**有收穫（5 向）**
+
+| 方向 | 關鍵字 | 成果 |
 |---|---|---|
-| 公共衛生 | health public health survey | 佳，有 BRFSS 等大型調查 |
-| 運動賽事 | sports performance statistics | 中，多為球員統計表，變數維度有限 |
-| 能源與氣候 | energy consumption electricity climate | 佳，有 London Smart Meters |
-| 房地產與經濟 | housing price real estate economics | 差，多為 Boston Housing 類教學集 |
-| 交通事故 | traffic accident transportation | 佳，US Accidents、UK STATS19 |
-| 零售需求 | retail sales demand forecasting time series | 差，多疑似合成 |
-| 教育 | education student performance school | 差，主流資料集皆 < 1MB 且被做爛 |
-| 農業 | agriculture crop yield farming | 差，Crop Recommendation 系列為合成資料 |
-| 勞動與薪資 | employment labor wage salary survey | 中，Spanish Household Budget Survey 值得注意 |
-| 遊戲電競 | esports video game player behavior | 差，僅 2 筆結果且皆為千列小表 |
-| 空氣品質 | air quality sensor monitoring stations hourly | 差，最高票僅 v38，多為合成或模擬 |
-| 共享單車 | bike sharing trips mobility city | 差，僅 4 筆且全為認證課程作業成品 |
-| 城市犯罪 | crime incidents city records | **佳，Chicago Crime 六百萬筆、四層地理分區** |
-| 跨國發展指標 | world development indicators panel countries | 中，SEDAC 高維但樣本僅約 200 國 |
-| 航班延誤 | flight delays airline on-time performance | **佳，BTS 官方資料、延誤成因已分解、CC0** |
-| 醫院住院紀錄 | hospital patient admissions clinical records | 差（多為合成），**唯一例外：巴西 SIH/SUS** |
-| 計程車行程 | taxi trip records pickup dropoff | 差，僅 6 筆零散月份切片，應改用 NYC TLC 官方 |
-| 顧客流失 | customer churn telecom subscription retention | 差，幾乎全為合成或 IBM Telco 教學集搬運 |
-| 選舉投票 | election results voting county precinct | 差，僅 2 筆。資料在 MIT MEDSL 不在 Kaggle |
-| 地震災害 | earthquake seismic catalog magnitude | 差，資料真實但欄位單薄（僅經緯度、深度、規模） |
-| 專利引用網路 | patent citation network scientific publications | **無結果**。Kaggle 完全沒有此類資料 |
-| 人口遷徙 | migration population census demographics | 差，國家層級彙總或 51×51 小矩陣 |
-| 餐飲衛生稽查 | restaurant food inspection violations | 差，資料真實但欄位薄且單位間無關係 |
-| 建築執照地政 | building permits property assessment parcel | **無結果** |
-| 311 市政通報 | 311 service requests city complaints | 差，僅零碎搬運。完整資料在 NYC Open Data |
-| 藥物不良事件 | adverse drug event reporting FDA surveillance | 差，官方版停在 2017；FAERS 版已是彙總統計量 |
-| 捷運閘門流量 | metro subway station entry exit ridership | **無結果** |
-| 運輸智慧卡 | public transit smart card passenger flow | 差，僅 1 筆 158 KB 日彙總 |
-| 國際貿易流量 | international trade flows imports exports bilateral | **無結果** |
-| 電網負載 | electricity grid load hourly demand region | **佳，Arimancy 的 PJM/CAISO/ERCOT 系列** |
-| 水質監測 | water quality river monitoring stations | 差，最高票僅 20 KB 單站資料 |
-| 野火 | wildfire forest fire incidents perimeter | **無結果** |
-| 運動逐事件 | sports match events player tracking season | 差，僅 2 筆，其一為 417 bytes 的 API 廣告 |
-| **發布者檢索** | `user: arimancy` | **極佳，找到候選 I（本專案最強候選）** |
+| **發布者檢索** | `user: arimancy` | **候選 I（本專案最強候選）** |
+| 城市犯罪 | crime incidents city records | 候選 D。六百萬筆、四層地理分區 |
+| 航班延誤 | flight delays airline on-time performance | 候選 F（後由 I 取代） |
+| 電網負載 | electricity grid load hourly demand region | 候選 H。Arimancy 的 PJM/CAISO/ERCOT |
+| 公共衛生 | health public health survey | 候選 C。BRFSS 等大型調查 |
 
-### Kaggle 資料集品質判準
+**部分可用（4 向）**：交通事故（候選 A）、能源與氣候（候選 B）、
+醫院住院紀錄（僅巴西 SIH 可用，即候選 G）、跨國發展指標（候選 E，後因
+n≈200 淘汰）。
 
-搜尋過程中歸納出的排除規則，後續沿用：
+**完全無結果（5 向）**：專利引用網路、建築執照地政、捷運閘門流量、
+國際貿易流量、野火。**皆屬機構內部營運系統，結構性不在 Kaggle。**
 
-- **合成資料**：2024 年後上傳、檔案 < 1MB、標題含「Prediction Dataset」、usability 1.0 但無來源說明者，多為 LLM 生成。無真實性，不可用於嚴謹推論
-- **教學經典集**：Boston Housing、Titanic、Iris 等。被做過上萬次，無新穎度
-- **搬運版本**：同一底層資料（如 UCI Student Performance）有數十個重複上傳。若採用，須追溯原始出處並在 SOURCE.md 記錄原始 URL 而非搬運版
-- **課程作業成品**：Google Data Analytics 認證的 Cyclistic/Divvy 案例是最常見的一種。特徵為票數個位數、標題含 Capstone 或 Cleaned、經個人清理但未說明清理步驟。清理過程不透明，不可用
-- **官方資料的搬運版授權標示不可信**：Kaggle 上的授權欄位由上傳者自填，常見 Unknown 或誤填。凡採用政府開放資料的搬運版本，一律回原始平台確認條款
+**結果品質差（21 向）**：零售需求、教育、農業、遊戲電競、空氣品質、
+共享單車、計程車行程、顧客流失、選舉投票、地震災害、人口遷徙、
+餐飲衛生稽查、311 市政通報、藥物不良事件、運輸智慧卡、水質監測、
+運動賽事、運動逐事件、房地產、勞動薪資、專利論文。
 
-### 找到好資料的規律
+其中三個方向的資料**另在專門平台找到**：選舉 → MEDSL（候選 J）、
+311 → NYC Open Data（候選 K）、計程車 → NYC TLC。
 
-十四個方向掃下來，能用的資料集中在兩類來源：
+### 品質判準：什麼該排除
 
-1. **政府或機關的作業系統直出**（Chicago CLEAR、CDC BRFSS、UK Power Networks）。特徵是有官方 codebook、逐欄定義、免責聲明。免責聲明本身是品質訊號——願意講清楚限制的資料，限制是已知的
+- **合成資料**：2024 年後上傳、檔案 < 1 MB、標題含「Prediction Dataset」、
+  usability 1.0 但無來源說明。多為 LLM 生成
+- **教學經典集**：Boston Housing、Titanic、Iris。被做過上萬次，無新穎度
+- **搬運版本**：同一底層資料有數十個重複上傳。**檔案大小完全相同即同源搬運**
+  （顧客流失方向出現多筆 175,722 至 175,782 bytes 的檔案，全是同一份 IBM Telco
+  教學資料）。若採用須追溯原始出處
+- **課程作業成品**：特徵為票數個位數、標題含 Capstone 或 Cleaned。清理過程不透明
+- **授權欄位不可信**：由上傳者自填，常見 Unknown 或誤填。政府資料的搬運版
+  一律回原始平台確認條款
+- **隱私敏感領域的「真實」資料要特別懷疑**：病患臨床紀錄受法規保護不會公開，
+  此類高票資料集預設是合成。政府的*行政給付*紀錄（如巴西 SIH）才是該領域
+  唯一可信的型態
+
+### 品質判準：什麼值得信
+
+能用的資料集集中在三類來源：
+
+1. **機關作業系統直出**（Chicago CLEAR、CDC BRFSS、UK Power Networks）。
+   特徵是有官方 codebook、逐欄定義、免責聲明。**免責聲明本身是品質訊號**——
+   願意講清楚限制的資料，限制是已知的
 2. **有論文背書的研究資料集**（US Accidents 附兩篇 SIGSPATIAL 論文）
+3. **加值型資料工程者**：專業者將多個上游來源正確整合後發布。
+   `arimancy` 的電網與航班系列是本專案確認的例子
 
-反之，「主題聽起來很適合」不代表資料存在。空氣品質、共享單車、顧客流失三個方向的資料結構本應理想，但 Kaggle 上就是沒有可信版本。**方向的好壞與該方向在 Kaggle 上的資料品質無關**，不可因主題吸引人就放寬品質標準。
+第三類的辨識訊號值得記下——**描述文字談方法論而非行銷**：明確交代每個上游
+來源與授權、說明 join 的技術決策、插補有旗標欄位而非默默填補、附資料字典、
+**主動揭露對自己不利的限制**。若描述出現 ablation、provenance、
+known limitations、leakage 等詞且有具體數字，通常可信。反之充滿 emoji 與
+「Intelligence Dataset」「Real-World Patterns」者多為合成。
 
-補充兩條判準：
+**票數反映熱門度而非品質**。新發布的高品質資料集票數必然偏低，
+不應因票數低而略過。
 
-- **檔案大小完全相同 = 同源搬運**。顧客流失方向出現多筆 175,722 / 175,734 / 175,758 / 175,782 bytes 的檔案，全是同一份 IBM Telco 教學資料的重複上傳。比對 `total_bytes` 是最快的去重方法
-- **隱私敏感領域的「真實」資料要特別懷疑**。病患層級臨床紀錄受法規保護，不會公開釋出。此類方向若出現高票數資料集，預設是合成。反之，政府的*行政給付*紀錄（如巴西 SIH）屬公開統計，是該領域唯一可信的資料型態
+### 覆蓋邊界：Kaggle 上結構性缺席的領域
 
-### Kaggle 的覆蓋邊界
+掃完 18 個方向後，Kaggle 的資料分布有明顯形狀。它擅長**單一機構直出的大型
+作業系統資料**（警政、交通、健保、電網）——這類資料因機關為自己營運而產生，
+欄位定義嚴謹、量體大、有官方 codebook。
 
-掃完 18 個方向後，Kaggle 的資料分布有明顯的形狀。**它擅長的是單一機構直出的大型作業系統資料**（警政、交通、健保、電網），這類資料因為是機關為自己營運而產生，欄位定義嚴謹、量體大、有官方 codebook。候選 D、F、G 全部屬於這類。
+**系統性缺席的三種**：
 
-**它系統性缺席的領域有三種**：
+1. **需跨機構整合的資料**：選舉（各州郡自行公告）、專利引用。整合成本高，
+   個人不會做，做了的機構（MEDSL、PatentsView）有自己的平台
+2. **隱私敏感的個體資料**：病患臨床紀錄、個人金融交易
+3. **需 API 持續抓取的資料**：多站點空氣品質長期監測、即時交通流量
 
-1. **需要跨機構整合的資料**：選舉（各州各郡自行公告）、專利引用（需連結專利庫與引用關係）。整合成本高，沒有個人會做，而做了的機構（MEDSL、PatentsView）有自己的發布平台
-2. **隱私敏感的個體資料**：病患臨床紀錄、個人金融交易。法規使其不可能公開
-3. **需要 API 持續抓取的資料**：空氣品質多站點長期監測、即時交通流量。Kaggle 的靜態上傳模式不適合
+**實務含意**：若某方向搜尋結果稀少或全是合成資料，通常不是搜尋詞的問題，
+而是該類資料在 Kaggle 上**結構性地不存在**。此時應直接轉向專門平台，
+不要換關鍵字重試。捷運閘門、國際貿易、建築執照三個關鍵字全部回傳空結果，
+而它們正是最符合「窄表但單位間有關係」判準的目標型態——因為都是機構內部
+營運系統，只提供 API 或需個別申請。
 
-**實務含意**：若某方向搜尋結果稀少或全是合成資料，通常不是搜尋詞的問題，而是該類資料在 Kaggle 上結構性地不存在。此時應直接判斷「不在 Kaggle」並轉向專門平台，不要換關鍵字重試。專利引用網路的搜尋回傳空結果，是這個判斷最乾淨的例證。
+**主題的好壞與該主題在 Kaggle 上的資料品質無關**。空氣品質、共享單車、
+顧客流失三個方向的資料結構本應理想，但就是沒有可信版本。不可因主題吸引人
+就放寬標準。
 
-若日後需再擴散，仍未觸及的領域：金融市場與信用、保險理賠、供應鏈與物流、水資源與水質。但依上述邊界判斷，保險理賠與供應鏈屬企業內部資料，預期同樣稀缺。
+### 搜尋策略：發布者檢索比關鍵字有效
 
-### 第五輪的驗證與例外
+主題關鍵字的邊際報酬會快速遞減，但**發布者檢索是另一個維度，且幾乎沒被用過**。
 
-第五輪依「結構可衍生複雜度」判準搜尋了 8 個方向，結果**同時驗證了邊界，也找到一個重要例外**。
+高品質資料集不是隨機分布的，它們聚集在少數認真的發布者手上。找到一個好資料集
+就等於找到一個好發布者，其他作品大概率同樣好。`arimancy` 的五個資料集涵蓋
+電網、期貨部位、航班氣象，主題毫不相關，但工程標準完全一致。
 
-**驗證**：捷運閘門、國際貿易、建築執照三個關鍵字全部回傳**空結果**。這三類正是最符合新判準的目標型態（窄表但單位間有關係），卻完全不在 Kaggle。原因一致——它們是機構內部營運系統，只提供 API 或需個別向各市政府申請。311 與餐飲稽查雖有資料，但前者只有零碎搬運、後者單位間無關係結構。
-
-**例外：加值型資料工程者**。`arimancy`（Arimancy LLC）發布的電網系列（PJM / CAISO / ERCOT）打破了「Kaggle 只有機構直出或個人搬運」的二分。這是第三種型態：**專業者將多個上游來源正確整合後發布**。其品質特徵值得記下，作為未來辨識同類資料的依據：
-
-- 明確交代每個上游來源與其授權（EIA-930 → PUDL → EIA API、Open-Meteo ERA5、Census 人口權重）
-- 說明join 的技術決策與理由（為何用 UTC 而非本地時間、DST 如何處理）
-- 每個插補、內插、初步值都有**旗標欄位**，而非默默填補
-- 附 `data_dictionary.md` 與 JSON manifest 記錄建置指紋
-- **主動揭露自身限制**：做了控制消融實驗、設定洩漏警戒帶、警告回測用的是實際氣象而非預報
-- 已知限制獨立成節，包括對自己不利的資訊
-
-**辨識訊號**：這類資料集的描述文字會談方法論而非行銷。若描述中出現「ablation」「provenance」「known limitations」「leakage」等詞，且有具體數字，通常是可信的。反之，描述充滿 emoji 與「Intelligence Dataset」「Real-World Patterns」等詞彙的，多為合成。
-
-**實務含意**：搜尋時若看到票數不高（Arimancy 的 PJM 僅 v1）但描述異常詳盡的資料集，不應因票數低而略過。Kaggle 的票數反映的是熱門度而非品質，**新發布的高品質資料集票數必然偏低**。
-
-### 第六輪：最有效的一次搜尋
-
-第六輪掃了 4 個方向，其中 3 個（水質、野火、運動逐事件）結果平庸或空白，但第 4 個動作找到了本專案目前最強的候選。那個動作不是關鍵字搜尋，而是**用發布者檢索**：`search_datasets({user: "arimancy", group: "User"})`。
-
-這推翻了先前「繼續在 Kaggle 擴散的邊際報酬已經很低」的判斷。真正的情況是：**主題關鍵字的邊際報酬低，但發布者檢索是另一個維度，而且幾乎沒被用過**。
-
-邏輯很簡單——高品質資料集不是隨機分布的，它們聚集在少數認真的發布者手上。找到一個好資料集，就等於找到一個好發布者，而那個發布者的其他資料集大概率同樣好。`arimancy` 的五個資料集涵蓋電網（3 個區域）、期貨部位、航班氣象，主題毫不相關，但工程標準完全一致。
-
-**這條策略應該更早用，而且在任何專案的資料搜尋階段都值得列為標準動作**：
+**標準動作**：
 
 1. 用主題關鍵字找到第一個高品質資料集
-2. 立刻用 `user:` 檢索該發布者的全部作品
-3. 若該發布者是機構帳號（如 `organizations/chicago`、`organizations/fda`），同樣值得整份清單掃過
+2. 立刻用 `search_datasets({user: "<name>", group: "User"})` 檢索該發布者全部作品
+3. 若是機構帳號（`organizations/chicago`、`organizations/fda`），整份清單掃過
 
-值得追的發布者帳號（本專案已驗證）：
-- **`arimancy`**（Arimancy LLC）：電網負載 × 3、CFTC 期貨部位、航班實測氣象。全部 CC BY 4.0、全部附資料字典與洩漏防護說明
-- **`organizations/chicago`**、**`organizations/new-york-city`**：市政府官方帳號，資料為作業系統直出
-- **`robikscube`**（Rob Mulla）：航班延誤原始整理版，Kaggle 高知名度使用者
+已驗證值得追的帳號：
 
-### 第六輪的另一個教訓：好資料集會反駁你的假設
+- **`arimancy`**（Arimancy LLC）：電網 × 3、CFTC 期貨部位、航班實測氣象。
+  全部 CC BY 4.0、附資料字典與洩漏防護說明
+- **`organizations/chicago`**、**`organizations/new-york-city`**：市府官方帳號
+- **`robikscube`**（Rob Mulla）：航班延誤原始整理版
 
-候選 I 的發現同時**推翻了候選 F 的核心賣點**。F 原本的最大優勢是「官方已將延誤分解成五種成因」，但 I 的描述引用了 DOT OIG 在 2024 年 10 月的稽核——BTS 無法驗證航空公司是否回報所有航班、成因指引不明確、回報與 FAA 資料歧異率高。
+### 資料集描述有時比資料本身更有價值
 
-若沒讀到 I 的描述，F 會帶著一個已被官方否定的假設進入正式分析。這說明**資料集描述中的「Why this dataset is different」段落有時比資料本身更有價值**——認真的發布者會說明既有資料的問題，那正是免費的文獻回顧。
+候選 I 的描述引用了 DOT OIG 在 2024 年 10 月的稽核，**直接推翻了候選 F 的
+核心賣點**（「官方已將延誤分解成五種成因」）。若沒讀到，F 會帶著一個已被
+官方否定的假設進入正式分析。
+
+認真的發布者會在「Why this dataset is different」段落說明既有資料的問題，
+**那正是免費的文獻回顧**。
 
 ---
 
@@ -490,18 +507,37 @@ curl -L "https://plvr.land.moi.gov.tw/DownloadSeason?season=114S1&type=zip&fileN
 
 這是**台灣資料中唯一在結構上可與國外候選匹敵的**：測站 × 逐小時 × 多污染物 × 44 年，且測站有座標可做空間分析。符合「窄表但單位間有關係」的判準（測站構成空間網路）。**但取得受阻於 API key，且第三輪已記錄的教訓仍適用——空品是台灣熱門開放資料，被其他組選中的機率須先確認**
 
-## 內政部戶政司人口統計
+---
 
+## 尚未驗證的資料源
+
+以下四個在 CLAUDE.md 的優先級清單中，但本專案尚未實際嘗試。
+若現有候選皆不適用，依序從這裡接續。
+
+### 內政部戶政司人口統計
+
+- **URL**：https://www.ris.gov.tw/app/portal/346
+- **需登入或申請**：推測否
 - **狀態**：待驗證（尚未搜尋）
+- **預期用途**：人口結構資料，可作為其他候選的共變數來源
 
-## TCCIP 臺灣氣候變遷推估資訊平台
+### TCCIP 臺灣氣候變遷推估資訊平台
 
-- **狀態**：待驗證（需註冊，尚未嘗試）
+- **URL**：https://tccip.ncdr.nat.gov.tw
+- **需登入或申請**：**需註冊**
+- **狀態**：待驗證（尚未嘗試）
+- **預期用途**：台灣本地氣象資料。若採用台電候選（L 系列缺氣象共變數），
+  這是最可能的補強來源
 
-## SEGIS 內政大數據模擬資料
+### SEGIS 內政大數據模擬資料
 
-- **狀態**：待驗證（有下載限制，尚未嘗試）
+- **URL**：https://segis.moi.gov.tw/STATCloud/BigData
+- **需登入或申請**：**有下載限制**
+- **狀態**：待驗證（尚未嘗試）
 
-## SRDA 學術調查研究資料庫
+### SRDA 學術調查研究資料庫
 
-- **狀態**：待驗證（需申請，流程慢，優先級最低）
+- **URL**：https://srda.sinica.edu.tw/
+- **需登入或申請**：**需申請，流程慢**
+- **狀態**：待驗證。CLAUDE.md 列為優先級最低
+- **注意**：申請流程的時間成本可能超出學期報告的時程
