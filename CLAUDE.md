@@ -17,7 +17,7 @@
 - 搜尋、閱讀、評估各類公開資料源
 - 下載資料檔案至 `data/raw/`
 - 撰寫 `SOURCE.md`、`docs/candidates.md`、`docs/data-sources.md`
-- 以 R 腳本對候選資料做**篩選用的初步檢視**（範圍見下）
+- 以 Python 腳本對候選資料做**篩選用的初步檢視**（範圍見下）
 
 ### 篩選用檢視的邊界
 
@@ -44,7 +44,7 @@
 
 ### 篩選腳本的位置
 
-篩選用 R 腳本放 `scripts/explore/<candidate-name>.R`，與日後正式分析腳本（`scripts/01_ingest.R` 等）分開存放。候選被淘汰時，對應的篩選腳本可一併刪除。
+篩選用 Python 腳本放 `scripts/explore/<candidate-name>.py`，與日後正式分析腳本（`scripts/01_ingest.py` 等）分開存放。候選被淘汰時，對應的篩選腳本可一併刪除。
 
 ## 目錄結構
 
@@ -52,7 +52,7 @@
 data/raw/          原始下載資料，唯讀，永不修改。每個子目錄須含 SOURCE.md
 data/processed/    清理後資料
 scripts/explore/   候選篩選腳本（本階段）
-scripts/           正式分析腳本，編號執行：01_ingest / 02_clean / 03_eda / 04_model
+scripts/           正式分析腳本（.py），編號執行：01_ingest / 02_clean / 03_eda / 04_model
 docs/              candidates.md、data-sources.md
 report/            report.qmd 及輸出
 outputs/figures/   圖
@@ -133,11 +133,22 @@ outputs/tables/    表
 - 程式碼註解與文件：繁體中文
 - 技術名詞、套件名稱、函式名稱、欄位名稱：保留英文原文
 
+## 技術棧
+
+**Python**（2026-09-18 確定）。
+
+腳本副檔名 `.py`，`report/` 下的 Quarto 文件使用 Python engine。
+
+## 方法論範圍
+
+**不限定**（2026-09-19 確定）。任何統計方法皆可，課程為自由發揮。
+
+故**方法論涵蓋面不作為選題的排序依據**——能不能套用某類特定方法，
+不構成加分或扣分。評分回歸本文件開頭的「方法嚴謹」。
+
 ## 尚未確定的事項
 
 以下待使用者後續決定，不要自行假設：
 
-- 分析所用的技術棧（R / Python / 其他）
 - 課程的交付規格：頁數、格式、期限
-- 課程涵蓋的方法論範圍
 - 正式分析階段的規範（本文件目前不涵蓋分析階段）
