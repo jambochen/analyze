@@ -985,41 +985,19 @@ Sources 是作為**待接合的外部來源**，不是已併入的欄位。誤�
 Kaggle 的資料集標題與描述，不是字典。這點在評估時要講清楚，
 否則對上傳者不公允。
 
-**(b) 而那個接合鍵有 56.4% 是空的。** `isco_group_hint` 的 null 數為
-40,540 / 71,913。對應的 `role_family` 全部落在 `Other / Unclassified`。
-被丟進未分類的不是冷門職稱，而是樣本量最大的那些：
+**(b) 作者附的手工分類欄不可用，但這一項可以自己繞過。**
+`isco_group_hint` 的 null 數為 40,540 / 71,913（56.4%），對應的
+`role_family` 全部落在 `Other / Unclassified`。未分類者包含樣本量最大的
+職稱：Software Engineer 4,921、Engineer 4,375、Manager 3,612、
+Analyst 2,783。`Software Engineer` 未被歸入 `Software and applications
+developers` 而 `Data Engineer` 有被歸入，規則不一致。規則本身亦不可得——
+`data_dictionary.md` 兩次指向出處（"see Step 4"、"the companion
+notebook"），但下載檔案只有 CSV 與字典，沒有那個 notebook。
 
-| 被歸為 Other 的職稱 | 筆數 |
-|---|---|
-| Software Engineer | 4,921 |
-| Engineer | 4,375 |
-| Manager | 3,612 |
-| Analyst | 2,783 |
-| Analytics Engineer | 1,341 |
-| Product Manager | 1,326 |
-| Data Architect | 1,231 |
-
-`Software Engineer` 是全資料第 4 大職稱，卻未被歸入
-`Software and applications developers`，而 `Data Engineer` 有被歸入。
-分類規則不一致。
-
-**且規則不可得。** `data_dictionary.md` 兩次把讀者指向規則的出處——
-`role_family` 寫「see Step 4 for the exact rules」，Known limitations 寫
-「documented in full in the companion notebook」。但下載的檔案只有
-`ai_jobs_salaries_clean.csv` 與 `data_dictionary.md`，**沒有那個
-notebook**，資料集頁面亦未附。該資料集下的 kernel 全為第三方 EDA，
-非作者本人的處理流程。
-
-這使得上述不一致無法查證、無法修正、也無法在報告的方法章節中交代
-「未分類的 56.4% 是依什麼規則被排除的」。**一個來源不明的篩選規則
-作用在過半樣本上，這在方法嚴謹上是不可接受的**——而方法嚴謹正是
-本課程的主要評分依據。
-
-剩下可接合的 43.6% 只分成 5 個 ISCO 組，
-其中 `Information and communications technology service managers`
-僅 495 筆。**即使自己去接 ILO 曝險指數，能接上的也只是一個被非隨機
-篩選過的子集**——而篩選機制（作者的手工規則）與職稱本身相關，
-因此這個遺漏不是隨機遺漏。
+**但這不構成淘汰理由**（2026-09-19 修正，見下方「第三方 notebook 的
+查證」）。`job_title` 原始欄位完整保留，自建分類即可取代。實測以
+sasakitetsuya 的關鍵字規則重跑，未分類率從 56.4% 降到 **5.0%**
+（3,579 / 71,913）。**這是上傳者加工的缺陷，不是資料的限制。**
 
 **(c) 沒有識別因果所需的任何結構。** 資料是職缺薪資的自我回報快照：
 
@@ -1055,11 +1033,79 @@ notebook**，資料集頁面亦未附。該資料集下的 kernel 全為第三�
 標記 1,754 筆（2.4%）但未移除，且判準是對**全資料**做 1.5×IQR——
 跨國家、跨職級、跨年度用同一個門檻，這個旗標的統計意義不明。
 
+**第三方 notebook 的查證（2026-09-19 補）**
+
+使用者指出應先看他人分析再評斷。取該資料集下票數最高的
+sasakitetsuya《AI Salaries and the Vanishing Middle》（6 票）實測，
+`kaggle kernels pull sasakitetsuya/ai-salaries-and-the-vanishing-middle`。
+
+這份 notebook 的方法品質明顯高於一般 Kaggle EDA：有事前假說
+（微笑曲線——資料/AI 價值鏈的中段被生成式 AI 商品化）、自建可調整的
+職稱分類、OLS 控制 experience／country／company_size／work_mode、
+`bucket × year` 交互項、固定參考剖面讀出調整後薪資、兩組敏感度分析、
+以及一份誠實的 limitations 清單。作者最後否定了自己原假說的兩條腿，
+只保留第三條，並補上一個假說沒預期到的發現（價值集中於管理職）。
+**這是值得參考的分析設計範例。**
+
+它對本評估的影響分三點：
+
+**1. 獨立證實了 (a)。** 作者在 notebook 第 2 格明寫：
+"the exposure columns are **not present** in `ai_jobs_salaries_clean.csv`,
+so this notebook uses only the salary/role portion"，並在 limitations
+第 7 點寫 "the most direct commoditisation test (exposure × pay) is not
+possible here"。**一個認真使用這份資料的第三方，獨立得出與本評估相同的
+結論**：想做 AI 曝險的題目，這份檔案做不到。
+
+**2. 推翻了原本的 (b)。** 作者完全不用 `isco_group_hint`，改以
+`job_title` 自建關鍵字規則。實測復現其分類，未分類率僅 5.0%
+（3,579 / 71,913；三分類版本為 5.1%）。
+原本判斷的「56.4% 樣本被來源不明的規則排除」因此不成立——
+那是上傳者的加工缺陷，繞過即可。**此項從淘汰理由中撤除。**
+
+**3. 但它自己的主結論撐不住，反而坐實了 (d)。**
+作者的核心發現是「管理職 2023→2025 調整後薪資 +22%」。復現其樣本後：
+
+| 分組 | 2023 | 2024 | 2025 |
+|---|---|---|---|
+| Middle | 3,756 | 19,532 | 25,127 |
+| Front | 537 | 2,319 | 2,738 |
+| Management | **140** | 2,419 | 4,400 |
+| People-facing | **11** | 1,348 | 2,206 |
+
+作者在 caveat 中承認 People-facing 的 2023 基期薄（11 筆），
+**但沒有承認 Management 的基期同樣只有 140 筆**，而 +22% 這個主結論
+正是從這個基期算起的。
+
+更關鍵的是該組的**組成完全變了**：
+
+| 年 | Management 組內最大職稱 |
+|---|---|
+| 2023 | Data Manager 58、Head of Data 21、Data Analytics Manager 19 |
+| 2025 | **Manager 2,238**、Director 472、Data Manager 326 |
+
+2023 年這一組是「資料職能的主管」，2025 年主體變成泛用的
+`Manager`／`Director`。組內 EX（Executive）比例從 24.3% 降到 13.3%。
+**這不是同一群人的薪資在成長，是這一組裝的人換了。**
+回歸控制了 `experience_level`，但控不住職稱本身的語意漂移——
+`Manager` 這個字在 2023 年的樣本裡幾乎不存在，2025 年佔該組過半。
+
+這正是 (d) 所指的問題：**樣本組成隨年度劇烈變動，任何跨年比較都
+無法與組成變化分離**。一份方法上相當用心的 notebook，仍然在這份資料上
+撞到同一面牆，反過來說明這面牆不是分析技巧能繞過的。
+
 **小結。** 受益者門檻第三問答不出來：勞動經濟研究者手上有官方薪資調查
-與可追蹤的縱橫資料，這份自願填報的橫斷面沒有他們拿不到的東西。而更根本
-的問題在 (a)——資料集的名字承諾了一個它不含的變數。若真要做 AI 對勞動
-市場的影響，正確的起點是 ILO 曝險指數本身，或有個人追蹤的官方調查
-（如 CPS、台灣的人力運用調查），而非這份薪資表。
+與可追蹤的縱橫資料，這份自願填報的橫斷面沒有他們拿不到的東西。
+撤除原 (b) 後，淘汰理由收斂為三項，且都是資料本身的性質、不是加工瑕疵：
+
+1. **(a)** 資料集的名字承諾了一個它不含的變數。做 AI 曝險的題目，
+   得另外去接 ILO 指數，那時這份檔案的加值近乎為零
+2. **(c)** 無個人 ID、無公司 ID、無對照組，不具備識別因果的任何結構
+3. **(d)** 年度樣本組成劇烈變動（2024+2025 佔 91.8%，且組內職稱構成
+   逐年改變），跨年比較與組成變化無法分離。第三方 notebook 的實例
+   已證明這點連謹慎的設計都繞不過
+
+若真要做 AI 對勞動市場的影響，正確的起點是 ILO 曝險指數本身，或有個人
+追蹤的官方調查（如 CPS、台灣的人力運用調查），而非這份薪資表。
 
 ### 教育類（學生成績預測）
 - **代表**：`uciml/student-alcohol-consumption`、`lainguyn123/student-performance-factors`、`rabieelkharoua/students-performance-dataset`

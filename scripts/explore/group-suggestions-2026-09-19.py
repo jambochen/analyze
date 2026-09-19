@@ -4,6 +4,7 @@
 """
 
 import pathlib
+import re
 
 import polars as pl
 
@@ -87,7 +88,91 @@ def inspect_ai_jobs() -> None:
     print("    個人 ID：無    公司 ID：無    對照組：無（全為 AI／資料類職缺）")
 
 
+def replicate_vanishing_middle() -> None:
+    """復現第三方 notebook 的職稱分類，檢查其主結論的樣本基礎。
+
+    來源：kaggle kernels pull sasakitetsuya/ai-salaries-and-the-vanishing-middle
+    該 notebook 棄用資料集自帶的 isco_group_hint，改以 job_title 自建規則。
+    復現的目的有二：確認自建分類能否繞過 56.4% 的未分類率，
+    以及檢查「管理職 +22%」這個主結論的各年樣本數與組成。
+    """
+    df = pl.read_csv(DATASETS["AI 對就業薪資影響"], infer_schema_length=10000)
+    print(f"\n{'=' * 70}\n復現 sasakitetsuya 的職稱分類\n{'=' * 70}")
+
+    people_facing = (
+        r"(consultant|product manager|product lead|solution|sales engineer|"
+        r"account executive|developer advocate|customer success|"
+        r"business development|presale|pre-sale|delivery|advisory|"
+        r"evangelist|relationship)"
+    )
+    management = r"\b(manager|director|head|chief|vp|lead)\b"
+    front = r"(research|applied scientist|architect)"
+    middle = (
+        r"(analyst|scientist|data engineer|machine learning|ml engineer|"
+        r"ai engineer|developer|\bengineer\b|analytics|bi\b|specialist|modeler)"
+    )
+
+    def bucket4(title: str) -> str:
+        t = title.lower()
+        if re.search(people_facing, t):
+            return "People-facing"
+        if re.search(management, t):
+            return "Management"
+        if re.search(front, t):
+            return "Front"
+        if re.search(middle, t):
+            return "Middle"
+        return "Unclassified"
+
+    tagged = df.with_columns(
+        pl.col("job_title").map_elements(bucket4, return_dtype=pl.String).alias("bucket")
+    )
+    n_unclassified = (tagged["bucket"] == "Unclassified").sum()
+    print(f"\n[未分類率] {n_unclassified} / {df.height} = "
+          f"{n_unclassified / df.height:.1%}"
+          f"（對照：資料集自帶的 isco_group_hint 為 56.4%）")
+
+    # 作者的回歸樣本限制：全職、非離群、2023 年起、已分類、薪資為正
+    sample = tagged.filter(
+        (pl.col("employment_type") == "FT")
+        & (~pl.col("salary_outlier_flag"))
+        & (pl.col("work_year") >= 2023)
+        & (pl.col("bucket") != "Unclassified")
+        & (pl.col("salary_in_usd") > 0)
+    )
+    print("\n[各組逐年樣本數] 作者的 2023→2025 成長率以 2023 為基期")
+    pivot = (
+        sample.group_by(["bucket", "work_year"])
+        .agg(pl.len())
+        .sort(["bucket", "work_year"])
+    )
+    for row in pivot.to_dicts():
+        mark = "  ← 基期過薄" if row["work_year"] == 2023 and row["len"] < 200 else ""
+        print(f"    {row['bucket']:<15} {row['work_year']}  n={row['len']:>6}{mark}")
+
+    print("\n[Management 組的職稱構成] 檢查該組是否為同一群人")
+    for year in (2023, 2025):
+        sub = sample.filter(
+            (pl.col("bucket") == "Management") & (pl.col("work_year") == year)
+        )
+        top = sub["job_title"].value_counts(sort=True).head(4).to_dicts()
+        print(f"    {year} (n={sub.height}): "
+              + "、".join(f"{r['job_title']} {r['count']}" for r in top))
+
+    print("\n[Management 組的 experience_level 構成]")
+    for year in (2023, 2024, 2025):
+        sub = sample.filter(
+            (pl.col("bucket") == "Management") & (pl.col("work_year") == year)
+        )
+        share = {
+            r["experience_level"]: r["len"] / sub.height
+            for r in sub.group_by("experience_level").agg(pl.len()).to_dicts()
+        }
+        print(f"    {year}  " + "  ".join(f"{k}={v:.1%}" for k, v in sorted(share.items())))
+
+
 if __name__ == "__main__":
     for label, path in DATASETS.items():
         inspect(label, path)
     inspect_ai_jobs()
+    replicate_vanishing_middle()
