@@ -20,9 +20,26 @@
 | [SEGIS](#segis-內政大數據模擬資料) | 有下載限制 | — | — | 待驗證 |
 | [SRDA](#srda-學術調查研究資料庫) | 需申請 | — | — | 待驗證，優先級最低 |
 
-**已取得資料的平台**：Kaggle（候選 I）、NYC Open Data（候選 K）、
-台電（候選 L、L-2、L-3）。各份資料的完整溯源見
-`data/raw/<name>/SOURCE.md`。
+**已取得資料的平台**：Kaggle（候選 I、C）、Harvard Dataverse（候選 J）、
+NYC Open Data（候選 K，已淘汰）、台電（候選 L、L-2、L-3）。
+各份資料的完整溯源見 `data/raw/<name>/SOURCE.md`。
+
+**Harvard Dataverse（2026-09-19 新增，狀態：可用）**
+
+- 無需登入，公開資料直接下載
+- **API 須用數值 file ID，不可用 per-file persistentId**（後者回傳 404 JSON
+  而非檔案內容，且 curl 會把錯誤訊息寫進檔案，靜默失敗）
+- 取得檔案清單與授權：
+  `GET /api/datasets/:persistentId/?persistentId=doi:<DOI>`
+- 下載單檔：`GET /api/access/datafile/<numeric_id>`
+- 授權欄位在 `latestVersion.license`，機器可讀，可直接查證而非猜測
+- 頻寬有限，548 MB 約需數十分鐘
+
+**Kaggle CLI（2026-09-19 補記）**：MCP 工具本輪連線失敗（`mcp-remote` 的
+JSON-RPC schema 驗證錯誤，端點本身正常）。改用 `kaggle` CLI 2.2.4 成功。
+**注意 2.2.4 的憑證格式已變**——不再是 `~/.kaggle/kaggle.json`，改為
+`~/.kaggle/access_token`（純 token）或環境變數 `KAGGLE_API_TOKEN`，
+亦支援 `kaggle auth login` 走 OAuth。
 
 ---
 
@@ -49,7 +66,7 @@
 | 公共衛生 | health public health survey | 候選 C。BRFSS 等大型調查 |
 
 **部分可用（4 向）**：交通事故（候選 A）、能源與氣候（候選 B）、
-醫院住院紀錄（僅巴西 SIH 可用，即候選 G）、跨國發展指標（候選 E，後因
+醫院住院紀錄（僅巴西 SIH 可用，曾為候選 G，已因葡萄牙文門檻淘汰）、跨國發展指標（候選 E，後因
 n≈200 淘汰）。
 
 **完全無結果（5 向）**：專利引用網路、建築執照地政、捷運閘門流量、
