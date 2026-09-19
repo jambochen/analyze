@@ -959,7 +959,7 @@ foorilla/ai-jobs-net-salaries 與 ILO 的 *Global Index of Occupational
 Exposure to Generative AI*。淘汰理由不是資料髒，而是
 **它不含回答自己標題所需的變數**。以下五點按嚴重度排列。
 
-**(a) AI 曝險分數不在資料裡。** 這是決定性的一點。資料集描述引用了
+**(a) AI 曝險分數不在資料裡。** 這是決定性的一點。資料集標題與描述引用了
 Gmyrek et al. (2025) 的職業別生成式 AI 曝險指數，但實際的 17 個欄位是：
 
 ```
@@ -977,6 +977,14 @@ role_family, isco_group_hint
 那麼這份 Kaggle 資料提供的加值只剩下那個作者自述 "not authoritative"
 的對照欄。
 
+**須區分責任歸屬**：隨附的 `data_dictionary.md` 本身沒有誤導。
+它對 `isco_group_hint` 的描述是 "Approximate ISCO-08 occupational group
+hint **for joining against** AI-exposure data (manual mapping,
+not authoritative)"——明說這是供**對外接合**用的鍵，Gmyrek et al. 列在
+Sources 是作為**待接合的外部來源**，不是已併入的欄位。誤導來自
+Kaggle 的資料集標題與描述，不是字典。這點在評估時要講清楚，
+否則對上傳者不公允。
+
 **(b) 而那個接合鍵有 56.4% 是空的。** `isco_group_hint` 的 null 數為
 40,540 / 71,913。對應的 `role_family` 全部落在 `Other / Unclassified`。
 被丟進未分類的不是冷門職稱，而是樣本量最大的那些：
@@ -993,7 +1001,21 @@ role_family, isco_group_hint
 
 `Software Engineer` 是全資料第 4 大職稱，卻未被歸入
 `Software and applications developers`，而 `Data Engineer` 有被歸入。
-分類規則不一致。剩下可接合的 43.6% 只分成 5 個 ISCO 組，
+分類規則不一致。
+
+**且規則不可得。** `data_dictionary.md` 兩次把讀者指向規則的出處——
+`role_family` 寫「see Step 4 for the exact rules」，Known limitations 寫
+「documented in full in the companion notebook」。但下載的檔案只有
+`ai_jobs_salaries_clean.csv` 與 `data_dictionary.md`，**沒有那個
+notebook**，資料集頁面亦未附。該資料集下的 kernel 全為第三方 EDA，
+非作者本人的處理流程。
+
+這使得上述不一致無法查證、無法修正、也無法在報告的方法章節中交代
+「未分類的 56.4% 是依什麼規則被排除的」。**一個來源不明的篩選規則
+作用在過半樣本上，這在方法嚴謹上是不可接受的**——而方法嚴謹正是
+本課程的主要評分依據。
+
+剩下可接合的 43.6% 只分成 5 個 ISCO 組，
 其中 `Information and communications technology service managers`
 僅 495 筆。**即使自己去接 ILO 曝險指數，能接上的也只是一個被非隨機
 篩選過的子集**——而篩選機制（作者的手工規則）與職稱本身相關，
