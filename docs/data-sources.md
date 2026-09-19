@@ -35,6 +35,13 @@ NYC Open Data（候選 K，已淘汰）、台電（候選 L、L-2、L-3）。
 - 授權欄位在 `latestVersion.license`，機器可讀，可直接查證而非猜測
 - 頻寬有限，548 MB 約需數十分鐘
 
+**Kaggle 取得方式的固定優先順序（2026-09-19 裁示）**：
+
+1. **MCP 工具**（`search_datasets` / `get_dataset_info` / `download_dataset`）
+2. **`kaggle` CLI**——MCP 不可用時才用
+3. **Python 程式直接打 HTTP**——前兩者皆不可用時的最後手段，
+   且**必須使用 `aiohttp`**，不可用 `urllib` 或 `requests`
+
 **Kaggle CLI（2026-09-19 補記）**：MCP 工具連線失敗（`mcp-remote` 的
 JSON-RPC schema 驗證錯誤，端點本身正常）。改用 `kaggle` CLI 2.2.4 成功。
 **注意 2.2.4 的憑證格式已變**——不再是 `~/.kaggle/kaggle.json`，改為
