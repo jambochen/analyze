@@ -11,8 +11,8 @@
 不構成處理效應估計，相關輸出都標註「僅供篩選，非分析結果」。
 不配適任何模型。
 
-五個候選中三個已實測（航班延誤、逐張選票、BRFSS），
-兩個僅確認欄位清單與取得路徑（台灣交通事故、PJM 電網），見最後一節。
+五個候選中四個已實測（航班延誤、逐張選票、BRFSS、台灣電網），
+PJM 電網僅確認欄位清單與取得路徑，見最後一節。
 """
 
 # %% [markdown]
@@ -180,26 +180,109 @@ if available(BRFSS):
 
 # %% [markdown]
 # ---
-# ## 尚未實測的兩個候選
+# ## 五、台灣電網的機組發電行為
+#
+# 三份資料。機組發電量那份只有 4 欄，但結構撐得起泛函資料分析、
+# 平衡面板與組成資料——「窄表但結構可衍生」的案例。
+#
+# 檢視重點是那些會影響能不能做的內容空白。
+
+# %%
+UNIT_NETP = RAW / "taipower-unit-netp" / "001.json"
+
+if available(UNIT_NETP):
+    # JSON 有 UTF-8 BOM，polars 的 read_json 不處理，先用 Python 讀
+    import json
+
+    # 實際資料在 records.NET_P 底下，records 的其他鍵是中繼資訊
+    records = json.loads(UNIT_NETP.read_text(encoding="utf-8-sig"))["records"]
+    units = pl.DataFrame(records["NET_P"])
+
+    print(f"機組發電量：{units.height:,} 列 × {units.width} 欄")
+    print(f"  欄位：{units.columns}")
+
+    deduped = units.unique()
+    print(f"  去重後：{deduped.height:,} 列"
+          f"（重複 {units.height - deduped.height:,} 筆）")
+
+    n_ts = deduped["DATETIME"].n_unique()
+    n_unit = deduped["UNIT_NAME"].n_unique()
+    print(f"  時間戳 {n_ts:,} 個、機組 {n_unit} 個")
+    print(f"  時間範圍 {deduped['DATETIME'].min()} 至 {deduped['DATETIME'].max()}")
+
+# %%
+# 內容空白：哪些燃料別實際上沒東西可研究。
+if available(UNIT_NETP):
+    netp = deduped.with_columns(pl.col("NET_P").cast(pl.Float64))
+    by_fuel = (
+        netp.group_by("FUEL_TYPE")
+        .agg(
+            pl.len().alias("筆數"),
+            (pl.col("NET_P") == 0).mean().alias("零值率"),
+            pl.col("NET_P").max().alias("最大MW"),
+        )
+        .sort("零值率", descending=True)
+    )
+    print(by_fuel)
+    print("\n核能全期為零（核三已除役）、輕油 99.9% 為零。")
+    print("抽蓄發電沒有負值——只記錄放電不記錄抽水，無法完整分析儲能。")
+    print("僅供篩選，非分析結果。")
+
+# %%
+# 唯一鍵的陷阱：151 個機組名，但 153 個 (機組, 燃料別) 組合。
+if available(UNIT_NETP):
+    multi_fuel = (
+        deduped.group_by("UNIT_NAME")
+        .agg(pl.col("FUEL_TYPE").n_unique().alias("燃料別數"))
+        .filter(pl.col("燃料別數") > 1)
+    )
+    print("同時擁有多種燃料別設施的機組：")
+    print(multi_fuel)
+    print("\n唯一鍵須用 (UNIT_NAME, FUEL_TYPE)，只用機組名會混在一起。")
+
+# %%
+# 區域潮流：我原本的賣點被實測推翻。
+FLOW = RAW / "taipower-region-flow" / "001_20260919.json"
+
+if available(FLOW):
+    import json
+
+    flow_records = json.loads(FLOW.read_text(encoding="utf-8-sig"))["records"]
+    flow = (
+        pl.DataFrame(flow_records["FLOW_P"])
+        .unique(subset=["UNIT_NAME", "DATETIME"], keep="first")
+        .with_columns(pl.col("P").cast(pl.Float64, strict=False))
+    )
+
+    by_link = (
+        flow.group_by("UNIT_NAME")
+        .agg(
+            pl.len().alias("筆數"),
+            pl.col("P").mean().round(0).alias("平均MW"),
+            (pl.col("P") < 0).mean().alias("負值率"),
+            pl.col("P").std().round(0).alias("標準差"),
+        )
+        .sort("負值率", descending=True)
+    )
+    print(by_link)
+    print("""
+我原本以為負值代表罕見的反向潮流，是研究對象。實測推翻：
+負值是常態（兩條主幹線逾 80%），欄位名稱描述的是量測方向的慣例
+而非實際流向——「中送北」絕大多數時間實際上是北送中。
+真正罕見的是正值。
+
+另外「中送東潮流」近乎常數（標準差遠低於其他），四條鏈路實際可用只有三條。
+僅供篩選，非分析結果。""")
+
+# %% [markdown]
+# ---
+# ## 尚未實測：美國 PJM 電網
 #
 # 資料源、欄位清單與取得路徑都已確認，但還沒下載跑檢視。
 # 要採用的話我會先補做。
 
 # %%
-print("""三、台灣道路交通事故
-   來源  data.gov.tw → 內政部警政署，無需申請
-   規模  A1 類（死亡）2,587 列；A2 類（受傷）單月 80,620 列
-         推估年約 100 萬列
-   欄位  51 欄，已完全解碼（直接是「雨」「市區道路」這類中文值）
-   結構  當事者巢狀於事故，是天然的兩層結構；另有經緯度可做空間統計
-
-   讀檔注意
-     - CSV 末尾有兩列中繼資訊（資料提供日期、事故類別），須排除
-     - 編碼是 UTF-8 with BOM
-     - A2 類分散在 9 個 ZIP，要寫腳本串接
-     - 一筆事故對應多列（每位當事者一列，有「當事者順位」欄）
-
-五、美國 PJM 電網負載與氣象
+print("""美國 PJM 電網負載與氣象
    來源  arimancy/pjm-hourly-demand-weather（Kaggle）
    規模  97,850 小時（2015-07 至 2026-08，11 年），54 MB
          UTC 時間軸上無缺漏小時
@@ -210,4 +293,5 @@ print("""三、台灣道路交通事故
 
    建模注意
      - 所有需求特徵至少落後 24 小時。違反會做出看似優異實則無效的結果
-     - 回測用的是實際觀測氣象而非氣象預報，不可與實際日前預測誤差直接比較""")
+     - 回測用的是實際觀測氣象而非氣象預報，
+       不可與實際日前預測誤差直接比較""")
