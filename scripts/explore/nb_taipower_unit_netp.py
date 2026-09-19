@@ -28,7 +28,7 @@ import matplotlib.pyplot as plt
 
 import polars as pl
 
-matplotlib.use("Agg")
+
 
 SRC = (Path(__file__).resolve().parents[2]
        / "data" / "raw" / "taipower-unit-netp" / "001.json")
@@ -75,6 +75,7 @@ def _plot_distribution(df: pl.DataFrame) -> None:
     ax.set_title("圖 1　NET_P 分布（僅正值，零值佔 49% 另計）\n僅供篩選，非分析結果")
     fig.tight_layout()
     fig.savefig(FIGDIR / "taipower_netp_hist.png", dpi=130)
+    plt.show()
     plt.close(fig)
 
 def _plot_daily_profile(df: pl.DataFrame) -> None:
@@ -118,6 +119,7 @@ def _plot_daily_profile(df: pl.DataFrame) -> None:
     fig.suptitle("圖 2　各燃料別日內系統出力曲線　僅供篩選，非分析結果", fontsize=12)
     fig.tight_layout()
     fig.savefig(FIGDIR / "taipower_daily_profile.png", dpi=130)
+    plt.show()
     plt.close(fig)
 
 def _plot_system_series(df: pl.DataFrame) -> None:
@@ -137,6 +139,7 @@ def _plot_system_series(df: pl.DataFrame) -> None:
     fig.autofmt_xdate()
     fig.tight_layout()
     fig.savefig(FIGDIR / "taipower_system_series.png", dpi=130)
+    plt.show()
     plt.close(fig)
 
 # %%

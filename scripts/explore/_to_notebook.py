@@ -20,6 +20,25 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 
 
+def for_notebook(code: str) -> str:
+    """把「存檔用」的繪圖改成「顯示用」。
+
+    原腳本跑在 CLI，用 Agg backend 存檔即可；notebook 要的是圖出現在
+    儲存格下方。三處要改：Agg backend 會讓圖無法顯示、plt.close() 會在
+    顯示前就關掉圖、以及缺少 plt.show()。存檔保留——圖仍然要進
+    outputs/figures。
+    """
+    code = re.sub(r'^matplotlib\.use\("Agg"\)\n?', "", code, flags=re.M)
+    # savefig 之後補 show，並移除隨後的 close
+    code = re.sub(
+        r"(^(\s*)(?:fig\.|plt\.)savefig\([^\n]*\)\n)(\s*plt\.close\([^\n]*\)\n)?",
+        lambda m: f"{m.group(1)}{m.group(2)}plt.show()\n",
+        code,
+        flags=re.M,
+    )
+    return code
+
+
 def split_main(source: str) -> tuple[str, list[tuple[str, str]]]:
     """回傳 (setup 程式碼, [(section 標題, 該段程式碼)])。"""
     tree = ast.parse(source)
@@ -40,7 +59,7 @@ def split_main(source: str) -> tuple[str, list[tuple[str, str]]]:
         if isinstance(node, ast.If) and getattr(node.test, "left", None) is not None:
             continue  # if __name__ == "__main__"
         seg = lines[node.lineno - 1: node.end_lineno]
-        setup_parts.append("\n".join(seg))
+        setup_parts.append(for_notebook("\n".join(seg)))
 
     body_lines = lines[main_node.body[0].lineno - 1: main_node.end_lineno]
     dedented = [ln[4:] if ln.startswith("    ") else ln for ln in body_lines]
@@ -61,6 +80,7 @@ def split_main(source: str) -> tuple[str, list[tuple[str, str]]]:
     if buf or title:
         cells.append((title, "\n".join(buf).strip()))
 
+    cells = [(title, for_notebook(code)) for title, code in cells]
     return "\n\n".join(setup_parts), cells
 
 

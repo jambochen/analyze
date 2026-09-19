@@ -26,7 +26,7 @@ import matplotlib.pyplot as plt
 
 import polars as pl
 
-matplotlib.use("Agg")
+
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -91,6 +91,7 @@ def _plot_reserve_series(df: pl.DataFrame) -> None:
     fig.autofmt_xdate()
     fig.tight_layout()
     fig.savefig(FIGDIR / "taipower_reserve_series.png", dpi=130)
+    plt.show()
     plt.close(fig)
 
 def _plot_demand_split(df: pl.DataFrame) -> None:
@@ -105,6 +106,7 @@ def _plot_demand_split(df: pl.DataFrame) -> None:
     fig.autofmt_xdate()
     fig.tight_layout()
     fig.savefig(FIGDIR / "taipower_demand_split.png", dpi=130)
+    plt.show()
     plt.close(fig)
 
 def _plot_reserve_hist(df: pl.DataFrame) -> None:
@@ -118,6 +120,7 @@ def _plot_reserve_hist(df: pl.DataFrame) -> None:
     ax.set_title("圖 6　備轉容量率分布　僅供篩選，非分析結果", fontsize=12)
     fig.tight_layout()
     fig.savefig(FIGDIR / "taipower_reserve_hist.png", dpi=130)
+    plt.show()
     plt.close(fig)
 
 def _plot_renewable(df: pl.DataFrame) -> None:
@@ -133,6 +136,7 @@ def _plot_renewable(df: pl.DataFrame) -> None:
     fig.autofmt_xdate()
     fig.tight_layout()
     fig.savefig(FIGDIR / "taipower_renewable.png", dpi=130)
+    plt.show()
     plt.close(fig)
 
 # %%

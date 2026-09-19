@@ -36,7 +36,7 @@ import matplotlib.pyplot as plt
 
 import polars as pl
 
-matplotlib.use("Agg")
+
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -202,7 +202,7 @@ ax.set_title("候選 L-3：區域潮流的日內剖面（僅供篩選，非分�
 ax.legend()
 fig.tight_layout()
 fig.savefig(FIGDIR / "explore_taipower_flow_hourly.png", dpi=120)
-plt.close(fig)
+plt.show()
 print("已輸出 explore_taipower_flow_hourly.png")
 
 # %% [markdown]
@@ -218,7 +218,7 @@ for ax, name in zip(axes, sorted(df["UNIT_NAME"].unique())):
 axes[0].set_title("候選 L-3：四條鏈路潮流（紅線為零，僅供篩選，非分析結果）")
 fig.tight_layout()
 fig.savefig(FIGDIR / "explore_taipower_flow_series.png", dpi=120)
-plt.close(fig)
+plt.show()
 print("已輸出 explore_taipower_flow_series.png")
 
 # %% [markdown]
@@ -234,7 +234,7 @@ for ax, name in zip(axes.flat, sorted(df["UNIT_NAME"].unique())):
 fig.suptitle("候選 L-3：潮流分布（僅供篩選，非分析結果）")
 fig.tight_layout()
 fig.savefig(FIGDIR / "explore_taipower_flow_hist.png", dpi=120)
-plt.close(fig)
+plt.show()
 print("已輸出 explore_taipower_flow_hist.png")
 
 # %% [markdown]
