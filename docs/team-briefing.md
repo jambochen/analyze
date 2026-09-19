@@ -1,10 +1,5 @@
 # 四個資料集的檢視結果
 
-四份都下載跑過了。結論是都不建議採用，理由各不相同。
-notebook 我放 gist，數字都可以自己驗。
-
----
-
 ## EV 電池健康
 
 合成資料，而且合成規則可以反推。
@@ -57,21 +52,40 @@ complete_year（叫建成年）範圍 0–108      ← 實際是民國年
 
 ## AI 對就業薪資
 
-表面品質最好的一份，幾乎沒有 null，附了 data dictionary。問題不在資料髒。
+這份表面品質最好——71,913 列、17 欄、幾乎沒有 null、附了 data dictionary。
+問題不在資料髒，而在**它不含回答自己標題所需的變數**。
 
-**AI 曝險分數不在檔案裡。** 標題叫 "AI Impact"，描述引用 ILO 的生成式 AI
-職業曝險指數，但 17 個欄位沒有任何一欄是曝險度。
+**一、標題承諾的東西不在檔案裡。**
 
-附的 data dictionary 本身沒有誤導——它寫 `isco_group_hint` 是
-"for joining **against** AI-exposure data"，明指這是對外接合的鍵，
-ILO 那份是待接合的外部來源。誤導來自 Kaggle 的標題與描述。
+資料集叫 "AI Impact on Jobs and Salaries"，描述引用了 ILO 的生成式 AI
+職業曝險指數。但 17 個欄位全部列出來，沒有任何一欄是曝險度：
 
-但結果一樣：拆掉包裝就是 ai-jobs.net 的薪資表加兩個分類欄。
+```
+work_year, experience_level, employment_type, job_title, salary,
+salary_currency, salary_in_usd, employee_residence, remote_ratio,
+company_location, company_size, experience_level_label,
+employment_type_label, work_mode, salary_outlier_flag,
+role_family, isco_group_hint
+```
 
-**無法識別因果。** 沒有個人 ID、沒有公司 ID、沒有對照組（全是 AI／資料類
-職缺）。能算的頂多是不同職種在不同年度的薪資差異，屬橫斷面關聯。
+附的 data dictionary 其實沒有誤導，它寫 `isco_group_hint` 是
+"for joining **against** AI-exposure data"——明指這是拿來**對外接合**的鍵，
+ILO 那份是**待接合的外部來源**，不是已併入的欄位。誤導來自 Kaggle 的
+標題與描述。
 
-**年度分布畸形：**
+實際拿到的東西是 ai-jobs.net 的薪資表加兩個分類欄。要做 AI 曝險的題目，
+得自己去 ILO 取指數再接，那這份資料就沒什麼加值了。
+
+**二、就算接上曝險分數，也算不出「影響」。**
+
+資料是職缺薪資的自我回報快照：沒有個人 ID（同一人跨年追蹤不了）、
+沒有公司 ID、也沒有未受 AI 衝擊的對照組（全部都是 AI／資料類職缺）。
+
+缺了這些，能做的上限是「曝險度不同的職業，薪資差多少」——那是橫斷面
+關聯，不是「AI 造成了什麼」。而要回答前者，官方薪資調查的資料品質
+遠比自願填報好。
+
+**三、連橫斷面關聯都難算，因為跨年比較不成立。**
 
 ```
 work_year   筆數     remote_ratio 均值
@@ -83,22 +97,25 @@ work_year   筆數     remote_ratio 均值
 2025      38,282          23.3
 ```
 
-2024+2025 佔 91.8%，標題寫的 2026 年沒有資料。
+2024+2025 佔了 91.8%，標題寫的 2026 年一筆都沒有。
 
-`remote_ratio` 那條曲線看似呈現「疫情遠端高峰後回落」，但 2020–2021
-合計 289 筆，且早期填報者偏遠端優先的新創。樣本組成變化與真實趨勢
-混在一起。
+`remote_ratio` 那條曲線看起來完美呈現「疫情遠端高峰後回落」。但
+2020–2021 合計才 289 筆，而且早期會去 ai-jobs.net 填報的人本來就偏向
+遠端優先的新創。**樣本組成的變化和真實趨勢完全混在一起，分不開。**
 
-### 復現了這份底下票數最高的 notebook
+### 這個問題有多難繞過：復現了票數最高的 notebook
 
-sasakitetsuya 的 *AI Salaries and the Vanishing Middle*。方法設計用心：
-事前假說、自建職稱分類、OLS 控制四個混淆、交互項、兩組敏感度分析，
-最後否定了自己原假說的兩條腿。
+sasakitetsuya 的 *AI Salaries and the Vanishing Middle*。方法設計相當
+用心——事前假說、自建可調整的職稱分類、OLS 控制年資／國家／公司規模／
+工作型態、`bucket × year` 交互項、兩組敏感度分析，最後還誠實地否定了
+自己原假說的兩條腿。
 
-他也獨立證實了曝險欄位的問題，notebook 裡直接寫
-"the exposure columns are **not present**"。
+他獨立證實了第一點，notebook 裡直接寫 "the exposure columns are
+**not present**"，所以整份分析只用薪資與職稱部分。
 
-但主結論撐不住。核心發現是「管理職 2023→2025 薪資 +22%」，復現其樣本：
+**但他的主結論仍然撐不住**，而且撞的正是第三點那面牆。
+
+核心發現是「管理職 2023→2025 調整後薪資 +22%」。復現他的樣本後：
 
 ```
 Management      2023  n=   140
@@ -106,19 +123,24 @@ People-facing   2023  n=    11
 Middle          2023  n= 3,756
 ```
 
-caveat 裡承認了 People-facing 的 11 筆，沒提 Management 也才 140 筆，
-而 +22% 正是從這個基期算的。
+他在 caveat 裡承認了 People-facing 只有 11 筆，但沒提 Management 也才
+140 筆——而 +22% 正是從這個基期算出來的。
 
-更關鍵的是那組裝的人換了：
+更關鍵的是那一組裝的人換了：
 
 ```
 2023 (n=140)  ：Data Manager 58、Head of Data 21、Data Analytics Manager 19
 2025 (n=4,400)：Manager 2,238、Director 472、Data Manager 326
 ```
 
-2023 年是資料部門主管，2025 年主體變成泛用 `Manager`／`Director`，
-組內 Executive 比例從 24.3% 降到 13.3%。不是同一群人薪水在漲，
-是這組裝的人換了。迴歸控制了年資，控不住職稱本身的語意漂移。
+2023 年那組是「資料部門的主管」，2025 年主體變成泛用的 `Manager`／
+`Director`，組內 Executive 比例也從 24.3% 掉到 13.3%。
+
+**這不是同一群人薪水在漲，是這一組裝的人換了。** 他迴歸有控制年資，
+但控不住職稱本身的語意在漂移。
+
+一份做得這麼用心的分析還是撞上這面牆，說明樣本組成的問題不是分析技巧
+能補救的——它是資料的性質。
 
 ---
 
