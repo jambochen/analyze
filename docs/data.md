@@ -7,13 +7,22 @@
 
 | 檔案 | 狀態 |
 |---|---|
-| `flights_weather_2019..2024.parquet` | 完整，六個年度檔，分析用 |
-| `flights_weather_2025.parquet` | **損壞**，下載不完整，footer 缺 `PAR1`。polars 掃描會整批失敗 |
-| `airport_hourly_weather.parquet` | **未下載** |
+| `flights_weather_2019..2024.parquet` | 完整，六個年度檔，主要分析用 |
+| `flights_weather_2025.parquet` | 完整，但**僅到 7 月**，非完整年度 |
+| `airport_hourly_weather.parquet` | 完整，尚未納入分析 |
 | `airports_reference.parquet` | 完整 |
+| `flights_weather_recent_24mo.parquet` | 入門檔，與年度檔重疊，不納入正式分析 |
 
-2025 年僅到 7 月，本身就非完整年度，納入會引入季節性偏誤。六年資料已足以
-完成全部分析。
+**2025 不進主要分析。**天氣延誤高度季節性（冬季風雪、夏季雷雨），缺 8-12 月
+的年度不能與完整年度並列進固定效應。可用之處只有一個：**與其他年度的同月
+比較**，作為樣本外驗證的延伸。
+
+資料集的時間範圍不會再向後延伸——NOAA 已停止 ISD 的全球逐時匯入，來源本身
+停在最後一個完整氣象月。詳見 `SOURCE.md`。
+
+`airport_hourly_weather.parquet` 能支撐現有欄位做不到的事：`wx_` 是航班層級
+的快照，逐時氣象可算**天氣持續時間與惡化軌跡**——「連續惡劣六小時」與「短暫
+一陣」對歸因行為的影響可能不同。屬擴充方向，非必要路徑。
 
 ## 欄位分群
 
