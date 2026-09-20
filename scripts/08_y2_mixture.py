@@ -28,7 +28,8 @@ Z = (Z - Z.mean(0)) / Z.std(0)
 print("n", len(y), "公司", len(carriers), "整段全掛比例", round(float(y.mean()), 4))
 
 idatas = {}
-for K in [2, 3]:
+# K=3 的抽樣不收斂（divergence 數百、ESS 個位數），已由診斷否決，不再跑。
+for K in [2]:
     with pm.Model() as m:
         # 每個成分有自己的基準傾向與對延誤長度、天氣嚴重度的反應。若某成分
         # 對協變數不反應而基準極高，即為「預設值」型態。
@@ -67,13 +68,6 @@ for K in [2, 3]:
     idatas[K] = idata
     print(f"\n=== K={K}")
     print(pm.stats.summary(idata, var_names=["a", "beta", "tau"]).to_string())
-
-import arviz as az
-
-cmp = az.compare(idatas)
-print("\n模型比較")
-print(cmp.to_string())
-cmp.to_csv("outputs/tables/09_mixture_compare.csv")
 
 for K, idata in idatas.items():
     post = idata.posterior
