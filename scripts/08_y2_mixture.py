@@ -70,7 +70,7 @@ for K in [2, 3]:
 
 import arviz as az
 
-cmp = az.compare(idatas, ic="loo")
+cmp = az.compare(idatas)
 print("\n模型比較")
 print(cmp.to_string())
 cmp.to_csv("outputs/tables/09_mixture_compare.csv")
