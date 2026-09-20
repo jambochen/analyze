@@ -8,43 +8,45 @@
 
 執行方式：名義上為小組作業，實際由單人全程負責。不需要協作流程、分支策略、PR review 或分工建議。
 
-## 選定主題（2026-09-20 定案）
+## 主題
 
-**美國航班天氣延誤的低報稽核**（原候選 I）。
+**美國航班天氣延誤的低報稽核**。
 
 - **核心研究問題**：以實際觀測氣象為基準，哪些航空公司、機場與航線系統性地少報天氣延誤？低報程度能否量化並排序，作為監理查核的優先順序？
 - **交付物**：航空公司天氣延誤低報程度的**監理優先清單**（走「具體可行的建議」路線，非預測路線）
-- **受益者**：DOT / FAA 監理單位。DOT OIG 於 2024 年 10 月稽核認定 BTS 延誤成因欄位不可信，但未提供替代方法
-- **資料**：`data/raw/flights-weather/`，Kaggle `arimancy/observed-weather-us-flights`。完整版 4,280 萬筆航班 / 6.1 GB；24 個月入門檔 1,406 萬列 / 1.1 GB，schema 相同
-- **分析設計**：見 `docs/design.md`
-- **選題過程**：已封存於 `docs/archive/`，分析階段不需要。其餘候選一律不再重啟
+- **資料**：`data/raw/flights-weather/`，Kaggle `arimancy/observed-weather-us-flights`
+- **分析設計**：見 `docs/README.md` 索引
 
 ### 本題的硬性紀律
 
-- **洩漏防護**：`oracle_` 前綴欄位是事件時刻的氣象，用於預測即構成洩漏。一律以資料集提供的 `select_safe_features()` 機械式移除，不手動挑選
+- **洩漏防護**：`oracle_` 前綴欄位是事件時刻的氣象，用於預測即構成洩漏。一律機械式以前綴移除，不手動挑選
 - **`reported_` 欄位的角色**：它是**被稽核的對象**，不是可信的特徵。不得當成解釋變數用來解釋延誤
-- **結構性缺失**：`reported_*` 缺失 79.66%、雪深 99.7%、陣風 83%，皆為「不符條件即不填報」。不可當成隨機缺失插補，處理方式須在報告中明確說明
-- **結果變數強右偏且含負值**（`arr_delay_min` 中位 −6、q99 為 214），不可直接用最小平方
+- **結構性缺失**：`reported_*`、雪深、陣風的缺失皆為「不符條件即不填報」。不可當成隨機缺失插補，處理方式須在報告中明確說明
+- **結果變數強右偏且含負值**，不可直接用最小平方
 
-## 目前階段：正式分析
+## 文件規範
 
-選題已定案，篩選階段結束。統計方法不再受限（見「方法論範圍」）。
+- **不寫數值**。任何比率、樣本量、係數一律只存在於 `outputs/` 的 CSV、圖或腳本輸出。文件只寫定性結論與其理由
+- **只寫現況**。不寫日期、修訂記錄、「初版」「原本」「已放棄」。被推翻的內容直接刪除，修訂史交給 git
+- **不寫階段編號**。依研究問題組織，不依腳本執行順序
 
-### 封存目錄：不要讀
+例外：`data/raw/*/SOURCE.md` 的筆數與欄位數是溯源記錄，須保留。
+
+## 封存目錄：不要讀
 
 `docs/archive/`、`scripts/archive/`、`outputs/archive/` 存放選題階段的產物。
 
 **除非使用者明確要求，不要讀取、搜尋或引用這三個目錄下的任何檔案。**它們的唯一用途是日後撰寫報告「資料選擇」一節時交代選題依據，與分析工作無關。搜尋檔案時一併排除。
 
-### 腳本位置
+## 腳本位置
 
-正式分析腳本放 `scripts/`，依編號執行：`01_ingest.py` / `02_clean.py` / `03_eda.py` / `04_model.py`。
+正式分析腳本放 `scripts/`，依編號執行：`01_ingest.py` / `02_clean.py` / `03_eda.py` / `04_model.py` / `05_ranking.py`。
 
-`scripts/explore/` 現只留選定主題的篩選腳本（`flights-weather.py`、`nb_flights_weather.py|ipynb`），可作為資料欄位的參考，不再擴充。
+`scripts/explore/` 放探索性實測，不進正式流程。
 
-### 資料取得：一律用 CLI，不用 MCP
+## 資料取得：一律用 CLI，不用 MCP
 
-Kaggle MCP 已移除（專案不再有 `.mcp.json`）。取得資料一律透過命令列，寫成 `scripts/fetch/` 下的腳本，不要用 MCP 工具。
+取得資料一律透過命令列，寫成 `scripts/fetch/` 下的腳本，不要用 MCP 工具。
 
 ```bash
 uvx --from kaggle kaggle datasets download -d <slug> -f <file> -p <dest> --unzip
@@ -52,21 +54,21 @@ uvx --from kaggle kaggle datasets download -d <slug> -f <file> -p <dest> --unzip
 
 理由：CLI 的每一步都留在腳本裡，別人照著跑得到同一份資料；MCP 呼叫留不下可重現的紀錄。
 
-憑證已設定完成：`~/.kaggle/credentials.json`（OAuth，帳號 `jambo2`），CLI 可直接下載，不需額外設定。憑證**絕不寫進專案任何檔案**。
+憑證已設定完成：`~/.kaggle/credentials.json`（OAuth，帳號 `jambo2`），CLI 可直接下載。憑證**絕不寫進專案任何檔案**。
 
 ## 目錄結構
 
 ```
 data/raw/          原始下載資料，唯讀，永不修改。每個子目錄須含 SOURCE.md
 data/processed/    清理後資料
-scripts/           正式分析腳本（.py），編號執行：01_ingest / 02_clean / 03_eda / 04_model
-scripts/explore/   選定主題的篩選腳本，可參考，不再擴充
+scripts/           正式分析腳本（.py），編號執行
+scripts/explore/   探索性實測
 scripts/fetch/     資料下載腳本
-docs/              design.md（分析設計）
+docs/              見 docs/README.md
 report/            report.qmd 及輸出
 outputs/figures/   圖
 outputs/tables/    表
-*/archive/         選題階段產物，封存不讀（見「封存目錄：不要讀」）
+*/archive/         選題階段產物，封存不讀
 ```
 
 `data/raw/` 不納入 git（見 `.gitignore`）。
@@ -84,8 +86,6 @@ outputs/tables/    表
 
 政府開放資料經常改版且不保留歷史版本，下載當下即記錄，不可事後補。
 
-資料溯源的要求不因階段轉換而放寬：日後若再下載任何資料（例如補充的機場或航空公司對照表），仍須依上述格式撰寫 `SOURCE.md`。選題階段的收斂紀律（活躍候選上限、淘汰理由必填等）則不再適用。
-
 ## 語言
 
 - 報告：繁體中文
@@ -94,9 +94,7 @@ outputs/tables/    表
 
 ## 技術棧
 
-**Python**（2026-09-18 確定）。
-
-腳本副檔名 `.py`，`report/` 下的 Quarto 文件使用 Python engine。
+**Python**。腳本副檔名 `.py`，`report/` 下的 Quarto 文件使用 Python engine。
 
 ## 程式碼風格
 
@@ -118,7 +116,7 @@ outputs/tables/    表
 
 ## 方法論範圍
 
-**不限定**（2026-09-19 確定）。任何統計方法皆可，課程為自由發揮。
+**不限定**。任何統計方法皆可，課程為自由發揮。
 
 方法的選擇由研究問題決定，不為了展示方法而加方法。評分回歸本文件開頭的
 「方法嚴謹」：每個方法都要說得出為什麼用它、它的假設在本資料上是否成立。
@@ -128,4 +126,3 @@ outputs/tables/    表
 以下待使用者後續決定，不要自行假設：
 
 - 課程的交付規格：頁數、格式、期限
-- 使用 24 個月入門檔或完整版 6.1 GB

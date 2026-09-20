@@ -9,7 +9,7 @@ plt.rcParams["axes.unicode_minus"] = False
 b = pl.read_parquet("data/processed/bad_weather.parquet")
 
 # 時段設三段而非二分：航班量從未回到 2019 水準，2022 下半年起穩定在 0.89-0.92，
-# 新常態與疫情前是不同的制度。切點見 docs/data_profile.md。
+# 新常態與疫情前是不同的制度。切點判準見 docs/decisions.md。
 b = b.with_columns(
     pl.when(pl.col("sched_dep_utc") < pl.lit("2020-04-01").str.to_datetime().dt.replace_time_zone("UTC"))
     .then(pl.lit("pre"))
