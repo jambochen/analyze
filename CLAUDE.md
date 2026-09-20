@@ -50,7 +50,9 @@ Kaggle MCP 已移除（專案不再有 `.mcp.json`）。取得資料一律透過
 uvx --from kaggle kaggle datasets download -d <slug> -f <file> -p <dest> --unzip
 ```
 
-理由：CLI 的每一步都留在腳本裡，別人照著跑得到同一份資料；MCP 呼叫留不下可重現的紀錄。憑證放 `~/.kaggle/kaggle.json` 或 `KAGGLE_USERNAME` / `KAGGLE_KEY` 環境變數，**絕不寫進專案任何檔案**。
+理由：CLI 的每一步都留在腳本裡，別人照著跑得到同一份資料；MCP 呼叫留不下可重現的紀錄。
+
+憑證已設定完成：`~/.kaggle/credentials.json`（OAuth，帳號 `jambo2`），CLI 可直接下載，不需額外設定。憑證**絕不寫進專案任何檔案**。
 
 ## 目錄結構
 
