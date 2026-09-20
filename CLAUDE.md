@@ -96,6 +96,23 @@ outputs/tables/    表
 
 **Python**。腳本副檔名 `.py`，`report/` 下的 Quarto 文件使用 Python engine。
 
+### Rust 擴充：僅限實測過的熱點
+
+預設全部用 Python。只有同時滿足以下兩個條件，才考慮寫 Rust crate 以 pyo3 綁定：
+
+1. **該段是經常觸發瓶頸**。該運算會頻繁或多處使用。
+2. **既有套件解不掉**。該運算在 numpy / scipy / statsmodels / polars 裡沒有
+   對應實作，或有實作但是純 Python 迴圈、未走 C/C++/Rust 加速
+
+兩者皆成立時，Rust 的價值在 rayon 並行與 SIMD，適合的形態是自訂的逐列數值
+迴圈、bootstrap 重抽、對每個群組重複擬合這類 numpy 向量化表達不出來的運算。
+
+反之不要寫：能用 numpy 向量化改寫的、只跑一次的前處理、佔總時間比例低的段落。
+維護一條 Rust 建置鏈的成本高於它省下的時間。
+
+crate 放 `rust/<name>/`，以 maturin 建置，在 `pyproject.toml` 宣告依賴。
+Python 側須保留一份等價的參考實作，用於驗證 Rust 版結果一致。
+
 ## 程式碼風格
 
 **程式碼不公開，報告也不以 notebook 呈現。**腳本的唯一讀者是分析者本人，
