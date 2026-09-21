@@ -34,6 +34,32 @@
 發布者的品質保證（cutoff gate、leakage tests）是為預測設計的，**不保證申報
 欄位適合做行為稽核**。相關的限制見 `design.md`「已知限制」。
 
+## 官方上游的取得路徑與核對計畫
+
+本資料集是二次整理，三個上游皆為公開且無須登入的官方資料：
+
+| 上游 | 提供的欄位 | 官方取得方式 |
+|---|---|---|
+| BTS On-Time Performance | 航班、班表、延誤、`reported_*` 五欄 | transtats.bts.gov 的 PREZIP，逐月一個 zip |
+| NOAA NCEI ISD global-hourly | `wx_` 與 `oracle_` 的氣象原料 | ncei.noaa.gov 的 global-hourly access，一站一年一 CSV |
+| OurAirports | 機場座標與 ICAO 代碼 | ourairports-data 的 airports.csv |
+
+**不自建。**發布者的加值不在資料本身，而在機場與 ISD 測站的比對表（發布者
+明言不存在於任何維護中的公開資料）、逐班的 `info_cutoff_utc` as-of join、
+METAR 降水的跨報告去重，以及前段航段的視窗閘控。這幾項自建等於重做一次
+氣象比對工程，與本題的稽核目的無關。自建也解不掉時間範圍與申報門檻兩個
+限制——那是上游本身的限制。
+
+**要做的是核對。**本分析的被稽核對象是 `reported_*`，故必須證明該欄位未被
+二次整理污染：
+
+- 自 BTS 官方取若干個月的 On-Time 原始檔，與年度檔逐班核對 `reported_*`、
+  `arr_delay_min`、`operating_carrier`
+- 自 NCEI 取數個代表機場的 ISD 原始年檔，抽驗 `wx_` 的解碼
+
+核對結果寫入 `data/raw/flights-weather/SOURCE.md` 與報告的資料可信度一節。
+屬待辦，尚未執行。
+
 ## 欄位分群
 
 | 前綴 | 角色 |
@@ -45,7 +71,7 @@
 | `reported_` | 航空公司自報延誤成因，**稽核對象，不得作為解釋變數** |
 
 `bts_pipeline` 套件未隨 Kaggle 資料發布，`select_safe_features()` 無法呼叫。
-`01_ingest.py` 依資料字典的兩條規則手動重建：`oracle_` 前綴，加上一份事件後
+`ingest.py` 依資料字典的兩條規則手動重建：`oracle_` 前綴，加上一份事件後
 才確定的欄位黑名單。`prior_leg_*` 不在黑名單內——發布者的 gate 已保證前一
 航段實際到站早於本班 `info_cutoff_utc`。
 
