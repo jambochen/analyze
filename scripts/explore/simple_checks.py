@@ -41,7 +41,7 @@ r = (
     .sort("mult5_rate", descending=True)
 )
 print(r)
-r.write_csv("outputs/tables/10_digit_heaping.csv")
+r.write_csv("outputs/tables/digit_heaping.csv")
 
 # 三、oracle_ 子樣本的代表性：該子樣本僅涵蓋部分資料，若氣象分布與全樣本
 # 不同，以它做的穩健性結論外部效度有問題。看統計量不看 p 值。

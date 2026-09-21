@@ -14,7 +14,7 @@ ident = (
     .sort("n_mkt", "n", descending=True)
 )
 print(ident)
-ident.write_csv("outputs/tables/05_regional_identifiability.csv")
+ident.write_csv("outputs/tables/regional_identifiability.csv")
 
 # 原始歸因率隨主線而變，但這可能只是航網差異——替不同主線飛的機場不同。
 raw = (
@@ -24,7 +24,7 @@ raw = (
     .sort("operating_carrier", "y1", descending=[False, True])
 )
 print(raw)
-raw.write_csv("outputs/tables/05_regional_raw.csv")
+raw.write_csv("outputs/tables/regional_raw.csv")
 
 # 以階段 4 的識別策略排除航網混淆：限定同一執飛業者在同機場同月內同時替
 # 多家主線飛的格子，格子內去均值後比較。殘留的差異不可能來自機場或季節。
@@ -52,7 +52,7 @@ within = pl.concat(rows).select("operating_carrier", "marketing_carrier", "cells
     "operating_carrier", "within_cell_dev"
 )
 print(within)
-within.write_csv("outputs/tables/05_regional_within_cell.csv")
+within.write_csv("outputs/tables/regional_within_cell.csv")
 
 # 主線自營 vs 其支線代飛：若代飛系統性偏高，對照組 DL 的水準被抬高，
 # 階段 4 所有相對 DL 的係數都被平移。
@@ -64,4 +64,4 @@ own = (
     .sort("marketing_carrier")
 )
 print(own)
-own.write_csv("outputs/tables/05_mainline_vs_regional.csv")
+own.write_csv("outputs/tables/mainline_vs_regional.csv")

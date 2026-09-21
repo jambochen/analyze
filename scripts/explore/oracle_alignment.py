@@ -82,7 +82,7 @@ def fit(num, label, extra=None):
     assert not np.isnan(r.bse).any(), f"{label} 標準誤含 NaN"
     out = pl.DataFrame({"term": nm, f"coef_{label}": r.params, f"se_{label}": r.bse})
     print(label, "R2", round(r.rsquared, 5))
-    out.write_csv(f"outputs/tables/07_{label}.csv")
+    out.write_csv(f"outputs/tables/{label}.csv")
     return out
 
 
@@ -99,7 +99,7 @@ cmp = (
 )
 print()
 print(cmp.select("term", "coef_wx_base", "coef_oracle_base", "coef_both", "shift", "se_wx_base"))
-cmp.write_csv("outputs/tables/07_basis_compare.csv")
+cmp.write_csv("outputs/tables/basis_compare.csv")
 print()
 print("排序相關 spearman", round(
     np.corrcoef(cmp["coef_wx_base"].rank(), cmp["coef_oracle_base"].rank())[0, 1], 4))

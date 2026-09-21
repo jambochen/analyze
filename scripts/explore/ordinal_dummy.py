@@ -53,7 +53,7 @@ def fit(num, dummies, label):
     assert not np.isnan(r.bse).any(), f"{label} 標準誤含 NaN"
     print(label, "R2", round(r.rsquared, 6), "參數", len(nm))
     out = pl.DataFrame({"term": nm, f"coef_{label}": r.params, f"se_{label}": r.bse})
-    out.write_csv(f"outputs/tables/11_{label}.csv")
+    out.write_csv(f"outputs/tables/ordinal_{label}.csv")
     return out, r
 
 
@@ -74,4 +74,4 @@ print(cmp.select("term", "coef_linear", "coef_dummy", "d", "se_linear"))
 print("公司效應最大變動", round(float(cmp["d"].max()), 5),
       "對照 se 中位", round(float(cmp["se_linear"].median()), 5))
 print("排序 spearman", round(float(np.corrcoef(cmp["coef_linear"].rank(), cmp["coef_dummy"].rank())[0, 1]), 4))
-cmp.write_csv("outputs/tables/11_ordinal_compare.csv")
+cmp.write_csv("outputs/tables/ordinal_compare.csv")

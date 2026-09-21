@@ -35,7 +35,7 @@ vif = np.diag(np.linalg.inv(R))
 v = pl.DataFrame({"col": wx, "vif": vif}).sort("vif", descending=True)
 print()
 print(v)
-v.write_csv("outputs/tables/05_wx_vif.csv")
+v.write_csv("outputs/tables/wx_vif.csv")
 
 # 前幾個主成分各自由哪些欄位主導，判斷是否為可解釋的「惡劣度」維度。
 print()
