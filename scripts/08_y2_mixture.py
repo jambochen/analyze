@@ -48,23 +48,6 @@ for K in [2]:
         mix = (w[cidx] * p).sum(axis=1)
         pm.Bernoulli("obs", p=mix, observed=y)
         idata = pm.sample(1500, tune=2000, chains=4, cores=4, target_accept=0.95, random_seed=0)
-        # compute_log_likelihood 不接受顯式 initval，手算 pointwise 對數概似供 LOO。
-        post = idata.posterior
-        A = post["a"].values.reshape(-1, K)
-        B = post["beta"].values.reshape(-1, K, len(feat))
-        W = post["w"].values.reshape(-1, len(carriers), K)
-        S = min(400, A.shape[0])
-        sel = np.linspace(0, A.shape[0] - 1, S).astype(int)
-        ll = np.empty((S, len(y)), dtype=np.float32)
-        for i, s in enumerate(sel):
-            pr = 1.0 / (1.0 + np.exp(-(A[s][None, :] + Z @ B[s].T)))
-            mx = np.clip((W[s][cidx] * pr).sum(1), 1e-9, 1 - 1e-9)
-            ll[i] = np.where(y == 1, np.log(mx), np.log1p(-mx))
-        import xarray as xr
-
-        idata["log_likelihood"] = xr.Dataset(
-            {"obs": (("chain", "draw", "obs_dim"), ll.reshape(1, S, len(y)))}
-        )
     idatas[K] = idata
     print(f"\n=== K={K}")
     print(pm.stats.summary(idata, var_names=["a", "beta", "tau"]).to_string())
