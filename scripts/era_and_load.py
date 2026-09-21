@@ -86,7 +86,7 @@ def run(mod_name, mod_vals, label):
         print(f"\n=== {label} {suffix} n={len(y)} 交互項顯著數 {ix.filter(pl.col('t') > 1.96).height}/{ix.height}")
         print(ix.sort("coef", descending=True).head(8).select("term", "coef", "se", "t"))
         print(ix.sort("coef").head(5).select("term", "coef", "se", "t"))
-        out.write_csv(f"outputs/tables/06_{label}_{suffix}.csv")
+        out.write_csv(f"outputs/tables/{label}_{suffix}.csv")
 
 
 brk = (b["era"] == "break").to_numpy().astype(float)

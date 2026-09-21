@@ -50,7 +50,7 @@ def estimate(d, unit, ref, label):
         )
         print(label, suffix, "n", len(y), "cells", len(set(g.tolist())))
         print(out.filter(pl.col("term").str.starts_with(f"{unit}_")).sort("coef"))
-        out.write_csv(f"outputs/tables/05_{label}_{suffix}.csv")
+        out.write_csv(f"outputs/tables/{label}_{suffix}.csv")
 
 
 estimate(b, "operating_carrier", "DL", "op")

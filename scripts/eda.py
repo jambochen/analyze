@@ -1,8 +1,6 @@
 import matplotlib.pyplot as plt
 import polars as pl
 
-plt.rcParams["font.sans-serif"] = ["Noto Sans CJK TC", "Noto Sans CJK SC", "Noto Sans CJK JP"]
-plt.rcParams["axes.unicode_minus"] = False
 
 b = pl.read_parquet("data/processed/bad_weather.parquet")
 
@@ -30,9 +28,9 @@ fig, ax = plt.subplots(figsize=(9, 3.5))
 ax.plot(m["mo"], m["vs19"])
 for cut in ["2020-04-01", "2021-06-01"]:
     ax.axvline(pl.Series([cut]).str.to_datetime().dt.replace_time_zone("UTC")[0], ls="--", lw=0.8, color="gray")
-ax.set_ylabel("航班量相對 2019 年同月")
+ax.set_ylabel("Flights vs same month 2019")
 fig.tight_layout()
-fig.savefig("outputs/figures/03_covid_volume.png", dpi=150)
+fig.savefig("outputs/figures/covid_volume.png", dpi=150)
 
 # 四個成因欄位的歸因分配。天氣與 NAS 的邊界是本分析的核心歧義。
 causes = ["reported_weather_delay_min", "reported_nas_delay_min", "reported_carrier_delay_min", "reported_late_aircraft_delay_min"]
@@ -48,9 +46,9 @@ for c in ["weather", "nas", "carrier", "late_aircraft"]:
     ax.bar(share["operating_carrier"], share[c], bottom=bottom, label=c)
     bottom = [a + b_ for a, b_ in zip(bottom, share[c])]
 ax.legend(ncols=4, fontsize=8)
-ax.set_ylabel("延誤分鐘數佔比")
+ax.set_ylabel("Share of delay minutes")
 fig.tight_layout()
-fig.savefig("outputs/figures/03_cause_share.png", dpi=150)
+fig.savefig("outputs/figures/cause_share.png", dpi=150)
 
 # Y2 在 OO 與 YV 的中位數為 1.0，須確認是離散尖峰而非連續分布——
 # 若是尖峰，Y2 的模型須用分數型而非常態。
@@ -60,9 +58,9 @@ print(y2.group_by("operating_carrier").agg(pl.len().alias("n"), (pl.col("y2_shar
 
 fig, ax = plt.subplots(figsize=(7, 3.5))
 ax.hist(y2["y2_share"], bins=50)
-ax.set_xlabel("y2_share（天氣分鐘數佔總延誤）")
+ax.set_xlabel("y2_share (weather minutes / total delay)")
 fig.tight_layout()
-fig.savefig("outputs/figures/03_y2_hist.png", dpi=150)
+fig.savefig("outputs/figures/y2_hist.png", dpi=150)
 
 # 分層樣本量決定哪些格子須池化。
 print(b.group_by(["operating_carrier", pl.col("sched_dep_utc").dt.year().alias("y")]).agg(pl.len().alias("n")).pivot("y", index="operating_carrier", values="n").sort("operating_carrier"))
@@ -70,4 +68,4 @@ print(b.group_by(["operating_carrier", pl.col("sched_dep_utc").dt.year().alias("
 cell = b.group_by(["operating_carrier", "origin_iata"]).agg(pl.len().alias("n"))
 print(cell.select(pl.len().alias("cells"), (pl.col("n") < 30).mean().alias("frac_lt30"), pl.col("n").median()))
 
-share.write_csv("outputs/tables/03_cause_share.csv")
+share.write_csv("outputs/tables/cause_share.csv")

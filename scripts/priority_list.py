@@ -3,8 +3,6 @@ import numpy as np
 import polars as pl
 import statsmodels.api as sm
 
-plt.rcParams["font.sans-serif"] = ["Noto Sans CJK TC", "Noto Sans CJK SC", "Noto Sans CJK JP"]
-plt.rcParams["axes.unicode_minus"] = False
 
 wx = [
     "wx_origin_visibility_m", "wx_origin_ceiling_m", "wx_origin_wind_speed_ms", "wx_origin_wind_gust_ms",
@@ -97,7 +95,7 @@ cols = ["carrier", "n", "regional", "n_pos", "n_neg",
         "y3", "y3_se", "y3_lo", "y3_hi", "y3_chg", "raw_y1", "delay_median"]
 lst = lst.select(cols)
 print(lst)
-lst.write_csv("outputs/tables/13_priority_list.csv")
+lst.write_csv("outputs/tables/priority_list.csv")
 
 print("\n三項皆顯著為正")
 print(lst.filter(pl.col("n_pos") == 3).select("carrier", "y1", "y2", "y3", "y1_chg", "y3_chg", "delay_median"))
@@ -108,13 +106,13 @@ print(lst.filter((pl.col("delay_median") > med) & (pl.col("n_pos") == 0)).select
 fig, axes = plt.subplots(1, 3, figsize=(14, 5.5), sharey=True)
 order = lst["carrier"].to_list()[::-1]
 for ax, tag, title in zip(axes, ["y1", "y2", "y3"],
-                          ["Y1 是否歸因天氣", "Y2 歸因時掛多少比例", "Y3 天氣 vs NAS 邊界"]):
+                          ["Y1 weather attributed", "Y2 weather share when attributed", "Y3 weather vs NAS margin"]):
     t = lst.with_columns(pl.col("carrier").replace_strict({k: i for i, k in enumerate(order)}).alias("pos"))
     ax.errorbar(t[tag], t["pos"], xerr=1.96 * t[f"{tag}_se"], fmt="o", ms=4, lw=1)
     ax.axvline(0, ls="--", lw=0.8, color="gray")
     ax.set_title(title, fontsize=10)
 axes[0].set_yticks(range(len(order)))
 axes[0].set_yticklabels(order, fontsize=8)
-fig.supxlabel("相對 DL 的效應（2022-2024，機場 × 年月內比較）")
+fig.supxlabel("Effect vs DL (2022-2024, within airport x month)")
 fig.tight_layout()
-fig.savefig("outputs/figures/13_priority_list.png", dpi=150)
+fig.savefig("outputs/figures/priority_list.png", dpi=150)

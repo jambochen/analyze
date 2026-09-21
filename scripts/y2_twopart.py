@@ -59,7 +59,7 @@ def demean_fit(y, mask, label):
     )
     print(f"\n=== {label} n={mask.sum()} cells={len(set(g.tolist()))}")
     print(out.filter(pl.col("term").str.starts_with("carrier_")).sort("coef", descending=True))
-    out.write_csv(f"outputs/tables/08_{label}.csv")
+    out.write_csv(f"outputs/tables/y2_{label}.csv")
     return out
 
 
@@ -87,4 +87,4 @@ cmp = (
 print()
 print(cmp)
 print("方向相反者", cmp["方向相反"].sum(), "/", cmp.height)
-cmp.write_csv("outputs/tables/08_twopart_compare.csv")
+cmp.write_csv("outputs/tables/y2_twopart_compare.csv")

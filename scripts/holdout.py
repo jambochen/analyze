@@ -65,7 +65,7 @@ for outcome in ["y1_attributed", "y2_share", "y3_wx_vs_nas"]:
     print(f"排序 spearman {rho.statistic:.4f} (p={rho.pvalue:.4f})")
     print(f"係數差的 |z| 中位 {j['z'].abs().median():.2f}  |z|>1.96 者 {j.filter(pl.col('z').abs() > 1.96).height}")
     print(j.select("term", "coef_train", "coef_test", "diff", "z"))
-    j.write_csv(f"outputs/tables/12_holdout_{outcome.split('_')[0]}.csv")
+    j.write_csv(f"outputs/tables/holdout_{outcome.split('_')[0]}.csv")
 
 # 清單的實際用途是「該優先查誰」，故檢查前段的高位者在後段是否仍在高位。
 y1a = estimate(train, "y1_attributed").sort("coef", descending=True)

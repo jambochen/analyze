@@ -2,10 +2,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 
-plt.rcParams["font.sans-serif"] = ["Noto Sans CJK TC", "Noto Sans CJK SC", "Noto Sans CJK JP"]
-plt.rcParams["axes.unicode_minus"] = False
 
-d = pl.read_csv("outputs/tables/13_priority_list.csv")
+d = pl.read_csv("outputs/tables/priority_list.csv")
 
 # 樣本量在公司間差距達一個數量級以上，估計雜訊大的公司不應因雜訊排前面。
 # 經驗貝氏：把各公司的係數向整體均值收縮，收縮量由該公司的標準誤決定。
@@ -34,7 +32,7 @@ out = out.with_columns(
     sum((pl.col(f"{t}_eb_lo") > 0).cast(pl.Int8) for t in ["y1", "y2", "y3"]).alias("n_pos_eb"),
 ).sort("n_pos_eb", "y1_eb", descending=[True, True])
 print(out.select("carrier", "n", "n_pos_eb", "y1_raw", "y1_eb", "y1_shrink", "y3_raw", "y3_eb", "y3_shrink"))
-out.write_csv("outputs/tables/14_shrunk_list.csv")
+out.write_csv("outputs/tables/shrunk_list.csv")
 
 raw_rank = d.sort("y1", descending=True)["carrier"].to_list()
 eb_rank = out.sort("y1_eb", descending=True)["carrier"].to_list()
@@ -43,7 +41,7 @@ print("Y1 排序 收縮後", eb_rank[:5])
 moved = [(c, raw_rank.index(c) - eb_rank.index(c)) for c in raw_rank if raw_rank.index(c) != eb_rank.index(c)]
 print("名次改變者", moved)
 
-prev = pl.read_csv("outputs/tables/13_priority_list.csv").select("carrier", "n_pos")
+prev = pl.read_csv("outputs/tables/priority_list.csv").select("carrier", "n_pos")
 chk = out.join(prev, on="carrier").filter(pl.col("n_pos") != pl.col("n_pos_eb"))
 print("\n收縮後顯著項數改變者")
 print(chk.select("carrier", "n", "n_pos", "n_pos_eb"))
@@ -52,17 +50,17 @@ fig, axes = plt.subplots(1, 3, figsize=(14, 5.5), sharey=True)
 order = out["carrier"].to_list()[::-1]
 pos = {k: i for i, k in enumerate(order)}
 for ax, tag, title in zip(axes, ["y1", "y2", "y3"],
-                          ["Y1 是否歸因天氣", "Y2 歸因時掛多少比例", "Y3 天氣 vs NAS 邊界"]):
+                          ["Y1 weather attributed", "Y2 weather share when attributed", "Y3 weather vs NAS margin"]):
     t = out.with_columns(pl.col("carrier").replace_strict(pos).alias("pos"))
-    ax.scatter(t[f"{tag}_raw"], t["pos"], s=18, facecolors="none", edgecolors="gray", label="收縮前")
+    ax.scatter(t[f"{tag}_raw"], t["pos"], s=18, facecolors="none", edgecolors="gray", label="raw")
     ax.errorbar(t[f"{tag}_eb"], t["pos"],
                 xerr=[t[f"{tag}_eb"] - t[f"{tag}_eb_lo"], t[f"{tag}_eb_hi"] - t[f"{tag}_eb"]],
-                fmt="o", ms=4, lw=1, color="C0", label="收縮後")
+                fmt="o", ms=4, lw=1, color="C0", label="shrunk")
     ax.axvline(0, ls="--", lw=0.8, color="gray")
     ax.set_title(title, fontsize=10)
 axes[0].set_yticks(range(len(order)))
 axes[0].set_yticklabels(order, fontsize=8)
 axes[0].legend(fontsize=8, loc="lower right")
-fig.supxlabel("相對 DL 的效應（2022-2024，經驗貝氏收縮）")
+fig.supxlabel("Effect vs DL (2022-2024, empirical Bayes shrinkage)")
 fig.tight_layout()
-fig.savefig("outputs/figures/14_shrunk_list.png", dpi=150)
+fig.savefig("outputs/figures/shrunk_list.png", dpi=150)

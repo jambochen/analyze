@@ -3,8 +3,6 @@ import numpy as np
 import polars as pl
 import statsmodels.api as sm
 
-plt.rcParams["font.sans-serif"] = ["Noto Sans CJK TC", "Noto Sans CJK SC", "Noto Sans CJK JP"]
-plt.rcParams["axes.unicode_minus"] = False
 
 b = pl.read_parquet("data/processed/bad_weather.parquet")
 
@@ -67,7 +65,7 @@ def report(coef, se, label):
         (pl.col("coef") + 1.96 * pl.col("se")).alias("hi"),
     )
     print(out.filter(pl.col("term").str.starts_with("carrier_")).sort("coef"))
-    out.write_csv(f"outputs/tables/04_{label}.csv")
+    out.write_csv(f"outputs/tables/carrier_effects_{label}.csv")
 
 
 # 9,888 個格子的 dummy 展開為 dense 要 65 GB，statsmodels 的 GLM 不吃 sparse，
@@ -85,17 +83,17 @@ for col, label in [("y1_attributed", "y1"), ("y2_share", "y2"), ("y3_wx_vs_nas",
     report(r.params, r.bse, label)
 
 # 三圖共用 y 軸，須固定為同一順序——各自 sort 會讓標籤對不上公司。
-order = pl.read_csv("outputs/tables/04_y1.csv").filter(pl.col("term").str.starts_with("carrier_")).sort("coef")["term"].to_list()
+order = pl.read_csv("outputs/tables/carrier_effects_y1.csv").filter(pl.col("term").str.starts_with("carrier_")).sort("coef")["term"].to_list()
 
 fig, axes = plt.subplots(1, 3, figsize=(13, 5), sharey=True)
-for ax, label, title in zip(axes, ["y1", "y2", "y3"], ["Y1 是否歸因天氣", "Y2 歸因時掛多少比例", "Y3 天氣 vs NAS 邊界"]):
-    t = pl.read_csv(f"outputs/tables/04_{label}.csv").filter(pl.col("term").str.starts_with("carrier_"))
+for ax, label, title in zip(axes, ["y1", "y2", "y3"], ["Y1 weather attributed", "Y2 weather share when attributed", "Y3 weather vs NAS margin"]):
+    t = pl.read_csv(f"outputs/tables/carrier_effects_{label}.csv").filter(pl.col("term").str.starts_with("carrier_"))
     t = t.with_columns(pl.col("term").replace_strict({k: i for i, k in enumerate(order)}).alias("pos")).sort("pos")
     ax.errorbar(t["coef"], t["pos"], xerr=1.96 * t["se"], fmt="o", ms=3, lw=1)
     ax.axvline(0, ls="--", lw=0.8, color="gray")
     ax.set_title(title, fontsize=10)
 axes[0].set_yticks(range(len(order)))
 axes[0].set_yticklabels([x.replace("carrier_", "") for x in order], fontsize=8)
-fig.supxlabel("相對 DL 的效應（機場 × 年月內比較，依 Y1 排序）")
+fig.supxlabel("Effect vs DL (within airport x month, ordered by Y1)")
 fig.tight_layout()
-fig.savefig("outputs/figures/04_carrier_effects.png", dpi=150)
+fig.savefig("outputs/figures/carrier_effects.png", dpi=150)

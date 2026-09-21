@@ -66,7 +66,7 @@ for K, idata in idatas.items():
     out = pl.DataFrame(d).join(n, on="operating_carrier").sort(f"w{K}", descending=True)
     print(f"\n=== K={K} 成分權重")
     print(out)
-    out.write_csv(f"outputs/tables/09_mixture_weights_k{K}.csv")
+    out.write_csv(f"outputs/tables/mixture_weights_k{K}.csv")
 
     am = post["a"].mean(("chain", "draw")).values
     bm = post["beta"].mean(("chain", "draw")).values
