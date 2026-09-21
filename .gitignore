@@ -6,7 +6,7 @@ outputs/
 __pycache__/
 .DS_Store
 
-# 簡報與報告的 PDF/HTML 由對應的 .md、.qmd 產生，不入版控
+# 簡報與報告的 PDF/HTML 由對應的 .md、.typ 產生，不入版控
 docs/archive/*.pdf
 report/*.pdf
 report/*.html

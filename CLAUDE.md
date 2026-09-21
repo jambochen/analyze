@@ -28,7 +28,7 @@
 
 - **不寫數值**。任何比率、樣本量、係數一律只存在於 `outputs/` 的 CSV、圖或腳本輸出。文件只寫定性結論與其理由
 - **只寫現況**。不寫日期、修訂記錄、「初版」「原本」「已放棄」。被推翻的內容直接刪除，修訂史交給 git
-- **不寫階段編號**。依研究問題組織，不依腳本執行順序
+- **不寫階段編號**。依研究問題組織，不依腳本執行順序。腳本與輸出檔名同此原則，一律不編號
 
 例外：`data/raw/*/SOURCE.md` 的筆數與欄位數是溯源記錄，須保留。
 
@@ -40,7 +40,13 @@
 
 ## 腳本位置
 
-正式分析腳本放 `scripts/`，依編號執行：`01_ingest.py` / `02_clean.py` / `03_eda.py` / `04_model.py` / `05_ranking.py`。
+正式分析腳本放 `scripts/`，檔名取自它回答的問題，不編號。
+
+**依賴須知**：`ingest.py` 產出稽核樣本，`clean.py` 由它產出 `bad_weather.parquet`，
+其餘分析腳本各自讀 `bad_weather.parquet`，彼此獨立，順序任意。唯一的例外是
+`shrinkage.py` 讀 `priority_list.py` 的輸出。腳本頂端的 read 即其依賴，不另外記。
+
+輸出檔名與腳本名對應，同樣不編號。
 
 `scripts/explore/` 放探索性實測，不進正式流程。
 
@@ -61,7 +67,7 @@ uvx --from kaggle kaggle datasets download -d <slug> -f <file> -p <dest> --unzip
 ```
 data/raw/          原始下載資料，唯讀，永不修改。每個子目錄須含 SOURCE.md
 data/processed/    清理後資料
-scripts/           正式分析腳本（.py），編號執行
+scripts/           正式分析腳本（.py），依研究問題命名
 scripts/explore/   探索性實測
 scripts/fetch/     資料下載腳本
 docs/              見 docs/README.md
@@ -94,7 +100,11 @@ outputs/tables/    表
 
 ## 技術棧
 
-**Python**。腳本副檔名 `.py`，`report/` 下的 Quarto 文件使用 Python engine。
+**Python**。腳本副檔名 `.py`。
+
+`report/` 用 **Typst**。腳本負責算數與產圖，圖以檔案輸出到 `outputs/figures/`，
+Typst 端只排版與 `image()` 引入，不在文件內執行程式碼。簡報用 touying 的
+metropolis 主題。
 
 ### Rust 擴充：僅限實測過的熱點
 
