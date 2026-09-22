@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 import statsmodels.api as sm
+from scipy import stats
 
 
 wx = [
@@ -36,6 +37,8 @@ def effects(d, outcome):
     X = np.column_stack([Xn] + [(d["operating_carrier"] == c).to_numpy().astype(float) for c in cs])
     names = wx + [f"carrier_{c}" for c in cs]
     g = d.select(pl.struct("origin_iata", "ym").rank("dense").alias("i"))["i"].to_numpy() - 1
+    # 同一機尾號跨上百個格子，格子聚類吸收不到機隊層的相關，故雙向聚類。
+    tail = d.select(pl.col("tail_number").rank("dense").alias("i"))["i"].to_numpy() - 1
     dm = pl.DataFrame(X, schema=names).with_columns(
         pl.Series("g", g), pl.Series("y", d[outcome].to_numpy().astype(float))
     )
@@ -43,7 +46,9 @@ def effects(d, outcome):
     M = dd.select(names).to_numpy()
     nz = M.std(0) > 1e-10
     M, nm = M[:, nz], [n for n, k in zip(names, nz) if k]
-    r = sm.OLS(dd["y"].to_numpy(), M).fit(cov_type="cluster", cov_kwds={"groups": g})
+    r = sm.OLS(dd["y"].to_numpy(), M).fit(
+        cov_type="cluster", cov_kwds={"groups": np.column_stack([g, tail])}
+    )
     assert not np.isnan(r.bse).any()
     return (
         pl.DataFrame({"term": nm, "coef": r.params, "se": r.bse})
@@ -83,14 +88,27 @@ perf = (
 )
 lst = lst.join(perf, on="carrier", how="left")
 
-# 三個指標問的是不同問題，不合成單一分數。以「幾項顯著為正」作為粗排序，
-# 並保留各指標原值供判讀。
+# 三個指標乘各家公司構成數十個同時檢定，未校正的區間會高估異常家數。
+# 清單本身是排序不是檢定，但「幾項顯著」這個粗排序既然用了門檻，就須校正。
+from statsmodels.stats.multitest import multipletests
+
+for t in ["y1", "y2", "y3"]:
+    z = (lst[t] / lst[f"{t}_se"]).to_numpy()
+    pv = 2 * (1 - stats.norm.cdf(np.abs(z)))
+    lst = lst.with_columns(pl.Series(f"{t}_p", pv))
+
+allp = np.concatenate([lst[f"{t}_p"].to_numpy() for t in ["y1", "y2", "y3"]])
+rej = multipletests(allp, alpha=0.05, method="fdr_bh")[0].reshape(3, -1)
+for i, t in enumerate(["y1", "y2", "y3"]):
+    lst = lst.with_columns(pl.Series(f"{t}_bh", rej[i]))
+
 lst = lst.with_columns(
-    sum((pl.col(f"{t}_lo") > 0).cast(pl.Int8) for t in ["y1", "y2", "y3"]).alias("n_pos"),
-    sum((pl.col(f"{t}_hi") < 0).cast(pl.Int8) for t in ["y1", "y2", "y3"]).alias("n_neg"),
+    sum(((pl.col(f"{t}_lo") > 0) & pl.col(f"{t}_bh")).cast(pl.Int8) for t in ["y1", "y2", "y3"]).alias("n_pos"),
+    sum(((pl.col(f"{t}_hi") < 0) & pl.col(f"{t}_bh")).cast(pl.Int8) for t in ["y1", "y2", "y3"]).alias("n_neg"),
+    sum((pl.col(f"{t}_lo") > 0).cast(pl.Int8) for t in ["y1", "y2", "y3"]).alias("n_pos_raw"),
 ).sort("n_pos", "y1", descending=[True, True])
 
-cols = ["carrier", "n", "regional", "n_pos", "n_neg",
+cols = ["carrier", "n", "regional", "n_pos", "n_neg", "n_pos_raw",
         "y1", "y1_se", "y1_lo", "y1_hi", "y1_chg", "y2", "y2_se", "y2_lo", "y2_hi", "y2_chg",
         "y3", "y3_se", "y3_lo", "y3_hi", "y3_chg", "raw_y1", "delay_median"]
 lst = lst.select(cols)
