@@ -36,6 +36,9 @@ wx = [
     "wx_origin_thunderstorm", "wx_origin_snow", "wx_origin_freezing_precip", "wx_origin_fog",
     "wx_origin_m3_flight_category_ordinal", "wx_origin_m6_flight_category_ordinal",
     "arr_delay_min", "distance_miles", "origin_sched_departures_this_hour", "prior_leg_arr_delay_min",
+    # 當日首航段的 prior_leg 填零是「不適用」而非「上段準點」，兩者形態相同，
+    # 須留指示變數供模型分辨。與雪深、陣風的 _absent 同一原則。
+    "prior_leg_available",
 ]
 b = b.drop_nulls(wx)
 print("after drop_nulls", b.height)
@@ -81,6 +84,20 @@ for col, label in [("y1_attributed", "y1"), ("y2_share", "y2"), ("y3_wx_vs_nas",
     r = sm.OLS(dd["y"].to_numpy(), dd.select(names).to_numpy()).fit(cov_type="cluster", cov_kwds={"groups": g})
     print(label, "n", len(y), "cells", len(set(g.tolist())))
     report(r.params, r.bse, label)
+
+# 雙向聚類的前提：機尾號與格子若高度巢狀，格子聚類即已吸收機隊層相關，
+# 無須雙向。跨度隨樣本界定而變，故三個口徑並列——結論（兩者不巢狀）在三者皆同。
+rows = []
+for tag, d in [("bad_weather", pl.read_parquet("data/processed/bad_weather.parquet").with_columns(
+                    pl.col("sched_dep_utc").dt.truncate("1mo").alias("ym"))),
+               ("本腳本樣本", b)]:
+    t = d.group_by("tail_number").agg(pl.struct("origin_iata", "ym").n_unique().alias("c"))
+    c = d.group_by("origin_iata", "ym").agg(pl.len().alias("n"))
+    rows.append({"sample": tag, "tail_cells_median": int(t["c"].median()),
+                 "cell_flights_median": int(c["n"].median())})
+cc = pl.DataFrame(rows)
+cc.write_csv("outputs/tables/cluster_crossing.csv")
+print(cc)
 
 # 三圖共用 y 軸，須固定為同一順序——各自 sort 會讓標籤對不上公司。
 order = pl.read_csv("outputs/tables/carrier_effects_y1.csv").filter(pl.col("term").str.starts_with("carrier_")).sort("coef")["term"].to_list()

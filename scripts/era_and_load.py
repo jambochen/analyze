@@ -10,6 +10,9 @@ wx = [
     "wx_origin_thunderstorm", "wx_origin_snow", "wx_origin_freezing_precip", "wx_origin_fog",
     "wx_origin_m3_flight_category_ordinal", "wx_origin_m6_flight_category_ordinal",
     "arr_delay_min", "distance_miles", "origin_sched_departures_this_hour", "prior_leg_arr_delay_min",
+    # 當日首航段的 prior_leg 填零是「不適用」而非「上段準點」，兩者形態相同，
+    # 須留指示變數供模型分辨。與雪深、陣風的 _absent 同一原則。
+    "prior_leg_available",
 ]
 
 b = pl.read_parquet("data/processed/bad_weather.parquet").with_columns(

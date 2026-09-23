@@ -20,6 +20,10 @@ wx = [
     "wx_origin_visibility_m", "wx_origin_ceiling_m", "wx_origin_wind_speed_ms",
     "wx_origin_precip_1h_mm", "wx_origin_snow_depth_cm",
     "wx_origin_thunderstorm", "wx_origin_snow", "wx_origin_freezing_precip", "wx_origin_fog",
+    # 起點惡劣與目的地惡劣是不同情境，兩端須分開進模型；單端氣象會讓本腳本的
+    # 樣本口徑與 priority_list.py 不一致。
+    "wx_dest_visibility_m", "wx_dest_ceiling_m", "wx_dest_wind_speed_ms",
+    "wx_dest_precip_1h_mm",
     "arr_delay_min",
 ]
 b = b.drop_nulls(wx)
@@ -64,7 +68,23 @@ for c in mcols:
 m = pf.fepois(f"minutes ~ {' + '.join(terms)} | unit + cellcause", data=d, vcov={"CRV1": "unit"})
 r = m.tidy().reset_index()
 r.columns = ["term"] + list(r.columns[1:])
-r.to_csv("outputs/tables/simplex_wx.csv", index=False)
+r.to_csv("outputs/tables/attribution_simplex.csv", index=False)
+
+# 歸因邊界是係數的線性對比，非另立的結果變數。對比的標準誤須取兩係數的
+# 共變異數，各自的標準誤不夠。
+coefs = m.coef()
+V = pd.DataFrame(m._vcov, index=coefs.index, columns=coefs.index)
+rows = []
+for c in sorted(set(d["operating_carrier"]) - {"DL"}):
+    for a, bcause in [("weather", "nas"), ("weather", "late_ac"), ("nas", "late_ac")]:
+        ta, tb = f"x_{c}_{a}", f"x_{c}_{bcause}"
+        est = coefs[ta] - coefs[tb]
+        se = np.sqrt(V.loc[ta, ta] + V.loc[tb, tb] - 2 * V.loc[ta, tb])
+        rows.append({"carrier": c, "contrast": f"{a}-{bcause}", "estimate": est, "se": se,
+                     "lo": est - 1.96 * se, "hi": est + 1.96 * se})
+cb = pd.DataFrame(rows)
+cb.to_csv("outputs/tables/attribution_boundary.csv", index=False)
+print(cb[cb["contrast"] == "weather-nas"].sort_values("estimate", ascending=False).to_string())
 
 car = r[r["term"].str.startswith("x_")].copy()
 car["carrier"] = car["term"].str.split("_").str[1]

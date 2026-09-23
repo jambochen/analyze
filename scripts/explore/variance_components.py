@@ -35,7 +35,6 @@ print("執飛者層(主線內)", round(var_op, 6), "佔比", round(var_op / tot,
 print("殘差(航班層)", round(tot - var_mkt - var_op, 6), "佔比", round((tot - var_mkt - var_op) / tot, 4))
 print()
 print(g.sort("op_within_mkt").select("marketing_carrier", "operating_carrier", "n", "mkt_mean", "op_within_mkt"))
-g.write_csv("outputs/tables/variance_components.csv")
 
 # 只看替多家主線飛的執飛者：這些公司內，主線間的差異與執飛者自身的水準
 # 何者大？直接對應「回報規則由誰決定」。

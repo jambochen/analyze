@@ -7,7 +7,7 @@ import polars as pl
 
 mpl.rcParams["font.sans-serif"] = ["Noto Sans CJK TC"]
 mpl.rcParams["axes.unicode_minus"] = False
-mpl.rcParams["font.size"] = 15
+mpl.rcParams["font.size"] = 18
 mpl.rcParams["axes.spines.top"] = False
 mpl.rcParams["axes.spines.right"] = False
 
@@ -68,7 +68,6 @@ miss = pl.DataFrame({
     pl.col("col").map_elements(lambda c: bad[c].null_count() / bad.height, return_dtype=pl.Float64).alias("null_rate")
 ).sort("null_rate", descending=True)
 print(miss.head(20))
-miss.write_csv("outputs/tables/missingness.csv")
 
 # 三個結果變數並列。Y1 為二元故畫公司間比例，Y2 與 Y3 畫分布。
 # Y3 在 0 與 1 皆有質量點，這決定了它不能用單一 beta。
@@ -195,6 +194,19 @@ dims = pl.DataFrame({
 print(dims)
 dims.write_csv("outputs/tables/sample_dims.csv")
 
+# 格子多不等於可識別：公司效應只來自格子內有兩家以上公司的比較。
+cell = (
+    bad.group_by(["origin_iata", pl.col("sched_dep_utc").dt.truncate("1mo")])
+    .agg(pl.col("operating_carrier").n_unique().alias("k"), pl.len().alias("n"))
+)
+cell_k = pl.DataFrame({
+    "item": ["每格平均公司數", "每格公司數中位數", "兩家以上格子佔比", "兩家以上格子的航班佔比"],
+    "v": [cell["k"].mean(), cell["k"].median(), (cell["k"] >= 2).mean(),
+          cell.filter(pl.col("k") >= 2)["n"].sum() / cell["n"].sum()],
+})
+print(cell_k)
+cell_k.write_csv("outputs/tables/cell_carriers.csv")
+
 by_year = bad.group_by(pl.col("sched_dep_utc").dt.year().alias("year")).len().sort("year")
 print(by_year)
 by_year.write_csv("outputs/tables/sample_by_year.csv")
@@ -230,10 +242,11 @@ y = list(range(miss.height))[::-1]
 colors = [ORANGE if c.startswith("reported_") else BLUE for c in miss["col"]]
 ax.barh(y, miss["null_frac"].to_list(), color=colors, height=0.66)
 for yy, v in zip(y, miss["null_frac"]):
-    ax.text(v + 0.012, yy, f"{v:.0%}", va="center", color=INK, fontsize=12)
+    ax.text(v + 0.012, yy, f"{v:.1%}" if v > 0.95 else f"{v:.0%}", va="center", color=INK, fontsize=12)
 ax.set_yticks(y)
 ax.set_yticklabels([c.replace("wx_origin_", "wx_") for c in miss["col"]], fontsize=11)
-ax.set_xlim(0, 1.08)
+ax.set_xlim(0, 1.12)
+ax.set_xticks([])
 ax.set_xlabel("缺失比例")
 finish(fig, ax, "slides_missingness")
 
@@ -332,3 +345,103 @@ axes[1].set_yticks(yy)
 axes[1].set_yticklabels(mm["station_match_method"].to_list(), fontsize=11)
 axes[1].set_xlabel("機場數")
 finish(fig, axes.tolist(), "slides_station_match")
+
+# 時間覆蓋：全部航班與稽核樣本逐月並列。稽核樣本的季節形狀由天氣決定，
+# 與全部航班的形狀不同，這是惡劣天氣篩選的直接後果。
+mo_all = (
+    pl.scan_parquet(ALL).group_by(pl.col("sched_dep_utc").dt.truncate("1mo").alias("mo")).len()
+    .collect(engine="streaming").sort("mo")
+)
+mo_bad = bad.group_by(pl.col("sched_dep_utc").dt.truncate("1mo").alias("mo")).len().sort("mo")
+monthly = mo_all.join(mo_bad, on="mo", suffix="_bad").rename({"len": "n_all", "len_bad": "n_bad"})
+print(monthly)
+monthly.write_csv("outputs/tables/monthly_volume.csv")
+
+fig, axes = plt.subplots(2, 1, figsize=(11, 5.6), sharex=True)
+axes[0].plot(monthly["mo"].to_list(), (monthly["n_all"] / 1e3).to_list(), color=GREY, lw=2)
+axes[0].set_ylabel("全部（千班）")
+axes[1].plot(monthly["mo"].to_list(), (monthly["n_bad"] / 1e3).to_list(), color=ORANGE, lw=2)
+axes[1].set_ylabel("稽核樣本（千班）")
+axes[0].set_ylim(0)
+axes[1].set_ylim(0)
+finish(fig, axes.tolist(), "data_monthly_volume")
+
+# 地理覆蓋：點大小為全部航班數，顏色為進入稽核樣本的比例。
+# 無底圖套件，美國本土的輪廓由機場本身勾出；本土以外者只計數不畫。
+ap_all = pl.scan_parquet(ALL).group_by("origin_iata").len().collect(engine="streaming")
+ap_bad = bad.group_by("origin_iata").len()
+geo = (
+    ap_all.join(ap_bad, on="origin_iata", how="left", suffix="_bad")
+    .rename({"len": "n_all", "len_bad": "n_bad"})
+    .with_columns(pl.col("n_bad").fill_null(0))
+    .with_columns((pl.col("n_bad") / pl.col("n_all")).alias("bad_frac"))
+    .join(ref.select("iata_code", "state", "latitude", "longitude"),
+          left_on="origin_iata", right_on="iata_code")
+)
+geo.write_csv("outputs/tables/airport_geo.csv")
+main = geo.filter(pl.col("longitude").is_between(-130, -60) & pl.col("latitude").is_between(23, 50))
+print("本土機場數", main.height, "本土以外", geo.height - main.height,
+      "本土以外班次佔比", 1 - main["n_all"].sum() / geo["n_all"].sum())
+
+fig, ax = plt.subplots(figsize=(11, 6.2))
+sc = ax.scatter(main["longitude"].to_list(), main["latitude"].to_list(),
+                s=(main["n_all"] / main["n_all"].max() * 900 + 6).to_list(),
+                c=main["bad_frac"].to_list(), cmap="Oranges", edgecolor=INK, linewidth=0.3, alpha=0.85)
+ax.set_aspect(1 / 0.79)
+ax.set_xticks([])
+ax.set_yticks([])
+cb = fig.colorbar(sc, ax=ax, fraction=0.03, pad=0.01)
+cb.outline.set_visible(False)
+cb.set_label("進入稽核樣本的比例", fontsize=13)
+ax.axis("off")
+finish(fig, ax, "data_airport_map")
+
+# 公司層基本盤：資料描述，不是分析結果。延誤取中位數，因分布強右偏。
+car_all = pl.scan_parquet(ALL).group_by("operating_carrier").len().collect(engine="streaming")
+carriers = (
+    bad.group_by("operating_carrier")
+    .agg(
+        pl.col("operating_carrier_name").first().alias("name"),
+        pl.col("is_regional").first(),
+        pl.len().alias("n_bad"),
+        pl.col("origin_iata").n_unique().alias("n_airports"),
+        pl.struct("origin_iata", pl.col("sched_dep_utc").dt.truncate("1mo")).n_unique().alias("n_cells"),
+        pl.col("arr_delay_min").median().alias("median_delay"),
+        pl.col("sched_dep_utc").dt.year().min().alias("first_year"),
+        pl.col("sched_dep_utc").dt.year().max().alias("last_year"),
+    )
+    .join(car_all.rename({"len": "n_all"}), on="operating_carrier")
+    .sort("n_all", descending=True)
+    .select("operating_carrier", "name", "is_regional", "first_year", "last_year", "n_all", "n_bad", "n_airports", "n_cells", "median_delay")
+)
+print(carriers)
+carriers.write_csv("outputs/tables/carrier_baseline.csv")
+
+# 逐年趨勢：六年資料的價值在於看出申報行為如何改變。三個申報指標與底層
+# 延誤的方向相反——疫情期間指標抬升、延誤反而較輕，故該段不作行為解讀。
+yr = bad.with_columns(pl.col("sched_dep_utc").dt.year().alias("yr"))
+trend = yr.group_by("yr").agg(
+    pl.col("y1_attributed").mean().alias("y1"),
+    (pl.col("y2_share") >= 0.999).mean().alias("y2_at1"),
+    pl.col("y3_wx_vs_nas").mean().alias("y3"),
+    pl.col("arr_delay_min").quantile(0.25).alias("q25"),
+    pl.col("arr_delay_min").median().alias("med"),
+    pl.col("arr_delay_min").quantile(0.75).alias("q75"),
+).sort("yr")
+print(trend)
+trend.write_csv("outputs/tables/yearly_trend.csv")
+
+x = trend["yr"].to_list()
+fig, axes = plt.subplots(2, 3, figsize=(13.5, 6.4))
+for a, (col, lab) in zip(axes[0], [("y1", "歸因天氣的比例"), ("y2_at1", "歸因強度為 1 的比例"), ("y3", "歸因邊界均值")]):
+    a.plot(x, trend[col].to_list(), marker="o", color=BLUE)
+    a.set_title(lab, fontsize=15)
+    a.set_ylim(0, None)
+for a, (col, lab, c) in zip(axes[1], [("q25", "延誤 Q25", GREY), ("med", "延誤中位數", ORANGE), ("q75", "延誤 Q75", GREY)]):
+    a.plot(x, trend[col].to_list(), marker="o", color=c)
+    a.set_title(lab, fontsize=15)
+    a.set_ylim(0, None)
+for a in axes.flatten():
+    a.set_xticks(x)
+    a.tick_params(labelsize=12)
+finish(fig, list(axes.flatten()), "data_yearly_trend")

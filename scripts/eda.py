@@ -31,6 +31,7 @@ for cut in ["2020-04-01", "2021-06-01"]:
 ax.set_ylabel("Flights vs same month 2019")
 fig.tight_layout()
 fig.savefig("outputs/figures/covid_volume.png", dpi=150)
+m.select("mo", "vs19").write_csv("outputs/tables/covid_volume.csv")
 
 # 四個成因欄位的歸因分配。天氣與 NAS 的邊界是本分析的核心歧義。
 causes = ["reported_weather_delay_min", "reported_nas_delay_min", "reported_carrier_delay_min", "reported_late_aircraft_delay_min"]

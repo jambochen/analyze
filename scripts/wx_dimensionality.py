@@ -10,7 +10,7 @@ from scipy.spatial.distance import squareform
 
 mpl.rcParams["font.sans-serif"] = ["Noto Sans CJK TC"]
 mpl.rcParams["axes.unicode_minus"] = False
-mpl.rcParams["font.size"] = 15
+mpl.rcParams["font.size"] = 18
 mpl.rcParams["axes.spines.top"] = False
 mpl.rcParams["axes.spines.right"] = False
 
