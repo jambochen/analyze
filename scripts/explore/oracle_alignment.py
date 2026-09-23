@@ -6,20 +6,32 @@ import statsmodels.api as sm
 # 給定氣象下的歸因傾向，屬發布者明說的 retrospective 用途。
 # 用它的理由：航空公司是事後填申報表，其資訊集接近 oracle_ 而非 wx_（排定
 # 起飛前）。以 wx_ 為唯一基準，等於拿起飛前可知的天氣評斷事後填的表。
+# 目的地取 scharr（排定到達時刻）而非 arr（實際到達時刻）：後者的觀測時點由
+# 航班何時落地決定，班機越晚到就取越晚的觀測，與延誤本身機械相關。
 oracle = [
     "oracle_origin_dep_visibility_m", "oracle_origin_dep_ceiling_m", "oracle_origin_dep_wind_speed_ms",
     "oracle_origin_dep_wind_gust_ms", "oracle_origin_dep_precip_1h_mm", "oracle_origin_dep_temp_c",
     "oracle_origin_dep_flight_category_ordinal", "oracle_origin_dep_thunderstorm", "oracle_origin_dep_snow",
     "oracle_origin_dep_freezing_precip", "oracle_origin_dep_fog",
-    "oracle_dest_arr_visibility_m", "oracle_dest_arr_ceiling_m", "oracle_dest_arr_wind_speed_ms",
-    "oracle_dest_arr_precip_1h_mm", "oracle_dest_arr_flight_category_ordinal",
-    "oracle_dest_arr_thunderstorm", "oracle_dest_arr_snow", "oracle_dest_arr_freezing_precip",
-    "oracle_dest_arr_fog",
+    "oracle_dest_scharr_visibility_m", "oracle_dest_scharr_ceiling_m", "oracle_dest_scharr_wind_speed_ms",
+    "oracle_dest_scharr_precip_1h_mm", "oracle_dest_scharr_flight_category_ordinal",
+    "oracle_dest_scharr_thunderstorm", "oracle_dest_scharr_snow", "oracle_dest_scharr_freezing_precip",
+    "oracle_dest_scharr_fog",
 ]
 keys = ["sched_dep_utc", "tail_number", "origin_iata"]
 
 files = [f"data/raw/flights-weather/flights_weather_{y}.parquet" for y in range(2019, 2025)]
-orc = pl.scan_parquet(files).select(keys + oracle).collect(engine="streaming")
+# 先套稽核樣本的兩道篩選再取 oracle_，否則全樣本的 unique 會吃爆記憶體。
+orc = (
+    pl.scan_parquet(files)
+    .filter(pl.col("arr_delay_min") >= 15)
+    .filter(
+        pl.col("wx_origin_flight_category").is_in(["IFR", "LIFR"])
+        | pl.col("wx_dest_flight_category").is_in(["IFR", "LIFR"])
+    )
+    .select(keys + oracle)
+    .collect(engine="streaming")
+)
 
 b = pl.read_parquet("data/processed/bad_weather.parquet").with_columns(
     pl.col("sched_dep_utc").dt.truncate("1mo").alias("ym")
