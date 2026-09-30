@@ -33,6 +33,10 @@ print("總變異(去格子均值後)", round(tot, 6))
 print("主線層", round(var_mkt, 6), "佔比", round(var_mkt / tot, 4))
 print("執飛者層(主線內)", round(var_op, 6), "佔比", round(var_op / tot, 4))
 print("殘差(航班層)", round(tot - var_mkt - var_op, 6), "佔比", round((tot - var_mkt - var_op) / tot, 4))
+pl.DataFrame({
+    "layer": ["marketing", "operating_within_marketing", "residual"],
+    "var": [var_mkt, var_op, tot - var_mkt - var_op],
+}).with_columns((pl.col("var") / tot).alias("share")).write_csv("outputs/tables/variance_components.csv")
 print()
 print(g.sort("op_within_mkt").select("marketing_carrier", "operating_carrier", "n", "mkt_mean", "op_within_mkt"))
 

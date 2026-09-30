@@ -53,8 +53,20 @@
 正式分析腳本放 `scripts/`，檔名取自它回答的問題，不編號。
 
 **依賴須知**：`ingest.py` 產出稽核樣本，`clean.py` 由它產出 `bad_weather.parquet`，
-其餘分析腳本各自讀 `bad_weather.parquet`，彼此獨立，順序任意。唯一的例外是
-`shrinkage.py` 讀 `priority_list.py` 的輸出。腳本頂端的 read 即其依賴，不另外記。
+其餘分析腳本各自讀 `bad_weather.parquet`，彼此獨立，順序任意。例外：
+`shrinkage.py`、`design_evidence.py`、`explore/cancellation_selection.py` 讀
+`priority_list.py` 的輸出；`figures_slides.py` 讀其他腳本的表；
+`wx_dimensionality.py` 讀 `audit_clean.parquet`。腳本頂端的 read 即其依賴，不另外記。
+
+**共用 module**：同一段估計邏輯在多支腳本重複時，收進被 import 的 module，
+不各自複製。複本會漂移，而漂移不報錯。
+
+- `stratum.py`：航班層的控制變數 `WX`、時段切點、基準水準，以及層固定效應下
+  公司主效應的估計（層內轉換、雙向 cluster、退化欄檢查）
+- `simplex.py`：單元層的控制變數 `WX_UNIT`，以及成因分配的 Poisson 估計
+
+`scripts/explore/` 的腳本以 `sys.path.insert(0, "scripts")` 取用這兩個 module。
+腳本一律在專案根目錄執行。
 
 輸出檔名與腳本名對應，同樣不編號。
 
