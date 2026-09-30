@@ -49,16 +49,37 @@ funnel = funnel.with_columns(
 print(funnel)
 funnel.write_csv("outputs/tables/sample_funnel.csv")
 
-fig, ax = plt.subplots(figsize=(11, 4.2))
-y = list(range(funnel.height))[::-1]
-ax.barh(y, funnel["n"].to_list(), color=[FAINT, BLUE, ORANGE], height=0.66)
-for yy, n, lab in zip(y, funnel["n"], funnel["step"]):
-    ax.text(n * 1.02, yy, f"{n/1e6:.2f}M", va="center", color=INK, fontsize=13)
-ax.set_yticks(y)
-ax.set_yticklabels(funnel["step"].to_list(), fontsize=13)
-ax.set_xscale("log")
-ax.set_xlabel("航班數（對數刻度）")
-ax.margins(x=0.18)
+# 單條堆疊而非三條並列：漏斗的論點是「砍掉多少」，三條並列需對數刻度才看得見
+# 最末段，而對數會把 36 倍的落差壓成兩倍，恰好藏起論點。堆疊讓比例直接可讀。
+fig, ax = plt.subplots(figsize=(11, 2.9))
+n_raw_, n_thr, n_bad = [int(v) for v in funnel["n"]]
+segs = [
+    ("準點或晚到未滿 15 分，無申報義務", n_raw_ - n_thr, FAINT),
+    ("已申報，但兩端均未達 IFR", n_thr - n_bad, "#b8b7b2"),
+    ("已申報，且遇惡劣天氣：稽核樣本", n_bad, ORANGE),
+]
+left = 0
+for lab, v, color in segs:
+    ax.barh([0], [v / n_raw_], left=left / n_raw_, color=color, height=0.5,
+            linewidth=1.6, edgecolor=SURFACE, label=f"{lab}　{v/1e6:.2f}M")
+    left += v
+# 末段僅佔百分之二餘，段內放不下標值，一律引線標在條外。
+ax.annotate(f"{n_bad/n_raw_*100:.1f}%", xy=(1.0, 0), xytext=(14, 0),
+            textcoords="offset points", va="center", ha="left",
+            color=INK, fontsize=15)
+ax.text((n_raw_ - n_thr) / 2 / n_raw_, 0, f"{(n_raw_-n_thr)/n_raw_*100:.0f}%",
+        ha="center", va="center", color=INK, fontsize=15)
+ax.text((n_raw_ - n_thr + (n_thr - n_bad) / 2) / n_raw_, 0,
+        f"{(n_thr-n_bad)/n_raw_*100:.0f}%", ha="center", va="center",
+        color=INK, fontsize=15)
+ax.set_yticks([])
+ax.set_xlim(0, 1.09)
+ax.set_xticks([0, 0.25, 0.5, 0.75, 1.0])
+ax.set_xticklabels(["0", "25%", "50%", "75%", "100%"])
+ax.set_xlabel(f"2019–2024 年度檔全部 {n_raw_/1e6:.1f}M 班")
+ax.legend(ncol=1, loc="center left", bbox_to_anchor=(1.10, 0.5), frameon=False,
+          fontsize=14, handlelength=1.2, labelspacing=0.7)
+ax.spines["left"].set_visible(False)
 finish(fig, ax, "slides_sample_funnel")
 
 # 結構性缺失：三類成因不同，分開列。y2/y3 的 null 是定義域排除，不是缺失。
@@ -445,3 +466,29 @@ for a in axes.flatten():
     a.set_xticks(x)
     a.tick_params(labelsize=12)
 finish(fig, list(axes.flatten()), "data_yearly_trend")
+
+# 五個申報成因欄位的整體佔比。security 佔比極低是單體模型只取四欄的依據，
+# 故與其他四欄並列輸出，不預先排除。
+rep5 = ["reported_carrier_delay_min", "reported_weather_delay_min",
+        "reported_nas_delay_min", "reported_security_delay_min",
+        "reported_late_aircraft_delay_min"]
+bw = pl.read_parquet("data/processed/bad_weather.parquet")
+tot = bw.select([pl.col(c).sum().alias(c) for c in rep5]).row(0)
+pl.DataFrame({
+    "cause": [c.replace("reported_", "").replace("_delay_min", "") for c in rep5],
+    "min_share": [v / sum(tot) for v in tot],
+    "flight_share": [bw[c].gt(0).mean() for c in rep5],
+}).write_csv("outputs/tables/cause_mix.csv")
+
+# 天氣與其他成因的同班共現：Y3 取 NAS 為競爭欄位的實證依據之一。
+# 共現代表申報人實際在兩欄之間分配，比例越高該邊界越常被真正劃到。
+wx_att = bw.filter(pl.col("reported_weather_delay_min") > 0)
+causes = ["weather", "nas", "late_aircraft", "carrier"]
+wx_tot = sum(wx_att.select([pl.col(f"reported_{c}_delay_min").sum() for c in causes]).row(0))
+pl.DataFrame({
+    "cause": causes,
+    "cooccur_rate": [wx_att[f"reported_{c}_delay_min"].gt(0).mean() for c in causes],
+    "min_share_within_wx_flights": [
+        wx_att[f"reported_{c}_delay_min"].sum() / wx_tot for c in causes
+    ],
+}).write_csv("outputs/tables/cause_cooccurrence.csv")
