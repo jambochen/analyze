@@ -385,6 +385,24 @@ papaspiliopoulos2021crossed:
   parent:
     type: repository
     title: "Electronic Journal of Statistics 17.2 (2023): 3575-3612"
+semenova2020leebounds:
+  type: article
+  title: "Generalized Lee Bounds"
+  author: ["Semenova, Vira"]
+  date: 2020
+  url: https://arxiv.org/abs/2008.12720
+  parent:
+    type: repository
+    title: "arXiv:2008.12720"
+tchetgen2023udid:
+  type: article
+  title: "Universal Difference-in-Differences for Causal Inference in Epidemiology"
+  author: ["Tchetgen Tchetgen, Eric", "Park, Chan", "Richardson, David"]
+  date: 2023
+  url: https://arxiv.org/abs/2302.00840
+  parent:
+    type: repository
+    title: "arXiv:2302.00840"
 baker1994multinomial:
   type: article
   title: "The Multinomial-Poisson Transformation"
@@ -606,3 +624,107 @@ forbes2015disclosure:
     title: "American Economic Journal: Microeconomics"
     volume: 7
     issue: "2"
+sofer2016negative:
+  type: article
+  title: "On Negative Outcome Control of Unobserved Confounding as a Generalization of Difference-in-Differences"
+  author: ["Sofer, Tamar", "Richardson, David B.", "Colicino, Elena", "Schwartz, Joel", "Tchetgen Tchetgen, Eric J."]
+  date: 2016
+  page-range: "348-361"
+  serial-number:
+    doi: "10.1214/16-sts558"
+  parent:
+    type: periodical
+    title: "Statistical Science"
+    volume: 31
+    issue: "3"
+lee2009bounds:
+  type: article
+  title: "Training, Wages, and Sample Selection: Estimating Sharp Bounds on Treatment Effects"
+  author: ["Lee, David S."]
+  date: 2009
+  page-range: "1071-1102"
+  serial-number:
+    doi: "10.1111/j.1467-937x.2009.00536.x"
+  parent:
+    type: periodical
+    title: "Review of Economic Studies"
+    volume: 76
+    issue: "3"
+frangakis2002principal:
+  type: article
+  title: "Principal Stratification in Causal Inference"
+  author: ["Frangakis, Constantine E.", "Rubin, Donald B."]
+  date: 2002
+  page-range: "21-29"
+  serial-number:
+    doi: "10.1111/j.0006-341x.2002.00021.x"
+  parent:
+    type: periodical
+    title: "Biometrics"
+    volume: 58
+    issue: "1"
+knox2020administrative:
+  type: article
+  title: "Administrative Records Mask Racially Biased Policing"
+  author: ["Knox, Dean", "Lowe, Will", "Mummolo, Jonathan"]
+  date: 2020
+  page-range: "619-637"
+  serial-number:
+    doi: "10.1017/s0003055420000039"
+  parent:
+    type: periodical
+    title: "American Political Science Review"
+    volume: 114
+    issue: "3"
+schennach2016measurement:
+  type: article
+  title: "Recent Advances in the Measurement Error Literature"
+  author: ["Schennach, Susanne M."]
+  date: 2016
+  page-range: "341-377"
+  serial-number:
+    doi: "10.1146/annurev-economics-080315-015058"
+  parent:
+    type: periodical
+    title: "Annual Review of Economics"
+    volume: 8
+    issue: "1"
+rosner1992measurement:
+  type: article
+  title: "Correction of Logistic Regression Relative Risk Estimates and Confidence Intervals for Random Within-Person Measurement Error"
+  author: ["Rosner, B.", "Spiegelman, D.", "Willett, W. C."]
+  date: 1992
+  page-range: "1400-1413"
+  serial-number:
+    doi: "10.1093/oxfordjournals.aje.a116453"
+  parent:
+    type: periodical
+    title: "American Journal of Epidemiology"
+    volume: 136
+    issue: "11"
+steiner2000cusum:
+  type: article
+  title: "Monitoring surgical performance using risk-adjusted cumulative sum charts"
+  author: ["Steiner, S. H.", "Cook, R. J.", "Farewell, V. T.", "Treasure, T."]
+  date: 2000
+  page-range: "441-452"
+  serial-number:
+    doi: "10.1093/biostatistics/1.4.441"
+  parent:
+    type: periodical
+    title: "Biostatistics"
+    volume: 1
+    issue: "4"
+spiegelhalter2012regulation:
+  type: article
+  title: "Statistical Methods for Healthcare Regulation: Rating, Screening and Surveillance"
+  author: ["Spiegelhalter, David", "Sherlaw-Johnson, Christopher", "Bardsley, Martin", "Blunt, Ian", "Wood, Christopher", "Grigg, Olivia"]
+  date: 2012
+  page-range: "1-47"
+  serial-number:
+    doi: "10.1111/j.1467-985x.2011.01010.x"
+  parent:
+    type: periodical
+    title: "Journal of the Royal Statistical Society Series A: Statistics in Society"
+    volume: 175
+    issue: "1"

@@ -50,6 +50,8 @@ ARXIV = {
     "espinosa2021ordinal": "2107.04946",
     "ghosh2020backfitting": "2007.10612",
     "papaspiliopoulos2021crossed": "2103.10875",
+    "semenova2020leebounds": "2008.12720",
+    "tchetgen2023udid": "2302.00840",
 }
 
 DOI = {
@@ -70,7 +72,23 @@ DOI = {
     "kalbfleisch2013monitoring": "10.1007/s12561-013-9093-x",
     "spiegelhalter2005funnel": "10.1002/sim.1970",
     "forbes2015disclosure": "10.1257/mic.20130164",
+    "sofer2016negative": "10.1214/16-sts558",
+    "lee2009bounds": "10.1111/j.1467-937x.2009.00536.x",
+    "frangakis2002principal": "10.1111/j.0006-341x.2002.00021.x",
+    "knox2020administrative": "10.1017/s0003055420000039",
+    "schennach2016measurement": "10.1146/annurev-economics-080315-015058",
+    "rosner1992measurement": "10.1093/oxfordjournals.aje.a116453",
+    "steiner2000cusum": "10.1093/biostatistics/1.4.441",
+    "spiegelhalter2012regulation": "10.1111/j.1467-985x.2011.01010.x",
 }
+
+# Crossref 對這篇只登錄第一作者，其餘三位依 Europe PMC 的紀錄補上。
+AUTHORS = {
+    "steiner2000cusum": ["Steiner, S. H.", "Cook, R. J.", "Farewell, V. T.", "Treasure, T."],
+}
+
+# Crossref 缺頁碼的紀錄，依 OpenAlex 補上。
+PAGES = {"sofer2016negative": "348-361"}
 
 # arXiv 的作者是「名 姓」單一字串，以最後一個空白切分會把複姓切錯。
 FAMILY = {"Diaa Al Mohamad": "Al Mohamad", "Erik W. van Zwet": "van Zwet", "Mark J. van der Laan": "van der Laan",
@@ -117,7 +135,9 @@ for key, doi in DOI.items():
     )
     m = json.load(urllib.request.urlopen(req, timeout=60))["message"]
     # Crossref 的舊紀錄有全大寫的姓名。
-    authors = [", ".join(x.title() if x.isupper() else x for x in (a["family"], a["given"])) for a in m["author"]]
+    authors = AUTHORS.get(key) or [
+        ", ".join(x.title() if x.isupper() else x for x in (a["family"], a["given"])) for a in m["author"]
+    ]
     journal = html.unescape(m["container-title"][0])
     # issued 取線上與紙本較早者，與慣用的引用年份不一定相同。
     year = m.get("published-print", m["issued"])["date-parts"][0][0]
@@ -128,7 +148,7 @@ for key, doi in DOI.items():
         f"  title: {q(re.sub('<[^>]+>', '', m['title'][0]), ensure_ascii=False)}",
         f"  author: {q(authors, ensure_ascii=False)}",
         f"  date: {year}",
-        f"  page-range: {q(m['page'])}",
+        f"  page-range: {q(m.get('page') or PAGES[key])}",
         "  serial-number:",
         f"    doi: {q(doi)}",
         "  parent:",

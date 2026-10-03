@@ -89,7 +89,9 @@
 | Lipsitch, Tchetgen Tchetgen, Cohen. Negative Controls: A Tool for Detecting Confounding and Bias in Observational Studies. *Epidemiology* | 10.1097/EDE.0b013e3181d61eeb | 兩端機場天氣良好的航班作為 negative control：預期無效應處仍有關聯，即顯示未測量的因素 |
 | Shi, Miao, Tchetgen Tchetgen. A Selective Review of Negative Control Methods in Epidemiology | 2009.05641 | negative control 的假設、設計準則與偏誤的偵測、縮減、校正方法綜述 |
 | Schuemie, Ryan, DuMouchel, Suchard, Madigan. Interpreting Observational Studies: Why Empirical Calibration Is Needed to Correct p-Values. *Statistics in Medicine* | 10.1002/sim.5925 | 以 negative control 上的估計值分布作 empirical null，校正主分析的 p 值 |
-| Hwang, Quiroz, Gallego. Assessing the effectiveness of empirical calibration under different bias scenarios | 2111.04233 | empirical calibration 在不同偏誤情境下的表現；negative control 與主分析的偏誤來源不同時校正會失準 |
+| Hwang, Quiroz, Gallego. Assessing the effectiveness of empirical calibration under different bias scenarios | 2111.04233 | 以模擬檢視 empirical calibration 在不同偏誤情境下的表現：多數情境下區間的涵蓋率提高，對估計偏誤的修正則不一致；negative control 合適與否對校正的幅度影響大 |
+| Sofer, Richardson, Colicino, Schwartz, Tchetgen Tchetgen. On Negative Outcome Control of Unobserved Confounding as a Generalization of Difference-in-Differences. *Statistical Science* | 10.1214/16-sts558 | 把 difference-in-differences 解讀為 negative control outcome 的做法，並給出不要求兩個結果同尺度的推廣；公司 × 天氣狀態的交互作用即以天氣良好的航班扣除與天氣無關的公司間差異 |
+| Tchetgen Tchetgen, Park, Richardson. Universal Difference-in-Differences for Causal Inference in Epidemiology | 2302.00840 | 結果為二元、計數或多類別時 parallel trends 不可信，改以 odds ratio 尺度上的 equi-confounding 假設識別；本題的結果為二元與成因分配，相減的尺度須交代 |
 
 ## 機構比較（profiling）
 
@@ -103,6 +105,33 @@
 | Hartman, Messana, Kang et al. Composite Scores for Transplant Center Evaluation: A New Individualized Empirical Null Method | 2207.07602 | 依機構樣本量個別化的 empirical null |
 | Efron. Size, power and false discovery rates. *Annals of Statistics* | 0710.2245 | empirical null 與 local false discovery rate 的理論 |
 | Spiegelhalter. Funnel Plots for Comparing Institutional Performance. *Statistics in Medicine* | 10.1002/sim.1970 | 以精確度為橫軸的管制界限取代排名表；overdispersion 下界限的調整 |
+
+## 逐期監測
+
+| 文獻 | arXiv／DOI | 支撐什麼 |
+|---|---|---|
+| Steiner, Cook, Farewell, Treasure. Monitoring surgical performance using risk-adjusted cumulative sum charts. *Biostatistics* | 10.1093/biostatistics/1.4.441 | risk-adjusted CUSUM：以概似比的得分逐筆累加，個案組成改變不致誤發訊號；清單由一次性排序改為逐期監測時的工具 |
+| Spiegelhalter, Sherlaw-Johnson, Bardsley, Blunt, Wood, Grigg. Statistical Methods for Healthcare Regulation: Rating, Screening and Surveillance. *JRSS-A* | 10.1111/j.1467-985x.2011.01010.x | 監理機關的三項工作（評等、決定查核對象、持續監測）各自的統計工具，以可含 overdispersion 的 Z 分數為共同基礎，並處理大量指標同時監測的 multiple comparisons；與本題的交付物同構 |
+
+## 選樣與截斷
+
+樣本限於到達延誤達申報門檻的航班，而公司本身影響航班是否進入樣本。
+
+| 文獻 | arXiv／DOI | 支撐什麼 |
+|---|---|---|
+| Lee. Training, Wages, and Sample Selection: Estimating Sharp Bounds on Treatment Effects. *Review of Economic Studies* | 10.1111/j.1467-937x.2009.00536.x | 結果只在被選入者身上觀測、而處理影響選入時，以修剪樣本得到效應的 sharp bounds，不需 exclusion restriction |
+| Semenova. Generalized Lee Bounds | 2008.12720 | Lee bounds 要求處理對選入的效應方向在所有個體一致；此文放寬為給定共變量後方向一致，並以共變量收窄 bounds |
+| Frangakis, Rubin. Principal Stratification in Causal Inference. *Biometrics* | 10.1111/j.0006-341x.2002.00021.x | 以處理後變數在各處理下的潛在值交叉分類個體；「無論由哪家公司執飛都會達門檻的航班」即一個 principal stratum，估計對象須定義在其內 |
+| Knox, Lowe, Mummolo. Administrative Records Mask Racially Biased Policing. *American Political Science Review* | 10.1017/s0003055420000039 | 行政紀錄只含被選入者、而選入本身受所研究的因素影響時，慣用的估計有偏誤，部分量不可識別；以 principal stratification 導出偏誤的形式與 sharp bounds。申報紀錄只含達門檻的航班，結構相同 |
+
+## 量測誤差
+
+`wx_` 與 `oracle_` 是同一天氣在兩個時點的量測。
+
+| 文獻 | arXiv／DOI | 支撐什麼 |
+|---|---|---|
+| Schennach. Recent Advances in the Measurement Error Literature. *Annual Review of Economics* | 10.1146/annurev-economics-080315-015058 | 非線性模型中量測誤差的估計與推論方法綜述，含以重複量測、工具變數等輔助資訊識別的做法，以及誤差不獨立、均值不為零時的結果 |
+| Rosner, Spiegelman, Willett. Correction of Logistic Regression Relative Risk Estimates and Confidence Intervals for Random Within-Person Measurement Error. *American Journal of Epidemiology* | 10.1093/oxfordjournals.aje.a116453 | 沒有 gold standard 時以重複量測估計誤差並校正 logistic 迴歸的係數與區間，容許多個共變量的誤差相關 |
 
 ## 形狀限制的檢定
 
