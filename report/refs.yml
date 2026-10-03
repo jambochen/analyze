@@ -286,6 +286,105 @@ karim2026plasmode:
   parent:
     type: repository
     title: "arXiv:2609.26186"
+fernandezval2013panel:
+  type: article
+  title: "Individual and Time Effects in Nonlinear Panel Models with Large N, T"
+  author: ["Fernandez-Val, Ivan", "Weidner, Martin"]
+  date: 2013
+  url: https://arxiv.org/abs/1311.7065
+  parent:
+    type: repository
+    title: "Journal of Econometrics, Volume 192, Issue 1, May 2016, Pages 291-312"
+shi2020negative:
+  type: article
+  title: "A Selective Review of Negative Control Methods in Epidemiology"
+  author: ["Shi, Xu", "Miao, Wang", "Tchetgen Tchetgen, Eric"]
+  date: 2020
+  url: https://arxiv.org/abs/2009.05641
+  parent:
+    type: repository
+    title: "arXiv:2009.05641"
+hwang2021calibration:
+  type: article
+  title: "Assessing the effectiveness of empirical calibration under different bias scenarios"
+  author: ["Hwang, Hon", "Quiroz, Juan C", "Gallego, Blanca"]
+  date: 2021
+  url: https://arxiv.org/abs/2111.04233
+  parent:
+    type: repository
+    title: "BMC Med Res Methodol 22, 208 (2022)"
+normand2007profiling:
+  type: article
+  title: "Statistical and Clinical Aspects of Hospital Outcomes Profiling"
+  author: ["Normand, Sharon-Lise T.", "Shahian, David M."]
+  date: 2007
+  url: https://arxiv.org/abs/0710.4622
+  parent:
+    type: repository
+    title: "Statistical Science 2007, Vol. 22, No. 2, 206-226"
+xia2019profiling:
+  type: article
+  title: "Accounting for total variation and robustness in profiling health care providers"
+  author: ["Xia, Lu", "He, Kevin", "Li, Yanming", "Kalbfleisch, John D."]
+  date: 2019
+  url: https://arxiv.org/abs/1907.07809
+  parent:
+    type: repository
+    title: "arXiv:1907.07809"
+hartman2022null:
+  type: article
+  title: "Composite Scores for Transplant Center Evaluation: A New Individualized Empirical Null Method"
+  author: ["Hartman, Nicholas", "Messana, Joseph M.", "Kang, Jian", "Naik, Abhijit S.", "Shearon, Tempie H.", "He, Kevin"]
+  date: 2022
+  url: https://arxiv.org/abs/2207.07602
+  parent:
+    type: repository
+    title: "arXiv:2207.07602"
+efron2007size:
+  type: article
+  title: "Size, power and false discovery rates"
+  author: ["Efron, Bradley"]
+  date: 2007
+  url: https://arxiv.org/abs/0710.2245
+  parent:
+    type: repository
+    title: "Annals of Statistics 2007, Vol. 35, No. 4, 1351-1377"
+chetverikov2012monotonicity:
+  type: article
+  title: "Testing Regression Monotonicity in Econometric Models"
+  author: ["Chetverikov, Denis"]
+  date: 2012
+  url: https://arxiv.org/abs/1212.6757
+  parent:
+    type: repository
+    title: "Econom. Theory 35 (2019) 729-776"
+espinosa2021ordinal:
+  type: article
+  title: "Inference for the proportional odds cumulative logit model with monotonicity constraints for ordinal predictors and ordinal response"
+  author: ["Espinosa-Brito, Javier", "Hennig, Christian"]
+  date: 2021
+  url: https://arxiv.org/abs/2107.04946
+  parent:
+    type: repository
+    title: "arXiv:2107.04946"
+ghosh2020backfitting:
+  type: article
+  title: "Backfitting for large scale crossed random effects regressions"
+  author: ["Ghosh, Swarnadip", "Hastie, Trevor", "Owen, Art B."]
+  date: 2020
+  url: https://arxiv.org/abs/2007.10612
+  parent:
+    type: repository
+    title: "arXiv:2007.10612"
+papaspiliopoulos2021crossed:
+  type: article
+  title: "Scalable Bayesian computation for crossed and nested hierarchical models"
+  author: ["Papaspiliopoulos, Omiros", "Stumpf-Fétizon, Timothée", "Zanella, Giacomo"]
+  date: 2021
+  url: https://arxiv.org/abs/2103.10875
+  parent:
+    type: repository
+    title: "Electronic Journal of Statistics 17.2 (2023): 3575-3612"
 baker1994multinomial:
   type: article
   title: "The Multinomial-Poisson Transformation"
@@ -455,3 +554,55 @@ lipsitch2010negative:
     title: "Epidemiology"
     volume: 21
     issue: "3"
+schuemie2014calibration:
+  type: article
+  title: "Interpreting observational studies: why empirical calibration is needed to correct p‐values"
+  author: ["Schuemie, Martijn J.", "Ryan, Patrick B.", "DuMouchel, William", "Suchard, Marc A.", "Madigan, David"]
+  date: 2014
+  page-range: "209-218"
+  serial-number:
+    doi: "10.1002/sim.5925"
+  parent:
+    type: periodical
+    title: "Statistics in Medicine"
+    volume: 33
+    issue: "2"
+kalbfleisch2013monitoring:
+  type: article
+  title: "On Monitoring Outcomes of Medical Providers"
+  author: ["Kalbfleisch, John D.", "Wolfe, Robert A."]
+  date: 2013
+  page-range: "286-302"
+  serial-number:
+    doi: "10.1007/s12561-013-9093-x"
+  parent:
+    type: periodical
+    title: "Statistics in Biosciences"
+    volume: 5
+    issue: "2"
+spiegelhalter2005funnel:
+  type: article
+  title: "Funnel plots for comparing institutional performance"
+  author: ["Spiegelhalter, David J."]
+  date: 2005
+  page-range: "1185-1202"
+  serial-number:
+    doi: "10.1002/sim.1970"
+  parent:
+    type: periodical
+    title: "Statistics in Medicine"
+    volume: 24
+    issue: "8"
+forbes2015disclosure:
+  type: article
+  title: "Quality Disclosure Programs and Internal Organizational Practices: Evidence from Airline Flight Delays"
+  author: ["Forbes, Silke J.", "Lederman, Mara", "Tombe, Trevor"]
+  date: 2015
+  page-range: "1-26"
+  serial-number:
+    doi: "10.1257/mic.20130164"
+  parent:
+    type: periodical
+    title: "American Economic Journal: Microeconomics"
+    volume: 7
+    issue: "2"

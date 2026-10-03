@@ -20,6 +20,7 @@
 | Baker. The Multinomial-Poisson Transformation. *The Statistician* | 10.2307/2348134 | multinomial 與 Poisson 等價的原始出處 |
 | Guimarães, Portugal. A Simple Feasible Procedure to Fit Models with High-Dimensional Fixed Effects. *Stata Journal* | 10.1177/1536867X1001000406 | 高維固定效應的交替投影 |
 | Firth. Bias Reduction of Maximum Likelihood Estimates. *Biometrika* | 10.1093/biomet/80.1.27 | 機場層級清單的 separation 以懲罰概似處理 |
+| Fernández-Val, Weidner. Individual and Time Effects in Nonlinear Panel Models with Large N, T | 1311.7065 | 雙向固定效應的非線性模型（含 Poisson）的解析與 jackknife 偏誤校正；Weidner–Zylkin 指出的 incidental parameter 偏誤的校正方法 |
 | Egger, Ji, Wang. PPML and Heavy-Tailed Trade and Factor Flows: Why Standard Inference Fails | 2609.18750 | 結果重尾時 PPML 的常規區間失效，提出 bootstrap 修正。申報分鐘數強右偏，單體區間的有效性須依此檢查 |
 
 ## 結果變數的分布
@@ -77,10 +78,51 @@
 | 文獻 | arXiv／DOI | 支撐什麼 |
 |---|---|---|
 | Cinelli, Hazlett. Making Sense of Sensitivity: Extending Omitted Variable Bias. *JRSS-B* | 10.1111/rssb.12348 | partial R² 敏感度分析的基本框架，Strezhnev 與 Wainstein 的修正皆以此為底 |
-| Lipsitch, Tchetgen Tchetgen, Cohen. Negative Controls: A Tool for Detecting Confounding and Bias in Observational Studies. *Epidemiology* | 10.1097/EDE.0b013e3181d61eeb | 兩端機場天氣良好的航班作為 negative control：預期無效應處仍有關聯，即顯示未測量的因素 |
 | Strezhnev. Omitted variable bias sensitivity analysis with clustered treatment assignment | 2607.13334 | 處理變數在聚合層變動、分析在個體層時，partial R² 敏感度分析須修正。公司效應在格子內識別，屬此情形 |
 | Wainstein, Hazlett. Sensitivity of weighted least squares estimators to omitted variables | 2508.02954 | 加權迴歸的遺漏變數敏感度 |
 | Bach, Chernozhukov, Cinelli et al. Sensitivity Analysis for Causal ML: A Use Case at Booking.com | 2510.09109 | 敏感度分析在實務資料上的完整流程示範 |
+
+## Negative control
+
+| 文獻 | arXiv／DOI | 支撐什麼 |
+|---|---|---|
+| Lipsitch, Tchetgen Tchetgen, Cohen. Negative Controls: A Tool for Detecting Confounding and Bias in Observational Studies. *Epidemiology* | 10.1097/EDE.0b013e3181d61eeb | 兩端機場天氣良好的航班作為 negative control：預期無效應處仍有關聯，即顯示未測量的因素 |
+| Shi, Miao, Tchetgen Tchetgen. A Selective Review of Negative Control Methods in Epidemiology | 2009.05641 | negative control 的假設、設計準則與偏誤的偵測、縮減、校正方法綜述 |
+| Schuemie, Ryan, DuMouchel, Suchard, Madigan. Interpreting Observational Studies: Why Empirical Calibration Is Needed to Correct p-Values. *Statistics in Medicine* | 10.1002/sim.5925 | 以 negative control 上的估計值分布作 empirical null，校正主分析的 p 值 |
+| Hwang, Quiroz, Gallego. Assessing the effectiveness of empirical calibration under different bias scenarios | 2111.04233 | empirical calibration 在不同偏誤情境下的表現；negative control 與主分析的偏誤來源不同時校正會失準 |
+
+## 機構比較（profiling）
+
+醫療機構評比與本題同構：以風險調整後的結果比較一批機構，找出偏離者。
+
+| 文獻 | arXiv／DOI | 支撐什麼 |
+|---|---|---|
+| Normand, Shahian. Statistical and Clinical Aspects of Hospital Outcomes Profiling. *Statistical Science* | 0710.4622 | 機構 profiling 的統計問題總覽：風險調整、樣本量差異、階層模型 |
+| Kalbfleisch, Wolfe. On Monitoring Outcomes of Medical Providers. *Statistics in Biosciences* | 10.1007/s12561-013-9093-x | 機構效應取固定效應或隨機效應的比較；公司直接作為固定效應因子的依據 |
+| Xia, He, Li, Kalbfleisch. Accounting for total variation and robustness in profiling health care providers | 1907.07809 | 樣本量大時任何偏離皆顯著，大機構被不成比例地標記；以 empirical null 把風險調整不完全造成的機構間變異納入參照分布 |
+| Hartman, Messana, Kang et al. Composite Scores for Transplant Center Evaluation: A New Individualized Empirical Null Method | 2207.07602 | 依機構樣本量個別化的 empirical null |
+| Efron. Size, power and false discovery rates. *Annals of Statistics* | 0710.2245 | empirical null 與 local false discovery rate 的理論 |
+| Spiegelhalter. Funnel Plots for Comparing Institutional Performance. *Statistics in Medicine* | 10.1002/sim.1970 | 以精確度為橫軸的管制界限取代排名表；overdispersion 下界限的調整 |
+
+## 形狀限制的檢定
+
+| 文獻 | arXiv／DOI | 支撐什麼 |
+|---|---|---|
+| Chetverikov. Testing Regression Monotonicity in Econometric Models | 1212.6757 | 迴歸函數單調性的無母數檢定；記入天氣的機率對天氣嚴重度、對延誤長度的 monotonicity restriction |
+| Espinosa-Brito, Hennig. Inference for the proportional odds cumulative logit model with monotonicity constraints for ordinal predictors and ordinal response | 2107.04946 | 有序解釋變數加單調限制時的檢定與信賴區域；飛行規則類別為四級有序變數 |
+
+## 交叉分類隨機效應
+
+| 文獻 | arXiv／DOI | 支撐什麼 |
+|---|---|---|
+| Ghosh, Hastie, Owen. Backfitting for large scale crossed random effects regressions | 2007.10612 | 公司 × 機場非巢狀隨機效應在大樣本下的線性時間估計 |
+| Papaspiliopoulos, Stumpf-Fétizon, Zanella. Scalable Bayesian computation for crossed and nested hierarchical models | 2103.10875 | 同一結構的貝氏抽樣，計算量隨觀測數線性成長 |
+
+## 領域
+
+| 文獻 | arXiv／DOI | 支撐什麼 |
+|---|---|---|
+| Forbes, Lederman, Tombe. Quality Disclosure Programs and Internal Organizational Practices: Evidence from Airline Flight Delays. *AEJ: Microeconomics* | 10.1257/mic.20130164 | 準點率排名以到達延誤 15 分鐘為界，航空公司對門檻附近航班的反應因公司而異。申報行為受制度誘因影響、且公司間異質的先例 |
 
 ## 模擬研究
 

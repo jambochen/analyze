@@ -1,5 +1,6 @@
 import html
 import json
+import re
 import time
 import urllib.parse
 import urllib.request
@@ -38,6 +39,17 @@ ARXIV = {
     "schreck2023plasmode": "2305.06028",
     "shaw2025plasmode": "2504.11740",
     "karim2026plasmode": "2609.26186",
+    "fernandezval2013panel": "1311.7065",
+    "shi2020negative": "2009.05641",
+    "hwang2021calibration": "2111.04233",
+    "normand2007profiling": "0710.4622",
+    "xia2019profiling": "1907.07809",
+    "hartman2022null": "2207.07602",
+    "efron2007size": "0710.2245",
+    "chetverikov2012monotonicity": "1212.6757",
+    "espinosa2021ordinal": "2107.04946",
+    "ghosh2020backfitting": "2007.10612",
+    "papaspiliopoulos2021crossed": "2103.10875",
 }
 
 DOI = {
@@ -54,10 +66,15 @@ DOI = {
     "goldstein1996league": "10.2307/2983325",
     "cinelli2020sensitivity": "10.1111/rssb.12348",
     "lipsitch2010negative": "10.1097/EDE.0b013e3181d61eeb",
+    "schuemie2014calibration": "10.1002/sim.5925",
+    "kalbfleisch2013monitoring": "10.1007/s12561-013-9093-x",
+    "spiegelhalter2005funnel": "10.1002/sim.1970",
+    "forbes2015disclosure": "10.1257/mic.20130164",
 }
 
 # arXiv 的作者是「名 姓」單一字串，以最後一個空白切分會把複姓切錯。
-FAMILY = {"Diaa Al Mohamad": "Al Mohamad", "Erik W. van Zwet": "van Zwet", "Mark J. van der Laan": "van der Laan"}
+FAMILY = {"Diaa Al Mohamad": "Al Mohamad", "Erik W. van Zwet": "van Zwet", "Mark J. van der Laan": "van der Laan",
+          "Eric Tchetgen Tchetgen": "Tchetgen Tchetgen"}
 
 # hayagriva 把標題內的 $...$ 當 Typst 數學式解析，LaTeX 指令會編譯失敗。
 TITLE = {"$\\widehat{R}$": "R-hat", "$\\hat R$": "R-hat"}
@@ -108,7 +125,7 @@ for key, doi in DOI.items():
     out += [
         f"{key}:",
         "  type: article",
-        f"  title: {q(m['title'][0], ensure_ascii=False)}",
+        f"  title: {q(re.sub('<[^>]+>', '', m['title'][0]), ensure_ascii=False)}",
         f"  author: {q(authors, ensure_ascii=False)}",
         f"  date: {year}",
         f"  page-range: {q(m['page'])}",
