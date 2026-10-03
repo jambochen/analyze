@@ -35,6 +35,12 @@
 #let dims = rows("sample_dims")
 #let cells = rows("cell_carriers")
 #let crossing = rows("cluster_crossing")
+#let tails = rows("tail_connectivity")
+#let units = rows("airport_units")
+#let fourfold = rows("negative_control_cells")
+#let cell-n(w, o) = thou(float(fourfold.find(r => r.at(0) == w and r.at(1) == o).at(2)))
+#let nc-strata = rows("negative_control_strata")
+#let nc-share(level) = pct(float(nc-strata.find(r => r.at(0) == "nc" and r.at(1) == level).at(5)))
 
 #align(center)[
   #text(size: 17pt, weight: "bold")[美國航班天氣延誤申報的歸因異常稽核]
@@ -493,9 +499,10 @@ ranks 與#ref(<sec:restrict>)的 test of restrictions。每一次重複都執行
 
 == 計算成本
 
-每一次重複都要重新配適含高維固定效應的 Poisson 模型，這是本研究第一個同一
-運算大量重複的環節。重複次數由 Monte Carlo 標準誤的目標精確度反推，是否只
-抽取部分的層，待實測單次配適的時間後決定。
+每一次重複都要重新配適兩個模型，這是本研究第一個同一運算大量重複的環節。
+實測單次配適的時間，within estimator 以秒計，含高維固定效應的 Poisson 模型以
+數十秒計。前者重複數百次不成問題；後者須平行執行，但不必抽取部分的層。重複
+次數由 Monte Carlo 標準誤的目標精確度反推。
 
 = 分析計畫 <ch:plan>
 
@@ -539,10 +546,13 @@ ranks 與#ref(<sec:restrict>)的 test of restrictions。每一次重複都執行
 使其係數歸零所需的混淆強度，並以氣象共變量的強度為基準。
 
 *機尾號固定效應。* 機型隨機尾號固定，加入機尾號的固定效應可消去機隊特性。
-代價在識別：此時公司主效應只能由曾為多家公司執飛的飛機識別。這類飛機若過少，
-或只連通部分公司，其餘公司的主效應即不可識別。計畫先計算公司之間由共同
-機尾號構成的連通結構，確認哪些公司之間可以比較，再決定此模型能回答的範圍。
-不連通的部分只能由敏感度分析處理。
+代價在識別：此時公司主效應只能由曾為多家公司執飛的飛機識別。稽核樣本的
+#thou(pick(tails, "機尾號")) 個機尾號中，只有 #thou(pick(tails, "跨公司的機尾號")) 個
+曾為兩家以上公司執飛，其班次佔 #pct(pick(tails, "跨公司機尾號的班次佔比"), d: 1)。
+這些飛機把 #thou(pick(tails, "最大成分的公司數")) 家公司連成一個連通成分，全數是
+區域航空；其餘公司各自孤立，沒有任何一架飛機與他家共用。此模型因此只能回答這
+幾家區域航空之間的比較。主線公司之間、主線與區域之間的機隊差異，只能由敏感度
+分析處理。
 
 == 由模型導出的限制條件 <sec:restrict>
 
@@ -566,6 +576,8 @@ test of restrictions 不依賴公司之間的比較：由申報的機械關係�
 - _對實際天氣的 monotonicity restriction。_ 記入天氣的機率應隨事件時刻的
   天氣嚴重度遞增。此限制對 `wx_` 不成立也無妨，申報人依據的本來就不是起飛前
   的天氣；對 `oracle_` 則應成立。逐公司檢定，不遞增的區段即須解釋。
+  檢定須在只含 `oracle_` 的設定下進行（@tbl:basis）：`wx_` 的類別同在模型內時，
+  嚴重度的係數是給定起飛前天氣之後的條件效應，不是此限制所指的量。
   飛行規則類別是四級的有序變數，有序解釋變數加上單調限制時的檢定與信賴區域見
   #tc(<espinosa2021ordinal>)。
 
@@ -585,10 +597,10 @@ test of restrictions 不依賴公司之間的比較：由申報的機械關係�
     align: (left, left, left),
     row-gutter: 0.45em,
     [], [事件時刻惡劣], [事件時刻良好],
-    [起飛前惡劣], [稽核樣本], [稽核樣本],
-    [起飛前良好], [未納入], [未納入：negative control],
+    [起飛前惡劣], [稽核樣本，#cell-n("true", "true") 班], [稽核樣本，#cell-n("true", "false") 班],
+    [起飛前良好], [未納入，#cell-n("false", "true") 班], [未納入：negative control，#cell-n("false", "false") 班],
   ),
-  caption: [依兩組氣象判定的四類航班。惡劣指起點或目的地為 IFR 或 LIFR。],
+  caption: [依兩組氣象判定的四類航班。惡劣指起點或目的地為 IFR 或 LIFR。班次不含任一組氣象類別缺觀測者。],
 ) <tbl:fourfold>
 
 下列的兩類不在稽核樣本內，各有用途。主樣本維持不變，使結論能與提案及既有
@@ -616,7 +628,10 @@ test of restrictions 不依賴公司之間的比較：由申報的機械關係�
 - _機場天氣良好不等於沒有天氣。_ 航路上的對流天氣不在測站觀測內，前段航班
   因天氣晚到也可能被記入天氣。此處的比例因此不會是零，有訊號的是公司之間的
   差異。層改取起點 × 目的地 × 年月，同一層的航班飛同一條航路，航路天氣在
-  公司之間相同。層變細之後含兩家以上公司的層會減少，須先確認可比較的範圍。
+  公司之間相同。代價是可比較的範圍：以機場 × 年月為層時，含兩家以上公司且
+  結果有變異的層涵蓋 negative control #nc-share("機場 × 年月") 的航班，改取
+  航線 × 年月則降至 #nc-share("航線 × 年月")。故以機場 × 年月為主要設定，
+  航線 × 年月作為檢查，其結論只及於有多家公司飛行的航線。
 - _樣本來源。_ 這兩類航班有申報義務，只是未通過惡劣天氣的判定，可由同一份
   已清理的資料取得，處理方式與稽核樣本相同。
 
@@ -679,11 +694,16 @@ calibration 的做法，該文以預期無效應處的估計值分布校正主�
 *問題。* 清單目前以公司為單位。監理單位派員查核時，「某公司在哪幾座機場」
 比「某公司」更可執行。
 
-*方法上的困難。* 公司 × 機場的單元班次稀少，許多單元內結果全同，出現
-complete separation 或 quasi-complete separation，最大概似估計不存在。可行的
-處理有兩條。其一是 #tc(<firth1993bias>) 的懲罰概似，估計量在 separation 下
-仍有限；相應的 cluster-robust 推論見 #tc(<mackinnon2024logit>)。其二是階層
-模型，令公司 × 機場的效應向公司的主效應收縮。公司與機場並非巢狀，須設為交叉
+*方法上的困難。* 清單所用的近期資料共有 #thou(pick(units, "公司 × 機場單位")) 個
+公司 × 機場的單位，班次的中位數為 #thou(pick(units, "單位班次中位數"))，
+#pct(pick(units, "班次少於 30 的單位佔比")) 的單位不足三十班。困難在單位小，
+不在 separation：結果全同的單位佔 #pct(pick(units, "結果全同的單位佔比"))，但只含
+#pct(pick(units, "結果全同單位的班次佔比"), d: 1) 的班次。可比較的範圍也足夠，
+有兩家以上公司的機場涵蓋 #pct(pick(units, "兩家以上公司機場的班次佔比")) 的班次。
+
+主要的處理因此是階層模型，令公司 × 機場的效應向公司的主效應收縮。少數出現
+separation 的單位，以 #tc(<firth1993bias>) 的懲罰概似得到有限的估計量；相應的
+cluster-robust 推論見 #tc(<mackinnon2024logit>)。公司與機場並非巢狀，須設為交叉
 分類的隨機效應；此結構在大樣本下的估計見 #tc(<ghosh2020backfitting>)，貝氏抽樣見
 #tc(<papaspiliopoulos2021crossed>)。此層的抽樣誤差相對於真實變異大得多，收縮預期會實質改變排序。
 

@@ -45,11 +45,12 @@ def informative(d, outcome, unit="operating_carrier"):
     return d.join(keep, on=["origin_iata", "ym"])
 
 
-def fit(d, outcome, controls=WX, extra=(), unit="operating_carrier", ref=REF):
+def fit(d, outcome, controls=WX, extra=(), unit="operating_carrier", ref=REF, full=False):
     """層（機場 × 年月）固定效應下的公司主效應。
 
     controls 標準化後進模型；extra 為 polars 表達式，原尺度進模型，供交互作用與
     指示變數使用。回傳全部非退化項的係數表，公司項以 carrier_ 為前綴。
+    full 為真時另回傳係數的共變異矩陣與扣除層固定效應後的殘差自由度。
     """
     d = informative(d.drop_nulls(list(controls)), outcome, unit)
 
@@ -79,7 +80,8 @@ def fit(d, outcome, controls=WX, extra=(), unit="operating_carrier", ref=REF):
     r = sm.OLS(dd["y"].to_numpy(), M).fit(cov_type="cluster", cov_kwds={"groups": np.column_stack([g, tail])})
     assert not np.isnan(r.bse).any() and (r.bse > 0).all(), f"{outcome} 標準誤退化"
     print(outcome, "n", d.height, "strata", g.max(), "R2", round(r.rsquared, 5))
-    return pl.DataFrame({"term": names, "coef": r.params, "se": r.bse}).with_columns(
+    out = pl.DataFrame({"term": names, "coef": r.params, "se": r.bse}).with_columns(
         (pl.col("coef") - 1.96 * pl.col("se")).alias("lo"),
         (pl.col("coef") + 1.96 * pl.col("se")).alias("hi"),
     )
+    return (out, r.cov_params(), r.df_resid - g.max()) if full else out
