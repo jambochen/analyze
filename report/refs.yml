@@ -1,0 +1,457 @@
+chen2023lpm:
+  type: article
+  title: "Another Look at the Linear Probability Model and Nonlinear Index Models"
+  author: ["Chen, Kaicheng", "Martin, Robert S.", "Wooldridge, Jeffrey M."]
+  date: 2023
+  url: https://arxiv.org/abs/2308.15338
+  parent:
+    type: repository
+    title: "arXiv:2308.15338"
+correia2019ppmlhdfe:
+  type: article
+  title: "ppmlhdfe: Fast Poisson Estimation with High-Dimensional Fixed Effects"
+  author: ["Correia, Sergio", "Guimarães, Paulo", "Zylkin, Thomas"]
+  date: 2019
+  url: https://arxiv.org/abs/1903.01690
+  parent:
+    type: repository
+    title: "arXiv:1903.01690"
+correia2019existence:
+  type: article
+  title: "Verifying the existence of maximum likelihood estimates for generalized linear models"
+  author: ["Correia, Sergio", "Guimarães, Paulo", "Zylkin, Thomas"]
+  date: 2019
+  url: https://arxiv.org/abs/1903.01633
+  parent:
+    type: repository
+    title: "arXiv:1903.01633"
+lee2017poisson:
+  type: article
+  title: "On the \"Poisson Trick\" and its Extensions for Fitting Multinomial Regression Models"
+  author: ["Lee, Jarod Y. L.", "Green, Peter J.", "Ryan, Louise M."]
+  date: 2017
+  url: https://arxiv.org/abs/1707.08538
+  parent:
+    type: repository
+    title: "arXiv:1707.08538"
+weidner2019bias:
+  type: article
+  title: "Bias and Consistency in Three-way Gravity Models"
+  author: ["Weidner, Martin", "Zylkin, Thomas"]
+  date: 2019
+  url: https://arxiv.org/abs/1909.01327
+  parent:
+    type: repository
+    title: "arXiv:1909.01327"
+egger2026heavy:
+  type: article
+  title: "PPML and Heavy-Tailed Trade and Factor Flows: Why Standard Inference Fails and How to Fix It"
+  author: ["Egger, Peter H.", "Ji, Ting", "Wang, Yulong"]
+  date: 2026
+  url: https://arxiv.org/abs/2609.18750
+  parent:
+    type: repository
+    title: "arXiv:2609.18750"
+ospina2011inflated:
+  type: article
+  title: "A general class of zero-or-one inflated beta regression models"
+  author: ["Ospina, Raydonal", "Ferrari, Silvia L. P."]
+  date: 2011
+  url: https://arxiv.org/abs/1103.2372
+  parent:
+    type: repository
+    title: "arXiv:1103.2372"
+alzeley2026zeros:
+  type: article
+  title: "Modelling compositional data with structural zero values"
+  author: ["Alzeley, Omar", "Tsagris, Michail"]
+  date: 2026
+  url: https://arxiv.org/abs/2608.29954
+  parent:
+    type: repository
+    title: "arXiv:2608.29954"
+koslovsky2023zidm:
+  type: article
+  title: "A Bayesian Zero-Inflated Dirichlet-Multinomial Regression Model for Multivariate Compositional Count Data"
+  author: ["Koslovsky, Matthew D."]
+  date: 2023
+  url: https://arxiv.org/abs/2302.12283
+  parent:
+    type: repository
+    title: "arXiv:2302.12283"
+hoffman2011nuts:
+  type: article
+  title: "The No-U-Turn Sampler: Adaptively Setting Path Lengths in Hamiltonian Monte Carlo"
+  author: ["Hoffman, Matthew D.", "Gelman, Andrew"]
+  date: 2011
+  url: https://arxiv.org/abs/1111.4246
+  parent:
+    type: repository
+    title: "arXiv:1111.4246"
+betancourt2017hmc:
+  type: article
+  title: "A Conceptual Introduction to Hamiltonian Monte Carlo"
+  author: ["Betancourt, Michael"]
+  date: 2017
+  url: https://arxiv.org/abs/1701.02434
+  parent:
+    type: repository
+    title: "arXiv:1701.02434"
+vehtari2019rhat:
+  type: article
+  title: "Rank-normalization, folding, and localization: An improved R-hat for assessing convergence of MCMC"
+  author: ["Vehtari, Aki", "Gelman, Andrew", "Simpson, Daniel", "Carpenter, Bob", "Bürkner, Paul-Christian"]
+  date: 2019
+  url: https://arxiv.org/abs/1903.08008
+  parent:
+    type: repository
+    title: "arXiv:1903.08008"
+vehtari2015loo:
+  type: article
+  title: "Practical Bayesian model evaluation using leave-one-out cross-validation and WAIC"
+  author: ["Vehtari, Aki", "Gelman, Andrew", "Gabry, Jonah"]
+  date: 2015
+  url: https://arxiv.org/abs/1507.04544
+  parent:
+    type: repository
+    title: "Statistics and Computing, 2017, Volume 27, Issue 5, pp 1413-1432"
+margossian2021nested:
+  type: article
+  title: "Nested R-hat: Assessing the convergence of Markov chain Monte Carlo when running many short chains"
+  author: ["Margossian, Charles C.", "Hoffman, Matthew D.", "Sountsov, Pavel", "Riou-Durand, Lionel", "Vehtari, Aki", "Gelman, Andrew"]
+  date: 2021
+  url: https://arxiv.org/abs/2110.13017
+  parent:
+    type: repository
+    title: "Bayesian Analysis 2024"
+grun2024mixture:
+  type: article
+  title: "Bayesian Finite Mixture Models"
+  author: ["Grün, Bettina", "Malsiner-Walli, Gertraud"]
+  date: 2024
+  url: https://arxiv.org/abs/2407.05470
+  parent:
+    type: repository
+    title: "arXiv:2407.05470"
+abadie2017cluster:
+  type: article
+  title: "When Should You Adjust Standard Errors for Clustering?"
+  author: ["Abadie, Alberto", "Athey, Susan", "Imbens, Guido", "Wooldridge, Jeffrey"]
+  date: 2017
+  url: https://arxiv.org/abs/1710.02926
+  parent:
+    type: repository
+    title: "arXiv:1710.02926"
+mackinnon2022guide:
+  type: article
+  title: "Cluster-Robust Inference: A Guide to Empirical Practice"
+  author: ["MacKinnon, James G.", "Nielsen, Morten Ørregaard", "Webb, Matthew D."]
+  date: 2022
+  url: https://arxiv.org/abs/2205.03285
+  parent:
+    type: repository
+    title: "arXiv:2205.03285"
+mackinnon2024twoway:
+  type: article
+  title: "Jackknife inference with two-way clustering"
+  author: ["MacKinnon, James G.", "Nielsen, Morten Ørregaard", "Webb, Matthew D."]
+  date: 2024
+  url: https://arxiv.org/abs/2406.08880
+  parent:
+    type: repository
+    title: "arXiv:2406.08880"
+mackinnon2024logit:
+  type: article
+  title: "Cluster-robust jackknife and bootstrap inference for logistic regression models"
+  author: ["MacKinnon, James G.", "Nielsen, Morten Ørregaard", "Webb, Matthew D."]
+  date: 2024
+  url: https://arxiv.org/abs/2406.00650
+  parent:
+    type: repository
+    title: "arXiv:2406.00650"
+chetverikov2024csranks:
+  type: article
+  title: "csranks: An R Package for Estimation and Inference Involving Ranks"
+  author: ["Chetverikov, Denis", "Mogstad, Magne", "Morgen, Pawel", "Romano, Joseph", "Shaikh, Azeem", "Wilhelm, Daniel"]
+  date: 2024
+  url: https://arxiv.org/abs/2401.15205
+  parent:
+    type: repository
+    title: "arXiv:2401.15205"
+almohamad2017ranks:
+  type: article
+  title: "Simultaneous confidence sets for ranks using the partitioning principle - Technical report"
+  author: ["Al Mohamad, Diaa", "van Zwet, Erik W.", "Goeman, Jelle J.", "Solari, Aldo"]
+  date: 2017
+  url: https://arxiv.org/abs/1708.02729
+  parent:
+    type: repository
+    title: "arXiv:1708.02729"
+gu2020invidious:
+  type: article
+  title: "Invidious Comparisons: Ranking and Selection as Compound Decisions"
+  author: ["Gu, Jiaying", "Koenker, Roger"]
+  date: 2020
+  url: https://arxiv.org/abs/2012.12550
+  parent:
+    type: repository
+    title: "arXiv:2012.12550"
+kline2023reportcard:
+  type: article
+  title: "A Discrimination Report Card"
+  author: ["Kline, Patrick", "Rose, Evan K.", "Walters, Christopher R."]
+  date: 2023
+  url: https://arxiv.org/abs/2306.13005
+  parent:
+    type: repository
+    title: "arXiv:2306.13005"
+bazylik2024multinomial:
+  type: article
+  title: "Finite- and Large-Sample Inference for Ranks using Multinomial Data with an Application to Ranking Political Parties"
+  author: ["Bazylik, Sergei", "Mogstad, Magne", "Romano, Joseph", "Shaikh, Azeem", "Wilhelm, Daniel"]
+  date: 2024
+  url: https://arxiv.org/abs/2402.00192
+  parent:
+    type: repository
+    title: "arXiv:2402.00192"
+chandra2025ranks:
+  type: article
+  title: "Finite-Sample Valid Rank Confidence Sets for a Broad Class of Statistical and Machine Learning Models"
+  author: ["Chandra, Onrina", "Xie, Min-ge"]
+  date: 2025
+  url: https://arxiv.org/abs/2512.00316
+  parent:
+    type: repository
+    title: "arXiv:2512.00316"
+strezhnev2026ovb:
+  type: article
+  title: "Omitted variable bias sensitivity analysis with clustered treatment assignment"
+  author: ["Strezhnev, Anton"]
+  date: 2026
+  url: https://arxiv.org/abs/2607.13334
+  parent:
+    type: repository
+    title: "arXiv:2607.13334"
+wainstein2025wls:
+  type: article
+  title: "Sensitivity of weighted least squares estimators to omitted variables"
+  author: ["Wainstein, Leonard", "Hazlett, Chad"]
+  date: 2025
+  url: https://arxiv.org/abs/2508.02954
+  parent:
+    type: repository
+    title: "arXiv:2508.02954"
+bach2025sensitivity:
+  type: article
+  title: "Sensitivity Analysis for Causal ML: A Use Case at Booking.com"
+  author: ["Bach, Philipp", "Chernozhukov, Victor", "Cinelli, Carlos", "Jia, Lin", "Klaassen, Sven", "Skotara, Nils", "Spindler, Martin"]
+  date: 2025
+  url: https://arxiv.org/abs/2510.09109
+  parent:
+    type: repository
+    title: "arXiv:2510.09109"
+morris2017simulation:
+  type: article
+  title: "Using simulation studies to evaluate statistical methods"
+  author: ["Morris, Tim P", "White, Ian R", "Crowther, Michael J"]
+  date: 2017
+  url: https://arxiv.org/abs/1712.03198
+  parent:
+    type: repository
+    title: "arXiv:1712.03198"
+schreck2023plasmode:
+  type: article
+  title: "Statistical Plasmode Simulations -- Potentials, Challenges and Recommendations"
+  author: ["Schreck, Nicholas", "Slynko, Alla", "Saadati, Maral", "Benner, Axel"]
+  date: 2023
+  url: https://arxiv.org/abs/2305.06028
+  parent:
+    type: repository
+    title: "arXiv:2305.06028"
+shaw2025plasmode:
+  type: article
+  title: "A cautionary note for plasmode simulation studies in the setting of causal inference"
+  author: ["Shaw, Pamela A", "Gruber, Susan", "Williamson, Brian D.", "Desai, Rishi", "Shortreed, Susan M.", "Krakauer, Chloe", "Nelson, Jennifer C.", "van der Laan, Mark J."]
+  date: 2025
+  url: https://arxiv.org/abs/2504.11740
+  parent:
+    type: repository
+    title: "arXiv:2504.11740"
+karim2026plasmode:
+  type: article
+  title: "A Plasmode Benchmark Can Refute but Cannot Certify: Projection and Regularity in Causal-Inference Simulation"
+  author: ["Karim, M. Ehsan"]
+  date: 2026
+  url: https://arxiv.org/abs/2609.26186
+  parent:
+    type: repository
+    title: "arXiv:2609.26186"
+baker1994multinomial:
+  type: article
+  title: "The Multinomial-Poisson Transformation"
+  author: ["Baker, Stuart G."]
+  date: 1994
+  page-range: "495"
+  serial-number:
+    doi: "10.2307/2348134"
+  parent:
+    type: periodical
+    title: "The Statistician"
+    volume: 43
+    issue: "4"
+firth1993bias:
+  type: article
+  title: "Bias reduction of maximum likelihood estimates"
+  author: ["Firth, David"]
+  date: 1993
+  page-range: "27-38"
+  serial-number:
+    doi: "10.1093/biomet/80.1.27"
+  parent:
+    type: periodical
+    title: "Biometrika"
+    volume: 80
+    issue: "1"
+efron1973stein:
+  type: article
+  title: "Stein's Estimation Rule and Its Competitors--An Empirical Bayes Approach"
+  author: ["Efron, Bradley", "Morris, Carl"]
+  date: 1973
+  page-range: "117"
+  serial-number:
+    doi: "10.2307/2284155"
+  parent:
+    type: periodical
+    title: "Journal of the American Statistical Association"
+    volume: 68
+    issue: "341"
+benjamini1995fdr:
+  type: article
+  title: "Controlling the False Discovery Rate: A Practical and Powerful Approach to Multiple Testing"
+  author: ["Benjamini, Yoav", "Hochberg, Yosef"]
+  date: 1995
+  page-range: "289-300"
+  serial-number:
+    doi: "10.1111/j.2517-6161.1995.tb02031.x"
+  parent:
+    type: periodical
+    title: "Journal of the Royal Statistical Society Series B: Statistical Methodology"
+    volume: 57
+    issue: "1"
+stephens2000label:
+  type: article
+  title: "Dealing With Label Switching in Mixture Models"
+  author: ["Stephens, Matthew"]
+  date: 2000
+  page-range: "795-809"
+  serial-number:
+    doi: "10.1111/1467-9868.00265"
+  parent:
+    type: periodical
+    title: "Journal of the Royal Statistical Society Series B: Statistical Methodology"
+    volume: 62
+    issue: "4"
+mundlak1978pooling:
+  type: article
+  title: "On the Pooling of Time Series and Cross Section Data"
+  author: ["Mundlak, Yair"]
+  date: 1978
+  page-range: "69"
+  serial-number:
+    doi: "10.2307/1913646"
+  parent:
+    type: periodical
+    title: "Econometrica"
+    volume: 46
+    issue: "1"
+chamberlain1980covariance:
+  type: article
+  title: "Analysis of Covariance with Qualitative Data"
+  author: ["Chamberlain, Gary"]
+  date: 1980
+  page-range: "225"
+  serial-number:
+    doi: "10.2307/2297110"
+  parent:
+    type: periodical
+    title: "The Review of Economic Studies"
+    volume: 47
+    issue: "1"
+papke1996fractional:
+  type: article
+  title: "Econometric methods for fractional response variables with an application to 401(k) plan participation rates"
+  author: ["Papke, Leslie E.", "Wooldridge, Jeffrey M."]
+  date: 1996
+  page-range: "619-632"
+  serial-number:
+    doi: "10.1002/(SICI)1099-1255(199611)11:6<619::AID-JAE418>3.0.CO;2-1"
+  parent:
+    type: periodical
+    title: "Journal of Applied Econometrics"
+    volume: 11
+    issue: "6"
+cameron2011multiway:
+  type: article
+  title: "Robust Inference With Multiway Clustering"
+  author: ["Cameron, A. Colin", "Gelbach, Jonah B.", "Miller, Douglas L."]
+  date: 2011
+  page-range: "238-249"
+  serial-number:
+    doi: "10.1198/jbes.2010.07136"
+  parent:
+    type: periodical
+    title: "Journal of Business & Economic Statistics"
+    volume: 29
+    issue: "2"
+guimaraes2010hdfe:
+  type: article
+  title: "A Simple Feasible Procedure to fit Models with High-dimensional Fixed Effects"
+  author: ["Guimarães, Paulo", "Portugal, Pedro"]
+  date: 2011
+  page-range: "628-649"
+  serial-number:
+    doi: "10.1177/1536867X1001000406"
+  parent:
+    type: periodical
+    title: "The Stata Journal: Promoting communications on statistics and Stata"
+    volume: 10
+    issue: "4"
+goldstein1996league:
+  type: article
+  title: "League Tables and Their Limitations: Statistical Issues in Comparisons of Institutional Performance"
+  author: ["Goldstein, Harvey", "Spiegelhalter, David J."]
+  date: 1996
+  page-range: "385"
+  serial-number:
+    doi: "10.2307/2983325"
+  parent:
+    type: periodical
+    title: "Journal of the Royal Statistical Society. Series A (Statistics in Society)"
+    volume: 159
+    issue: "3"
+cinelli2020sensitivity:
+  type: article
+  title: "Making Sense of Sensitivity: Extending Omitted Variable Bias"
+  author: ["Cinelli, Carlos", "Hazlett, Chad"]
+  date: 2020
+  page-range: "39-67"
+  serial-number:
+    doi: "10.1111/rssb.12348"
+  parent:
+    type: periodical
+    title: "Journal of the Royal Statistical Society Series B: Statistical Methodology"
+    volume: 82
+    issue: "1"
+lipsitch2010negative:
+  type: article
+  title: "Negative Controls"
+  author: ["Lipsitch, Marc", "Tchetgen Tchetgen, Eric", "Cohen, Ted"]
+  date: 2010
+  page-range: "383-388"
+  serial-number:
+    doi: "10.1097/EDE.0b013e3181d61eeb"
+  parent:
+    type: periodical
+    title: "Epidemiology"
+    volume: 21
+    issue: "3"
