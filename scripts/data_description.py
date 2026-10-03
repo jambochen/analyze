@@ -158,8 +158,8 @@ fig.colorbar(im, ax=ax, fraction=0.045).outline.set_visible(False)
 finish(fig, ax, "slides_flight_category")
 
 
-# 欄位漏斗：與列數漏斗分開。oracle_ 的 54 欄是機械式整組移除，
-# 這個數字本身就是洩漏防護的規模證據。
+# 欄位漏斗：與列數漏斗分開。oracle_ 之中只有 dest_arr 一族以前綴整組移除，
+# 其觀測時點與延誤機械相關。
 def grp(c):
     for p in ("oracle_", "reported_", "wx_", "prior_leg_"):
         if c.startswith(p):
@@ -196,7 +196,7 @@ for g in groups:
     if bd >= 8:
         ax.text(left_bad + bd / 2, 0, str(bd), ha="center", va="center", color="white", fontsize=13)
     left_raw, left_bad = left_raw + r, left_bad + bd
-ax.annotate("oracle_ 整組移除", xy=(len(bad_cols) + 27, 0.5), ha="center", va="center",
+ax.annotate("oracle_dest_arr_ 移除", xy=((len(bad_cols) + len(raw_cols)) / 2, 0.5), ha="center", va="center",
             color=GREY, fontsize=13)
 ax.set_yticks([1, 0], [f"原始 {len(raw_cols)} 欄", f"分析用 {len(bad_cols)} 欄"])
 ax.set_xlabel("欄位數")

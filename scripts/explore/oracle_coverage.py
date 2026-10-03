@@ -23,7 +23,8 @@ d = (
     .unique(subset=keys)
 )
 
-b = pl.read_parquet("data/processed/bad_weather.parquet")
+# bad_weather 的 oracle_ 已經過 clean.py 的結構性填零，此處要的是原始檔的缺失狀態。
+b = pl.read_parquet("data/processed/bad_weather.parquet").drop(pl.selectors.starts_with("oracle_"))
 j = b.join(d, on=keys, how="left")
 print("稽核樣本", b.height, "join 後", j.height)
 

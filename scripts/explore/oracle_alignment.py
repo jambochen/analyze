@@ -37,7 +37,8 @@ orc = (
     .collect(engine="streaming")
 )
 
-b = stratum.load()
+# bad_weather 的 oracle_ 已經過 clean.py 的結構性填零，此處要的是原始檔的缺失狀態。
+b = stratum.load().drop(pl.selectors.starts_with("oracle_"))
 n0 = b.height
 b = b.join(orc.unique(subset=keys), on=keys, how="inner")
 print("join 保留", b.height, "/", n0)
