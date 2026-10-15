@@ -1,3 +1,24 @@
+abowd2002connected:
+  type: report
+  title: "Computing Person and Firm Effects Using Linked Longitudinal Employer-Employee Data"
+  author: ["Abowd, John M.", "Creecy, Robert H.", "Kramarz, Francis"]
+  date: 2002
+  url: https://www2.census.gov/ces/tp/tp-2002-06.pdf
+
+brooks2017glmmtmb:
+  type: article
+  title: "glmmTMB Balances Speed and Flexibility Among Packages for Zero-inflated Generalized Linear Mixed Modeling"
+  author: ["Brooks, Mollie E.", "Kristensen, Kasper", "van Benthem, Koen J.", "Magnusson, Arni", "Berg, Casper W.", "Nielsen, Anders", "Skaug, Hans J.", "Mächler, Martin", "Bolker, Benjamin M."]
+  date: 2017
+  page-range: "378-400"
+  url: https://journal.r-project.org/articles/RJ-2017-066/
+  serial-number:
+    doi: "10.32614/RJ-2017-066"
+  parent:
+    type: periodical
+    title: "The R Journal"
+    volume: 9
+    issue: "2"
 chen2023lpm:
   type: article
   title: "Another Look at the Linear Probability Model and Nonlinear Index Models"
@@ -507,6 +528,19 @@ papke1996fractional:
     title: "Journal of Applied Econometrics"
     volume: 11
     issue: "6"
+ramalho2011fractional:
+  type: article
+  title: "Alternative estimating and testing empirical strategies for fractional regression models"
+  author: ["Ramalho, Esmeralda A.", "Ramalho, Joaquim J.S.", "Murteira, José M.R."]
+  date: 2011
+  page-range: "19-68"
+  serial-number:
+    doi: "10.1111/j.1467-6419.2009.00602.x"
+  parent:
+    type: periodical
+    title: "Journal of Economic Surveys"
+    volume: 25
+    issue: "1"
 cameron2011multiway:
   type: article
   title: "Robust Inference With Multiway Clustering"
@@ -728,3 +762,459 @@ spiegelhalter2012regulation:
     title: "Journal of the Royal Statistical Society Series A: Statistics in Society"
     volume: 175
     issue: "1"
+gnutzmann2023rights:
+  type: article
+  title: "Can consumer rights improve on-time performance? Evidence from European Air Passenger Rights"
+  author: ["Gnutzmann, Hinnerk", "Śpiewanowski, Piotr"]
+  date: 2023
+  page-range: "155-168"
+  serial-number:
+    doi: "10.1016/j.tranpol.2023.03.017"
+  parent:
+    type: periodical
+    title: "Transport Policy"
+    volume: 136
+    issue: ""
+fukui2014tarmac:
+  type: article
+  title: "Flight cancellation as a reaction to the tarmac delay rule: An unintended consequence of enhanced passenger protection"
+  author: ["Fukui, Hideki", "Nagata, Koki"]
+  date: 2014
+  page-range: "29-44"
+  serial-number:
+    doi: "10.1016/j.ecotra.2014.02.004"
+  parent:
+    type: periodical
+    title: "Economics of Transportation"
+    volume: 3
+    issue: "1"
+fukui2026penalties:
+  type: article
+  title: "Penalties as prices? evaluating airline strategic responses to tarmac delay penalties in the US"
+  author: ["Fukui, Hideki", "Dresner, Martin", "Miyoshi, Chikage"]
+  date: 2026
+  page-range: "105063"
+  serial-number:
+    doi: "10.1016/j.tra.2026.105063"
+  parent:
+    type: periodical
+    title: "Transportation Research Part A: Policy and Practice"
+    volume: 211
+    issue: ""
+aggarwal2019incentives:
+  type: article
+  title: "Incentives and Competition in the Airline Industry"
+  author: ["Aggarwal, Rajesh K", "Schenone, Carola"]
+  date: 2019
+  page-range: "380-428"
+  serial-number:
+    doi: "10.1093/rcfs/cfz002"
+  parent:
+    type: periodical
+    title: "The Review of Corporate Finance Studies"
+    volume: 8
+    issue: "2"
+bilotkach2022causes:
+  type: article
+  title: "Causes and Effects of Air Traffic Delays: Evidence from Aggregated Data"
+  author: ["Bilotkach, Volodymyr", "Lakew, Paulos Ashebir"]
+  date: 2022
+  page-range: "103-128"
+  serial-number:
+    doi: "10.3828/jtep.2022.56.2.103"
+  parent:
+    type: periodical
+    title: "Journal of Transport Economics and Policy"
+    volume: 56
+    issue: "2"
+borsky2019weather:
+  type: article
+  title: "Bad weather and flight delays: The impact of sudden and slow onset weather events"
+  author: ["Borsky, Stefan", "Unterberger, Christian"]
+  date: 2019
+  page-range: "10-26"
+  serial-number:
+    doi: "10.1016/j.ecotra.2019.02.002"
+  parent:
+    type: periodical
+    title: "Economics of Transportation"
+    volume: 18
+    issue: ""
+wedderburn1974quasi:
+  type: article
+  title: "Quasi-likelihood functions, generalized linear models, and the Gauss—Newton method"
+  author: ["Wedderburn, R. W. M."]
+  date: 1974
+  page-range: "439-447"
+  serial-number:
+    doi: "10.1093/biomet/61.3.439"
+  parent:
+    type: periodical
+    title: "Biometrika"
+    volume: 61
+    issue: "3"
+mccullagh1983quasi:
+  type: article
+  title: "Quasi-Likelihood Functions"
+  author: ["McCullagh, Peter"]
+  date: 1983
+  page-range: "59-67"
+  serial-number:
+    doi: "10.1214/aos/1176346056"
+  parent:
+    type: periodical
+    title: "The Annals of Statistics"
+    volume: 11
+    issue: "1"
+gourieroux1984pml:
+  type: article
+  title: "Pseudo Maximum Likelihood Methods: Theory"
+  author: ["Gourieroux, C.", "Monfort, A.", "Trognon, A."]
+  date: 1984
+  page-range: "681"
+  serial-number:
+    doi: "10.2307/1913471"
+  parent:
+    type: periodical
+    title: "Econometrica"
+    volume: 52
+    issue: "3"
+santossilva2006log:
+  type: article
+  title: "The Log of Gravity"
+  author: ["Santos Silva, J. M. C.", "Tenreyro, Silvana"]
+  date: 2006
+  page-range: "641-658"
+  serial-number:
+    doi: "10.1162/rest.88.4.641"
+  parent:
+    type: periodical
+    title: "The Review of Economics and Statistics"
+    volume: 88
+    issue: "4"
+allison2002negbin:
+  type: article
+  title: "Fixed-Effects Negative Binomial Regression Models"
+  author: ["Allison, Paul D.", "Waterman, Richard P."]
+  date: 2002
+  page-range: "247-265"
+  serial-number:
+    doi: "10.1111/1467-9531.00117"
+  parent:
+    type: periodical
+    title: "Sociological Methodology"
+    volume: 32
+    issue: "1"
+bosquet2014scale:
+  type: article
+  title: "Applying the GLM Variance Assumption to Overcome the Scale-Dependence of the Negative Binomial QGPML Estimator"
+  author: ["Bosquet, Clément", "Boulhol, Hervé"]
+  date: 2014
+  page-range: "772-784"
+  serial-number:
+    doi: "10.1080/07474938.2013.806102"
+  parent:
+    type: periodical
+    title: "Econometric Reviews"
+    volume: 33
+    issue: "7"
+blackburn2015relative:
+  type: article
+  title: "The Relative Performance of Poisson and Negative Binomial Regression Estimators"
+  author: ["Blackburn, Mckinley L."]
+  date: 2015
+  page-range: "605-616"
+  serial-number:
+    doi: "10.1111/obes.12074"
+  parent:
+    type: periodical
+    title: "Oxford Bulletin of Economics and Statistics"
+    volume: 77
+    issue: "4"
+santossilva2022log15:
+  type: article
+  title: "The Log of Gravity at 15"
+  author: ["Santos Silva, J. M. C.", "Tenreyro, Silvana"]
+  date: 2022
+  page-range: "423-437"
+  serial-number:
+    doi: "10.1007/s10258-021-00203-w"
+  parent:
+    type: periodical
+    title: "Portuguese Economic Journal"
+    volume: 21
+    issue: "3"
+zitzewitz2012forensic:
+  type: article
+  title: "Forensic Economics"
+  author: ["Zitzewitz, Eric"]
+  date: 2012
+  page-range: "731-769"
+  serial-number:
+    doi: "10.1257/jel.50.3.731"
+  parent:
+    type: periodical
+    title: "Journal of Economic Literature"
+    volume: 50
+    issue: "3"
+bolton2002fraud:
+  type: article
+  title: "Statistical Fraud Detection: A Review"
+  author: ["Bolton, Richard J.", "Hand, David J."]
+  date: 2002
+  page-range: "235-249"
+  serial-number:
+    doi: "10.1214/ss/1042727940"
+  parent:
+    type: periodical
+    title: "Statistical Science"
+    volume: 17
+    issue: "3"
+zinman2016wintertime:
+  type: article
+  title: "Wintertime for Deceptive Advertising?"
+  author: ["Zinman, Jonathan", "Zitzewitz, Eric"]
+  date: 2016
+  page-range: "177-192"
+  serial-number:
+    doi: "10.1257/app.20130346"
+  parent:
+    type: periodical
+    title: "American Economic Journal: Applied Economics"
+    volume: 8
+    issue: "1"
+parsons2011strike:
+  type: article
+  title: "Strike Three: Discrimination, Incentives, and Evaluation"
+  author: ["Parsons, Christopher A", "Sulaeman, Johan", "Yates, Michael C", "Hamermesh, Daniel S"]
+  date: 2011
+  page-range: "1410-1435"
+  serial-number:
+    doi: "10.1257/aer.101.4.1410"
+  parent:
+    type: periodical
+    title: "American Economic Review"
+    volume: 101
+    issue: "4"
+pierce2008spillovers:
+  type: article
+  title: "Ethical Spillovers in Firms: Evidence from Vehicle Emissions Testing"
+  author: ["Pierce, Lamar", "Snyder, Jason"]
+  date: 2008
+  page-range: "1891-1903"
+  serial-number:
+    doi: "10.1287/mnsc.1080.0927"
+  parent:
+    type: periodical
+    title: "Management Science"
+    volume: 54
+    issue: "11"
+crawford2022erclaims:
+  type: article
+  title: "Applications of Machine Learning to the Identification of Anomalous ER Claims"
+  author: ["Crawford, Jesse B.", "Petela, Nicholas"]
+  date: 2022
+  url: https://arxiv.org/abs/2206.08093
+  parent:
+    type: repository
+    title: "arXiv:2206.08093"
+shekhar2022fraud:
+  type: article
+  title: "Unsupervised Machine Learning for Explainable Health Care Fraud Detection"
+  author: ["Shekhar, Shubhranshu", "Leder-Luis, Jetson", "Akoglu, Leman"]
+  date: 2022
+  url: https://arxiv.org/abs/2211.02927
+  parent:
+    type: repository
+    title: "arXiv:2211.02927"
+jacob2003rotten:
+  type: article
+  title: "Rotten Apples: An Investigation of the Prevalence and Predictors of Teacher Cheating"
+  author: ["Jacob, B. A.", "Levitt, S. D."]
+  date: 2003
+  page-range: "843-877"
+  serial-number:
+    doi: "10.1162/00335530360698441"
+  parent:
+    type: periodical
+    title: "The Quarterly Journal of Economics"
+    volume: 118
+    issue: "3"
+geruso2020upcoding:
+  type: article
+  title: "Upcoding: Evidence from Medicare on Squishy Risk Adjustment"
+  author: ["Geruso, Michael", "Layton, Timothy"]
+  date: 2020
+  page-range: "984-1026"
+  serial-number:
+    doi: "10.1086/704756"
+  parent:
+    type: periodical
+    title: "Journal of Political Economy"
+    volume: 128
+    issue: "3"
+sanghavi2020falls:
+  type: article
+  title: "Assessment of nursing home reporting of major injury falls for quality measurement on nursing home compare"
+  author: ["Sanghavi, Prachi", "Pan, Shengyuan", "Caudry, Daryl"]
+  date: 2020
+  page-range: "201-210"
+  serial-number:
+    doi: "10.1111/1475-6773.13247"
+  parent:
+    type: periodical
+    title: "Health Services Research"
+    volume: 55
+    issue: "2"
+dawid1979observer:
+  type: article
+  title: "Maximum Likelihood Estimation of Observer Error-Rates Using the EM Algorithm"
+  author: ["Dawid, A. P.", "Skene, A. M."]
+  date: 1979
+  page-range: "20-28"
+  serial-number:
+    doi: "10.2307/2346806"
+  parent:
+    type: periodical
+    title: "Applied Statistics"
+    volume: 28
+    issue: "1"
+aelvoet2009miscoding:
+  type: article
+  title: "Miscoding: A threat to the hospital care system. How to detect it?"
+  author: ["Aelvoet, W. H.", "Terryn, N.", "Windey, F.", "Redivo, M.", "van Sprundel, M.", "Faes, C."]
+  date: 2009
+  page-range: "169-177"
+  serial-number:
+    doi: "10.1016/j.respe.2009.02.206"
+  parent:
+    type: periodical
+    title: "Revue d'Épidémiologie et de Santé Publique"
+    volume: 57
+    issue: "3"
+schuemie2018calibration:
+  type: article
+  title: "Empirical confidence interval calibration for population-level effect estimation studies in observational healthcare data"
+  author: ["Schuemie, Martijn J.", "Hripcsak, George", "Ryan, Patrick B.", "Madigan, David", "Suchard, Marc A."]
+  date: 2018
+  page-range: "2571-2577"
+  serial-number:
+    doi: "10.1073/pnas.1708282114"
+  parent:
+    type: periodical
+    title: "Proceedings of the National Academy of Sciences"
+    volume: 115
+    issue: "11"
+brakenhoff2018profiling:
+  type: article
+  title: "Outlier classification performance of risk adjustment methods when profiling multiple providers"
+  author: ["Brakenhoff, Timo B.", "Roes, Kit C. B.", "Moons, Karel G. M.", "Groenwold, Rolf H. H."]
+  date: 2018
+  serial-number:
+    doi: "10.1186/s12874-018-0510-1"
+  parent:
+    type: periodical
+    title: "BMC Medical Research Methodology"
+    volume: 18
+    issue: "1"
+ding2013profiling:
+  type: article
+  title: "Assessing the accuracy of profiling methods for identifying top providers: performance of mental health care providers"
+  author: ["Ding, Victoria Y.", "Hubbard, Rebecca A.", "Rutter, Carolyn M.", "Simon, Gregory E."]
+  date: 2013
+  page-range: "1-17"
+  serial-number:
+    doi: "10.1007/s10742-012-0099-5"
+  parent:
+    type: periodical
+    title: "Health Services and Outcomes Research Methodology"
+    volume: 13
+    issue: "1"
+steinbuss2020outlier:
+  type: article
+  title: "Benchmarking Unsupervised Outlier Detection with Realistic Synthetic Data"
+  author: ["Steinbuss, Georg", "Böhm, Klemens"]
+  date: 2020
+  url: https://arxiv.org/abs/2004.06947
+  parent:
+    type: repository
+    title: "arXiv:2004.06947"
+emmott2015anomaly:
+  type: article
+  title: "A Meta-Analysis of the Anomaly Detection Problem"
+  author: ["Emmott, Andrew", "Das, Shubhomoy", "Dietterich, Thomas", "Fern, Alan", "Wong, Weng-Keen"]
+  date: 2015
+  url: https://arxiv.org/abs/1503.01158
+  parent:
+    type: repository
+    title: "arXiv:1503.01158"
+goswami2022selection:
+  type: article
+  title: "Unsupervised Model Selection for Time-series Anomaly Detection"
+  author: ["Goswami, Mononito", "Challu, Cristian", "Callot, Laurent", "Minorics, Lenon", "Kan, Andrey"]
+  date: 2022
+  url: https://arxiv.org/abs/2210.01078
+  parent:
+    type: repository
+    title: "arXiv:2210.01078"
+eccleston1974connected:
+  type: article
+  title: "On the Theory of Connected Designs: Characterization and Optimality"
+  author: ["Eccleston, J. A.", "Hedayat, A."]
+  date: 1974
+  page-range: "1238-1255"
+  serial-number:
+    doi: "10.1214/aos/1176342876"
+  parent:
+    type: periodical
+    title: "The Annals of Statistics"
+    volume: 2
+    issue: "6"
+weeks1964connectedness:
+  type: article
+  title: "A Note on the Determination of Connectedness in an N-Way Cross Classification"
+  author: ["Weeks, David L.", "Williams, Donald R."]
+  date: 1964
+  page-range: "319-324"
+  serial-number:
+    doi: "10.1080/00401706.1964.10490188"
+  parent:
+    type: periodical
+    title: "Technometrics"
+    volume: 6
+    issue: "3"
+cfr234:
+  type: legislation
+  title: "14 CFR § 234.4"
+  date: 2026
+  url: https://www.ecfr.gov/current/title-14/section-234.4
+bts2024causes:
+  type: web
+  title: "Understanding the Reporting of Causes of Flight Delays and Cancellations"
+  author: {name: "Bureau of Transportation Statistics"}
+  url: https://www.bts.gov/topics/airlines-and-airports/understanding-reporting-causes-flight-delays-and-cancellations
+btsdirective14:
+  type: web
+  title: "Technical Directive Number 14: On-Time Reporting"
+  author: {name: "Bureau of Transportation Statistics"}
+  url: https://www.bts.gov/topics/airlines-and-airports/number-14-time-reporting
+dot2025commitments:
+  type: report
+  title: "Airline Customer Service Commitments for Controllable Flight Disruptions: Unscheduled Maintenance in Response to FAA Airworthiness Directives"
+  author: {name: "U.S. Department of Transportation"}
+  date: 2025-12-10
+  url: https://www.federalregister.gov/documents/2025/12/10/2025-22415
+  parent:
+    type: periodical
+    title: Federal Register
+    volume: 90
+dot2026causes:
+  type: report
+  title: "Cause of Airline Delay and Cancellation Categories Under Section 511(b) of the FAA Reauthorization Act of 2024"
+  author: {name: "U.S. Department of Transportation"}
+  date: 2026-09-03
+  url: https://www.federalregister.gov/documents/2026/09/03/2026-18040
+  parent:
+    type: periodical
+    title: Federal Register
+    volume: 91

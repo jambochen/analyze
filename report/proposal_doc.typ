@@ -7,6 +7,8 @@
 #show heading: it => block(above: 1.4em, below: 0.7em)[#it]
 #show heading.where(level: 1): it => block(above: 1.8em, below: 0.9em)[#it]
 #set figure(gap: 0.8em)
+#set figure(supplement: [Figure])
+#show figure.where(kind: table): set figure(supplement: [Table])
 #show ref: it => {
   let el = it.element
   if el != none and el.func() == heading {
@@ -104,7 +106,7 @@ join、METAR 降水的跨報告去重、前段航班的視窗閘控。其二，�
     [上游], [US DOT BTS 航班資料、NOAA NCEI ISD 逐時氣象、OurAirports],
     [分析單位], [一列 = 一班已執飛的美國國內線航班],
   ),
-  caption: [資料集的基本身分。上游三者皆為政府的公眾領域資料，發布者所做的是彙編。],
+  caption: [Dataset provenance. The publisher assembled BTS, NOAA, and OurAirports records.],
 )
 
 NOAA 已停止 ISD 的全球逐時匯入，面板停在最後一個完整氣象月，之後不會再延伸。
@@ -118,7 +120,7 @@ NOAA 已停止 ISD 的全球逐時匯入，面板停在最後一個完整氣象�
 
 #figure(
   image("../outputs/figures/data_monthly_volume.png", width: 88%),
-  caption: [逐月航班量。上為年度檔全部航班，下為稽核樣本（達申報門檻且遭遇惡劣天氣，界定見#ref(<sec:sample>)）。],
+  caption: [Monthly flight volume. Top: all flights in the annual files. Bottom: the audit sample, defined in #ref(<sec:sample>).],
 )
 
 主要分析的六個完整年度共 #rows("monthly_volume").len() 個月。全部航班的疫情斷裂由#ref(<sec:era>)處理。
@@ -134,7 +136,7 @@ NOAA 已停止 ISD 的全球逐時匯入，面板停在最後一個完整氣象�
 #let geo-share = offshore.map(g => int(g.n_all)).sum() / geo.map(g => int(g.n_all)).sum()
 #figure(
   image("../outputs/figures/data_airport_map.png", width: 88%),
-  caption: [美國本土的起點機場。點大小為六年全部航班數，顏色為該機場航班進入稽核樣本的比例。阿拉斯加、夏威夷與屬地的 #offshore.len() 座機場未繪出，其航班佔全部的 #pct(geo-share, d: 1)。],
+  caption: [Origin airports in the contiguous United States. Point size shows all flights over six years; color shows the audit-sample share. The #offshore.len() airports in Alaska, Hawaii, and territories are omitted; they account for #pct(geo-share, d: 1) of all flights.],
 )
 
 本土沒有整片區域缺席。比例較高者多為東北部與五大湖一帶的中小機場，與已知
@@ -144,7 +146,7 @@ NOAA 已停止 ISD 的全球逐時匯入，面板停在最後一個完整氣象�
 
 #figure(
   image("../outputs/figures/data_yearly_trend.png", width: 92%),
-  caption: [逐年的三個申報指標（上）與到達延誤的四分位（下），皆取稽核樣本全量。],
+  caption: [Three annual reporting measures (top) and arrival-delay quartiles (bottom), using the full audit sample.],
 )
 
 申報指標在疫情期間抬升、其後回落，單一年度的橫斷面看不到，這是納入六年的
@@ -168,7 +170,7 @@ NOAA 已停止 ISD 的全球逐時匯入，面板停在最後一個完整氣象�
     [結果], [`arr_delay_min`、`cancelled`、`diverted`],
     [自報], [`reported_` 五欄],
   ),
-  caption: [單一航班所攜帶的資訊。唯一鍵為班次、航段與當地飛行日，樣本內無重複列。],
+  caption: [Information recorded for one flight. Flight number, route segment, and local flight date form a unique key in the sample.],
 )
 
 結果與自報以外的欄位在航班排定時即已知，可作控制變數。取消與轉降的航班帶
@@ -195,7 +197,7 @@ NOAA 已停止 ISD 的全球逐時匯入，面板停在最後一個完整氣象�
     [`reported_`], [航空公司自我回報的延誤成因],
     [（無前綴）], [班表、機場、公司、壅塞度、日曆、前段航班],
   ),
-  caption: [欄位的四個類別。前綴系統使洩漏防護得以整組執行。],
+  caption: [Four field groups. Prefixes allow leakage controls to operate on entire groups.],
 )
 
 `oracle_` 與截止點沒有保證的時序關係：提早起飛的航班，事件時刻可能早於
@@ -220,7 +222,7 @@ NOAA 已停止 ISD 的全球逐時匯入，面板停在最後一個完整氣象�
 
 #figure(
   image("../outputs/figures/slides_delay_dist.png", width: 82%),
-  caption: [到達延誤的分布與申報門檻（橘線）。取六年年度檔全部航班，橫軸截於 −60 至 240 分。門檻以右的航班才有申報成因的義務。],
+  caption: [Arrival-delay distribution and reporting threshold (orange). All flights in six annual files; the horizontal axis is clipped to −60–240 minutes. Only flights beyond the threshold must report causes.],
 )
 
 班表留有緩衝，多數航班提早或準時抵達，門檻切在右尾，稽核樣本從一開始就只
@@ -248,7 +250,7 @@ NOAA 已停止 ISD 的全球逐時匯入，面板停在最後一個完整氣象�
 
 #figure(
   image("../outputs/figures/slides_missingness.png", width: 72%),
-  caption: [各欄位的缺失率，取六年年度檔全部航班（申報門檻篩選之前）。橘色為 `reported_` 五欄，缺失率完全相同。],
+  caption: [Missingness by field before applying the reporting threshold, using all flights in six annual files. The five orange `reported_` fields have identical missingness.],
 )
 
 其餘欄位的缺失成因不同，處理也不同。
@@ -268,7 +270,7 @@ NOAA 已停止 ISD 的全球逐時匯入，面板停在最後一個完整氣象�
     [測站未觀測], [溫度、能見度、雲冪（皆 ≤ #pct(calc.max(..("wx_origin_temp_c", "wx_origin_visibility_m", "wx_origin_ceiling_m").map(k => pick(miss, k))), d: 1)）], [不處理，保留 null],
     [不適用], [`prior_leg_` 一組（當日首航段）], [填 0，另立 `prior_leg_available`],
   ),
-  caption: [缺失的五種成因與對應處理。],
+  caption: [Five causes of missing values and their corresponding treatments.],
 ) <tbl:missing>
 
 雪深與陣風無事可報即不填，填零才是真實語意；另立指示變數，是因為「測站不
@@ -282,7 +284,7 @@ NOAA 已停止 ISD 的全球逐時匯入，面板停在最後一個完整氣象�
 
 #figure(
   image("../outputs/figures/slides_sample_funnel.png", width: 78%),
-  caption: [樣本界定的兩道篩選，橫軸為對數刻度。],
+  caption: [Two filters defining the audit sample; the horizontal axis uses a log scale.],
 )
 
 #let funnel = rows("sample_funnel")
@@ -299,7 +301,7 @@ NOAA 已停止 ISD 的全球逐時匯入，面板停在最後一個完整氣象�
 
 #figure(
   image("../outputs/figures/slides_station_match.png", width: 80%),
-  caption: [測站比對的距離分布與方法構成。統計單位為機場，取資料集的機場對照表全量，非逐班加權。],
+  caption: [Station-match distances and matching methods. The unit is the airport; all entries in the airport lookup are included without flight weighting.],
 )
 
 對照表是本資料集對#ref(<sec:baseline>)兩套編碼的接法。比對順序為 ICAO 呼號
@@ -358,7 +360,7 @@ NOAA 已停止 ISD 的全球逐時匯入，面板停在最後一個完整氣象�
       wan(r.at(5)), wan(r.at(6)), r.at(7), r.at(8), str(int(float(r.at(9)))),
     )).flatten(),
   )),
-  caption: [#cb.len() 家執飛公司的基本盤。全部為六年年度檔班次；樣本、起點機場、格子（機場 × 年月）與延誤中位數（分鐘）皆取稽核樣本。期間為公司在稽核樣本中出現的年份。],
+  caption: [Baseline characteristics of #cb.len() operating carriers. Total flights use six annual files; sample flights, origin airports, airport-month strata, and median delay use the audit sample. Years show each carrier's presence in that sample.],
 )
 
 公司之間的規模差距跨越一個數量級以上，另有三個結構特徵影響後續設計：
@@ -372,7 +374,7 @@ NOAA 已停止 ISD 的全球逐時匯入，面板停在最後一個完整氣象�
 
 #figure(
   image("../outputs/figures/slides_concentration.png", width: 80%),
-  caption: [機場與執飛公司的班次集中程度，取六年年度檔全部航班，非稽核樣本。],
+  caption: [Concentration of flights across airports and operating carriers, using all flights in six annual files.],
 )
 
 班次高度集中，小公司在多數格子中班次少、係數不穩，這是#ref(<sec:ident>)排序前須先收縮的理由。
@@ -405,14 +407,14 @@ NOAA 已停止 ISD 的全球逐時匯入，面板停在最後一個完整氣象�
     [過度歸因天氣], [是否把自身責任轉嫁給免責事由],
     [歸因顯著偏低], [延誤究竟記到了哪裡],
   ),
-  caption: [雙向偏離皆列入清單，各自需要不同的解釋。],
+  caption: [Both directions of deviation enter the audit list and require different explanations.],
 )
 
 == 描述層：三個比例及其限制
 
 #figure(
   image("../outputs/figures/slides_outcome_dist.png", width: 95%),
-  caption: [三個描述性比例。Y1 為二元，故以公司間的原始比例呈現；Y2 與 Y3 畫分布。歸因邊界的縱軸取對數，否則零的質量點會壓平其餘。此處的公司順序為未經控制的原始比例，不是本研究的清單排序；Y1 與前提檢驗同一口徑，樣本內班次過少的公司不繪出。],
+  caption: [Three descriptive outcomes. Y1 shows raw carrier rates; Y2 and Y3 show distributions. The boundary plot uses a log vertical axis to reveal values above the mass at zero. Carrier order is unadjusted and is not the audit ranking. Carriers with too few sample flights are omitted.],
 )
 
 #figure(
@@ -427,12 +429,13 @@ NOAA 已停止 ISD 的全球逐時匯入，面板停在最後一個完整氣象�
     [歸因邊界], [天氣 / (天氣 + NAS)], [兩個免責事由之間偏向哪邊], [描述],
     [單體係數], [公司 × 成因交互項], [延誤被推向哪一欄], [識別],
   ),
-  caption: [描述層的三個比例與推論層的單體係數，及其各自承擔的角色。],
+  caption: [Roles of the three descriptive shares and the joint-model coefficients used for inference.],
 )
 
 設歸因邊界，是因為 `NAS` 本身包含天氣造成的流量管制，把天氣延誤記入 `NAS`
 完全合法，對準點績效的影響也相同。只看是否歸因天氣，會把記帳習慣的差異誤判
-為申報異常；以兩欄合為分母即消去這項差異。
+為申報異常；兩欄合為分母後，歸因邊界描述的是天氣與 `NAS` 之間的記帳選擇，
+不能單獨解讀為逃避責任。
 
 三者形狀不同，不能共用一套模型。歸因強度在 1.0 處有質量點（認定天氣即整段
 掛上），beta 迴歸在端點無定義而不可用；歸因邊界兩端皆有質量點，多數航班全記
@@ -476,7 +479,7 @@ NOAA 已停止 ISD 的全球逐時匯入，面板停在最後一個完整氣象�
     [不用 ALR／ILR], [對數比要求每一維皆為正，而零是結構性的],
     [Poisson 對數線性], [與多項 logit 等價，且上萬格固定效應可以去均值吸收],
   ),
-  caption: [推論層的三項設定與各自的理由。],
+  caption: [Three modeling choices for inference and their rationale.],
 )
 
 零是結構性的：該成因不成立即不填報，不是微量被捨去。要湊到各欄皆正必須刪去
@@ -511,7 +514,7 @@ NOAA 已停止 ISD 的全球逐時匯入，面板停在最後一個完整氣象�
 
 #figure(
   image("../outputs/figures/slides_covid_volume.png", width: 82%),
-  caption: [航班量相對疫情前同月的比例，與暫定的兩個切點。],
+  caption: [Flight volume relative to the same month before the pandemic, with two provisional cutoffs.],
 )
 
 六年全數納入，以三段時段指示變數處理疫情斷裂。裁切會損失兩年資料，且仍須
@@ -526,7 +529,7 @@ NOAA 已停止 ISD 的全球逐時匯入，面板停在最後一個完整氣象�
 
 #figure(
   image("../outputs/figures/slides_cause_share.png", width: 88%),
-  caption: [限定惡劣天氣子樣本下，各執飛公司的延誤成因分配。天氣段以顏色標示，其餘三段為背景。樣本內班次過少的公司不繪出，圖中 #rows("cause_share").len() 家涵蓋稽核樣本的 #pct(rows("cause_share").map(r => int(r.at(1))).sum() / int(pick(rows("sample_dims"), "航班數")), d: 1)。],
+  caption: [Reported delay-cause shares by carrier in the bad-weather sample. Weather is highlighted; three other causes provide context. Carriers with too few flights are omitted. The #rows("cause_share").len() carriers shown cover #pct(rows("cause_share").map(r => int(r.at(1))).sum() / int(pick(rows("sample_dims"), "航班數")), d: 1) of the audit sample.],
 )
 
 設計的前提是公司間的天氣歸因確有差異，且不單由航網結構造成。上圖為未經控制
@@ -557,7 +560,7 @@ NOAA 已停止 ISD 的全球逐時匯入，面板停在最後一個完整氣象�
     [ICC（機場 × 年月）], [同一格子內的班次有多相關], [#pct(de-pick("ICC", "機場 × 年月格子"), d: 1)],
     [ICC（機尾號）], [同一架飛機的班次有多相關], [#pct(de-pick("ICC", "機尾號"), d: 1)],
   ),
-  caption: [設計層面的三項統計。$I^2$ 為公司間變異佔「公司間變異加抽樣變異」的比例；ICC 為組內相關。ICC 取稽核樣本全量；$I^2$ 取固定效應可識別的公司，即扣除基準公司與僅出現在單一公司格子者。],
+  caption: [Three design statistics. $I^2$ is the share of total between-carrier and sampling variation attributable to between-carrier variation; ICC measures within-group correlation. ICC uses the full audit sample; $I^2$ uses carriers identifiable under fixed effects, excluding the reference carrier and carriers seen only in single-carrier strata.],
 )
 
 *公司間的差異超出抽樣雜訊。* 三個 $I^2$ 皆極接近 1，公司間的離散幾乎全部
@@ -598,7 +601,7 @@ $I^2$ 則不隨列數膨脹。
     [上游核對], [與 BTS、NCEI 原始檔逐班比對], [待進行],
     [報告撰寫], [方法說明、限制、監理建議], [待進行],
   ),
-  caption: [工作階段依研究問題劃分，不依腳本執行順序。],
+  caption: [Work areas grouped by research question.],
 )
 
 初版指流程已跑通、數字出得來，口徑則未定案（見@sec:premise）。

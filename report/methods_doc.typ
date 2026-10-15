@@ -1,4 +1,6 @@
-#set document(title: "美國航班天氣延誤申報的歸因異常稽核：方法與分析計畫")
+#import "@preview/cetz:0.4.2"
+
+#set document(title: "美國航班延誤成因申報的責任歸因稽核：方法與分析計畫")
 #set page(paper: "a4", margin: (x: 2.6cm, y: 2.4cm), numbering: "1")
 #set text(font: ("Noto Sans CJK TC",), lang: "zh", region: "tw", size: 11pt)
 #set par(justify: true, leading: 0.85em, first-line-indent: 0em)
@@ -7,6 +9,8 @@
 #show heading: it => block(above: 1.4em, below: 0.7em)[#it]
 #show heading.where(level: 1): it => block(above: 1.8em, below: 0.9em)[#it]
 #set figure(gap: 0.8em)
+#set figure(supplement: [Figure])
+#show figure.where(kind: table): set figure(supplement: [Table])
 #set math.equation(numbering: "(1)")
 #show ref: it => {
   let el = it.element
@@ -20,30 +24,21 @@
 #show figure.caption: set text(size: 9.5pt)
 #show table: set par(justify: false)
 // 原始碼的換行在中文字之間會排成一個空格。
-#show regex("[\p{Han}，。、；：「」（）][ \n]+[\p{Han}，。、；：「」（）]"): it => it.text.replace(regex("[ \n]+"), "")
+#show regex("[\\p{Han}，。、；：「」（）][ \\n]+[\\p{Han}，。、；：「」（）]"): it => it.text.replace(regex("[ \\n]+"), "")
 
 #let rows(name) = csv("../outputs/tables/" + name + ".csv").slice(1)
 #let pick(tbl, key, col: 1) = float(tbl.find(r => r.at(0) == key).at(col))
-#let pct(x, d: 0) = str(calc.round(x * 100, digits: d)) + "%"
+#let pct(x) = str(calc.round(x * 100, digits: 0)) + "%"
 #let thou(x) = {
   let c = str(int(x)).clusters()
   c.enumerate().map(((i, d)) => if i > 0 and calc.rem(c.len() - i, 3) == 0 { "," + d } else { d }).join()
 }
 #let tc(..keys) = keys.pos().map(k => cite(k, form: "prose")).join([、])
 #let hline = (x, y) => if y == 0 { (bottom: 0.7pt) }
-
 #let dims = rows("sample_dims")
-#let cells = rows("cell_carriers")
-#let crossing = rows("cluster_crossing")
-#let tails = rows("tail_connectivity")
-#let units = rows("airport_units")
-#let fourfold = rows("negative_control_cells")
-#let cell-n(w, o) = thou(float(fourfold.find(r => r.at(0) == w and r.at(1) == o).at(2)))
-#let nc-strata = rows("negative_control_strata")
-#let nc-share(level) = pct(float(nc-strata.find(r => r.at(0) == "nc" and r.at(1) == level).at(5)))
 
 #align(center)[
-  #text(size: 17pt, weight: "bold")[美國航班天氣延誤申報的歸因異常稽核]
+  #text(size: 17pt, weight: "bold")[美國航班延誤成因申報的責任歸因稽核]
 
   #v(0.3em)
   #text(size: 12pt)[方法與分析計畫]
@@ -56,670 +51,787 @@
 
 #block(fill: rgb("#f7fafc"), inset: 1em, radius: 3pt, width: 100%)[
   #text(size: 10pt)[
-    *摘要。* 本研究以機場實測氣象為基準，比較各航空公司在同一機場、同一月份、
-    同樣天氣條件下的延誤成因申報，產出供監理單位使用的查核優先清單。資料中沒有
-    任何欄位記錄延誤的真實成因，清單的每一列都無從對照答案，結論是否可信取決於
-    方法本身。本報告因此只處理方法：前半逐一說明所用的模型與推論方法，各自的
-    出處、假設，以及假設在本資料上如何檢查；後半是分析計畫，以設定真值的模擬
-    研究為主幹，另含六個方向，分別處理清單的不確定性、未觀測混淆、由模型導出
-    的限制條件、氣象判定以外的航班、判定偏離的參照分布，以及機場層級的清單。本報告不呈現估計結果。
+    *摘要。* 本研究以實測氣象及航班條件為基準，比較各航空公司將延誤分鐘數
+    記入 `carrier` 或其他成因欄位的傾向，據此提出監理查核的優先順序。
+    主分析將五個申報欄位合為兩類，比較 `carrier` 欄與其餘欄的申報配置；
+    四欄成因模型與天氣欄啟用率用於辨認差異的形式。另以設定真值的
+    plasmode simulation 評估排序、證據標記與區間的表現。
   ]
 ]
 
-= 問題與資料 <ch:recap>
+= 研究問題、資料回顧與研究框架 <ch:frame>
 
-美國運輸統計局要求到達延誤達門檻的航班申報延誤成因，把延誤分鐘數拆入數個
-成因欄位。欄位由航空公司自行填報，監理機關不例行查核；交通部監察長辦公室
-認定其不可信，但未指出偏誤方向。本研究的問題是：以實測氣象為基準，哪些
-航空公司的天氣歸因系統性地不同於其他公司，差異的方向與大小能否量化並排序。
-偏高與偏低皆列入。
+本研究要回答：在調整起點與目的地的月份環境、實測氣象及航班條件後，
+哪些航空公司將延誤分鐘數記入 `carrier` 以外欄位的傾向與其他可比公司不同？
+差異的方向與程度為何？查核清單納入兩個方向的偏離；單憑偏離，
+尚不能認定申報不實。
 
-公開揭露的指標會改變航空公司的行為，已有先例。準點率排名以到達延誤十五分鐘
-為界，#tc(<forbes2015disclosure>) 發現各公司對門檻附近航班的反應不一，且與
-公司內部的制度有關。成因申報同樣影響準點績效的認定，各公司的申報行為有差異
-並不意外，問題在於如何量化。
+資料來源與清理方式已於前次報告說明，此處僅回顧分析所需的樣本定義。
+稽核樣本為到達延誤至少十五分鐘的已執飛航班，共
+#thou(pick(rows("methods_sample"), "航班數")) 班，涵蓋
+#thou(pick(rows("methods_sample"), "執飛航空公司")) 家航空公司；起點或目的地在起飛前
+是否屬 IFR 或 LIFR 天氣是樣本內的變數，不作篩選條件。未達十五分鐘申報門檻的航班
+沒有填報義務，成因欄位的空值不能視為零。
+下文以 $bold(x)$ 概括兩端氣象與航班條件；三種氣象資訊設定及其時點見
+@sec:weather-sets。
 
-稽核樣本限於有申報義務且起點或目的地遭遇惡劣天氣的航班，共
-#thou(pick(dims, "航班數")) 班，涵蓋 #thou(pick(dims, "執飛航空公司")) 家執飛公司、
-#thou(pick(dims, "起點機場")) 座起點機場與 #thou(pick(dims, "機尾號")) 個機尾號。
-比較在 stratum（層）內進行，一層是一座機場的一個年月，共
-#thou(pick(dims, "機場 × 年月格子")) 層。樣本的界定與缺失的處理已於提案交代，
-此處不重述。
+本題的資料形狀決定方法選擇：一班航班可把非負分鐘數記入五個*無序*成因欄，
+各欄合計為固定的申報總分鐘；許多欄位為零，但零分鐘與未達門檻的結構性缺值
+不同。資料也沒有經獨立查核的逐班真實成因。因此需要處理固定總量、多個零值
+與缺乏驗證標籤，並將公司差異與違規認定分開。
 
-資料沒有真實成因，目標因此分兩層，前者是後者可信的前提：
+*單筆理賠的異常分數。* #tc(<crawford2022erclaims>) 研究的每筆急診理賠
+有診斷代碼及由低到高的嚴重程度代碼。作者比較同一診斷下的病例：對某筆
+理賠，計算其他病例中嚴重程度不低於該筆的比例；比例愈低，代表該筆的
+代碼相對偏高。罕見診斷的比較樣本不足，因此作者依各診斷的平均嚴重程度
+作階層分群，用兩折交叉驗證比較分群後預測嚴重程度的能力，
+同時避免群內病例過少。
+這種分數描述相對罕見程度，不能單憑分數判定編碼錯誤。
 
-- *方法驗證。* 在設定真值的模擬資料上，確認方法能以可接受的錯誤率找回植入的
-  偏移，且不把無偏移的公司列入清單（#ref(<ch:sim>)）。
-- *實證應用。* 同一套方法用於真實資料，產出監理優先清單。
+同一篇論文另有一項不同用途的分析：以已審核理賠的審核前後金額差，
+訓練 random forest 預測待審案件可避免的支出，據此排列審核順序。
+本研究沒有逐班查核後的正確成因，也沒有相應的「審核前後差額」，
+因此沒有可供訓練這類排序模型的標籤。嚴重程度代碼有高低順序，
+但本題的延誤成因沒有這種順序；一班航班還可將分鐘分到多欄，
+且偏高與偏低都可能值得查核。本文因而不用該尾端比例作主分數，
+而比較可比條件下各公司的分鐘配置。
 
-以下記號全篇通用。
+*醫院層級的多訊號分析。* #tc(<shekhar2022fraud>) 以三種資料訊號找出值得
+查核的醫院。第一種在支出迴歸中控制病人既往病史與地區，以醫院固定效應
+衡量尚未被這些條件解釋的支出差異。第二種把各醫院的診斷代碼使用頻率
+化為高維資料，以 Isolation Forest 等方法尋找少數代碼上的不尋常模式。
+第三種按服務類型或病人慢性病分布，以 Hellinger 距離找相似醫院；
+再比較給付代碼的使用頻率及其對應的平均支出。作者以即時決選投票法（IRV）
+整合各方法的排序，並用已公開的反詐欺案件評估結果；
+這些案件只提供部分已知個案，沒有完整的正確申報名單。
 
-#figure(
-  table(
-    columns: (auto, 1fr),
-    stroke: hline,
-    align: (left, left),
-    row-gutter: 0.4em,
-    [記號], [意義],
-    [$i$], [航班],
-    [$s$], [層，機場 × 年月],
-    [$c$], [執飛公司；reference level 為 DL],
-    [$k$], [成因欄位：`carrier`、`weather`、`NAS`、`late-aircraft`；reference level 為 `carrier`],
-    [$u$], [單元，層 × 執飛公司],
-    [$bold(x)_i$], [航班層的共變量：氣象欄位（#ref(<sec:basis>)）與排定時已知的欄位],
-    [$m_(u k)$], [單元 $u$ 內記入成因 $k$ 的延誤分鐘數合計],
-  ),
-  caption: [記號。],
-) <tbl:notation>
-
-= 方法 <ch:methods>
-
-本章每一節依序寫模型、出處、假設，以及假設在本資料上的成立情形或檢查方式。
-各節的摘要見@tbl:methods。
-
-== 估計對象 <sec:estimand>
-
-申報是兩個決策的結果：延誤是否記入天氣欄，以及延誤分鐘數在各成因欄位之間
-如何分配。兩者合為一個 two-part model，binary part 是「天氣欄是否為正」，
-conditional part 是成因之間的分配。被估計的量在兩部分都是公司因子的主效應：
-給定層與氣象共變量，公司 $c$ 相對於 reference level 的差異。
-
-公司直接作為因子進入模型，其係數即所求，標準誤隨估計一併得到。另一種做法是
-先以氣象建立預測模型、再比較各公司的殘差，但殘差沒有現成的抽樣分布，清單的
-每一列便沒有區間。
-
-主效應要讀成申報行為的差異，須假設同一層、同樣實測氣象下，各公司實際遭遇的
-天氣延誤比例相同。這個假設不可由資料檢驗，機隊與航線特性都可能使它不成立。
-本報告以兩種方式處理：#ref(<sec:confound>)量化須有多強的未觀測混淆才能改變
-結論，#ref(<ch:sim>)則直接模擬假設被違反的情境，量測誤列的比例。
-
-== 氣象基準的資訊集 <sec:basis>
-
-*兩組氣象。* 資料集為每一班航班提供兩組氣象欄位。`wx_` 是排定起飛時刻之前
-觀測到的氣象；`oracle_` 是航班自身的起飛與到達時刻所在小時的氣象。
-
-*兩組都可用。* 發布者把 `oracle_` 與其餘欄位隔開，是因為資料集原本的用途是
-預測延誤：起飛前不可能知道事件時刻的天氣，拿它預測即構成洩漏。本研究不預測
-延誤，被分析的是事後填寫的成因申報。申報人填表時已知道航班實際遭遇的天氣，
-`oracle_` 屬於他的資訊集；發布者也明言這組欄位供回溯分析使用。只以 `wx_` 為
-共變量，等於用少於申報人的資訊評斷他的申報，起飛後天氣才惡化的航班會被誤判
-為偏離。
-
-*並列而不擇一。* 兩組氣象回答不同的問題，公司主效應在三種設定下分別估計，
-並列報告。
+#block(breakable: false)[
+  本研究可借用第三種方法先界定可比對象、再比較申報行為的思路，
+  但須依機場月份、航線、氣象及航班條件界定可比公司，
+  不能用正在稽核的成因申報來決定比較對象。
+  Hellinger 距離可輔助檢查公司面對的氣象或航班條件分布是否相近；
+  連續條件的分布估計或分組方式會影響距離，分布相近也不能保證航線相同。
+  因此主排序仍依調整機場月份、氣象與航班條件後的公司申報差異，
+  不以 Hellinger 距離決定比較對象或公司排序。
+  醫院支出與高維診斷代碼在本資料中沒有直接對應物：本題要解釋的是
+  五欄延誤分鐘如何分配，而非總支出或數千種代碼的稀有組合。
+  本文保留一個明確的主清單估計對象，再以其他成因分析解釋偏離型態；
+  不將回答不同問題的排序合成單一分數。兩篇研究與本題的對照見
+  @tbl:framework-differences。
+]
 
 #figure(
   table(
-    columns: (auto, 1fr),
+    columns: (1.35fr, 1.05fr, 1.65fr),
     stroke: hline,
-    align: (left, left),
+    align: left,
     row-gutter: 0.45em,
-    [共變量], [公司主效應的意義],
-    [`wx_`], [給定起飛前可知的天氣，各公司的申報差異],
-    [`oracle_`], [給定航班實際遭遇的天氣，各公司的申報差異],
-    [兩組並用], [給定起飛前的天氣與其後的變化，各公司的申報差異],
+    [本研究的資料特徵], [文獻中的做法], [採用的方法],
+    [一班航班可分配分鐘到多欄；成因沒有高低順序], [#cite(<crawford2022erclaims>, form: "prose")：同診斷群內找嚴重程度偏高的單筆理賠], [以二類及四欄 Poisson 配置模型比較分鐘份額，偏高與偏低均列入排序],
+    [沒有逐班真實成因或審核前後差額], [#cite(<crawford2022erclaims>, form: "prose")：以已審核案件訓練 random forest], [不以已審核案件預測查核收益；用設定真值的模擬檢查清單表現],
+    [航線、機隊、天氣及航管環境可能影響真實延誤成因], [#cite(<shekhar2022fraud>, form: "prose")：按病人與服務特徵尋找相似醫院], [控制兩端機場月份、氣象及航班條件，並檢查同航線競飛者],
+    [本題主清單與輔助分析回答不同問題], [#cite(<shekhar2022fraud>, form: "prose")：以多種異常訊號合併排序], [以 `carrier` 與非 `carrier` 的公司差異排序，其餘分析解釋偏離型態],
+    [實測氣象不是逐班成因真值，亦無已查核案件], [#cite(<shekhar2022fraud>, form: "prose")：以公開案件作部分驗證], [以 plasmode simulation 評估排序與誤標；清單僅供查核],
   ),
-  caption: [氣象共變量的三種設定。],
-) <tbl:basis>
+  caption: [Differences from the cited claims studies and the corresponding analysis methods.],
+) <tbl:framework-differences>
 
-三種設定下結論相同的公司，其偏離與資訊集的選擇無關。結論不同的公司，偏離
-來自起飛後的天氣變化，須個別解讀。兩組之間的差另有用途，見
-#ref(<sec:restrict>)。
+本題主要比較 `carrier` 與其餘四欄的申報份額；`weather` 與 NAS 的對比則用於
+觀察這兩欄的相對申報差異。其餘四欄合稱*非 `carrier` 申報*，
+並不等於真正的外部成因。例如，`late-aircraft` 表示前一班同機尾航班晚到，
+其根本原因仍可能與航空公司有關，因此另將它與 `carrier` 同組，
+檢查主清單對分組方式是否敏感。
 
-*假設與檢查。*
+這個類比還有識別上的界限。令 $C_i$ 表示「延誤實際由航司可控制的事由造成」，
+它在資料中不可觀測；$Y_i^A$ 表示本班至少有一分鐘記入 `carrier`。給定實測
+氣象與航班條件 $bold(x)$，公司 $c$ 的觀測申報率可拆為
 
-- _觀測時點不受結果影響。_ 目的地的 `oracle_` 有兩個版本。實際到達時刻的
-  版本，延誤越久取到的觀測越晚，共變量成了結果的函數，不可用。本研究取排定
-  到達時刻的版本，其時點由班表決定。起點取起飛時刻的觀測，那是申報人確知的
-  天氣。
-- _兩組設定落在同一批航班上。_ 惡劣天氣的判定維持以 `wx_` 為準，樣本不隨
-  共變量的設定改變，三組係數才可比較。
-- _缺失與申報無關。_ `oracle_` 的缺失來自測站未觀測，不插補。缺觀測的航班
-  在歸因率與延誤長度上是否不同於其餘航班，須先檢查。
+$ P(Y_i^A = 1 | c, bold(x))
+  &= P(C_i = 1 | c, bold(x)) P(Y_i^A = 1 | C_i = 1, c, bold(x)) \
+  &+ P(C_i = 0 | c, bold(x)) P(Y_i^A = 1 | C_i = 0, c, bold(x)). $ <eq:mixture>
 
-== 層固定效應與 within estimator <sec:within>
+第一項含實際可歸責成因的比例與記入 `carrier` 的敏感度，第二項含其他成因
+被記入 `carrier` 的比例。只有申報與氣象觀測，無法分別估出三個機率。
+分鐘份額模型同樣受此限制：它先估*條件化後的申報差異*；要把差異讀作
+申報規則不同，還須假設給定 $bold(x)$ 與兩端機場 × 年月後，各公司實際可歸責
+成因的比例可比。這是假設，不是氣象欄位已證明的事實。
 
-*模型。* binary part 的結果變數 $Y_i$ 表示航班 $i$ 的天氣欄是否為正。
-
-$ bb(E)[Y_i | s, c, bold(x)_i] = alpha_(s(i)) + gamma_(c(i)) + bold(x)_i^top bold(beta),
-  quad gamma_"DL" = 0 $ <eq:within>
-
-這是 binomial GLM with identity link，$gamma_c$ 即公司 $c$ 相對於 DL 的機率差。
-$alpha_s$ 為層的固定效應，吸收跑道配置、除冰能力、當地航管慣例與該月的天氣
-型態。估計採 within transformation：各變數減去層內平均後以最小平方法估計，
-結果與放入全部層的指示變數相同，但不必建立 #thou(pick(dims, "機場 × 年月格子"))
-欄的設計矩陣。
-
-*出處。* 層的固定效應以條件化消去，是 #tc(<mundlak1978pooling>) 與
-#tc(<chamberlain1980covariance>) 以來的標準處理。identity link 而非 logit link
-的依據是 #tc(<chen2023lpm>)：該文給出線性模型的係數能近似非線性指標模型的
-平均偏效果的條件。
-
-*為何不用 logit link。* 理由有二。其一，logit link 之下層的固定效應無法以
-減去層內平均消去；把層的指示變數直接放入則有 incidental parameter 問題，改用
-條件概似又須對每一層計算組合數量級的分母，層內班次達上千時不可行。其二，
-監理單位要的是機率差，identity link 的係數直接就是。
-
-*假設與檢查。*
-
-- _條件平均數為線性。_ identity link 不保證配適值落在 $[0, 1]$。此處不使用
-  個別航班的配適機率，只使用係數 $gamma_c$，它估計的是平均機率差。線性設定
-  錯誤時 $gamma_c$ 偏離多少，由模擬研究量測：生成模型刻意取非線性的形式
-  （#ref(<ch:sim>)），within estimator 的偏誤與涵蓋率即是此假設的檢查。
-- _層內須有比較。_ 只含一家公司、或結果全同的層，對 $gamma_c$ 沒有資訊，
-  估計前即排除。含兩家以上公司的層佔 #pct(pick(cells, "兩家以上格子佔比"))，
-  涵蓋 #pct(pick(cells, "兩家以上格子的航班佔比")) 的航班；每層公司數的中位數
-  為 #str(int(pick(cells, "每格公司數中位數")))，多數層的比較只發生在少數幾家
-  公司之間，小公司的係數因此雜訊較大。
-- _設計矩陣不退化。_ 層內恆定的變數經 within transformation 後全為零；完全
-  共線的欄位則使標準誤無定義。兩種退化都不一定報錯，估計後須檢查標準誤為
-  有限正數。
-
-== 成因分配的 multinomial logit <sec:simplex>
-
-*資料結構。* 各成因欄位的分鐘數加總等於該航班的到達延誤，此限制在樣本內
-嚴格成立，申報因此是 compositional data，落在 simplex 上。逐欄各自建模會違反
-這個限制：某一欄多記的分鐘必然是其他欄少記的。`security` 欄幾乎不填報，剔除後
-為四個成因。
-
-*模型。* 分配以 multinomial logit 描述。令單元 $u$ 的線性預測量為
-
-$ zeta_(u k) = lambda_(s(u), k) + theta_(c(u), k) + overline(bold(w))_u^top bold(psi)_k,
-  quad theta_(c, #raw("carrier")) = 0, quad theta_("DL", k) = 0, $ <eq:lp>
-
-則延誤記入成因 $k$ 的比例為
-
-$ pi_(u k) = exp(zeta_(u k)) / (sum_j exp(zeta_(u j))). $ <eq:mnl>
-
-$lambda_(s, k)$ 是層 × 成因的固定效應，吸收該機場該月的基準成因分配。
-$overline(bold(w))_u$ 是單元內的氣象平均；氣象在單元內不隨成因變動，必須與
-成因交互才進得了模型，$bold(psi)_k$ 讀作「天氣越惡劣，延誤越多記入成因 $k$」。
-$theta_(c, k)$ 是公司 × 成因的係數，以唯一可歸責的 `carrier` 欄為 reference
-level，讀作公司 $c$ 相對於 DL、相對於承認自身責任，多把延誤記入成因 $k$ 的
-對數比。任意兩個成因之間的比較是 contrast，例如
-$theta_(c, #raw("weather")) - theta_(c, #raw("NAS"))$，不必另立結果變數。
-
-*估計。* @eq:mnl 是非線性模型，層 × 成因的固定效應數以萬計，無法直接估計。
-改用 multinomial 與 Poisson log-linear model 的等價關係：
-
-$ bb(E)[m_(u k)] = exp(eta_u + zeta_(u k)). $ <eq:poisson>
-
-$eta_u$ 為單元的固定效應，吸收該公司在該層的申報總量；給定單元總量後，
-@eq:poisson 的條件分布即 @eq:mnl，兩者對 $theta$ 的最大概似估計相同。等價關係
-出自 #tc(<baker1994multinomial>)，#tc(<lee2017poisson>) 把它推廣到含群集結構的
-情形。兩組高維固定效應以交替投影消去，演算法見 #tc(<guimaraes2010hdfe>) 與
-#tc(<correia2019ppmlhdfe>)。
-
-*為何不用對數比轉換。* 對數比轉換是 compositional data 的標準處理，但它要求
-每一個分量為正。本資料的零是結構性的：某成因不成立即不填報，並非微量被捨去。
-#tc(<alzeley2026zeros>) 指出結構性零不可插補，須以條件分布處理。若改為刪去含
-零的單元，被刪的集中在班次少的單元，也就是小公司，而小公司正是清單要涵蓋的
-對象。計數模型中零是合法的觀測值，不需插補也不需刪樣本。
-#tc(<koslovsky2023zidm>) 的零膨脹 Dirichlet-multinomial 是另一條可行路線，
-它以模型分離結構性零與抽樣零；本資料的零由申報制度決定，不需模型推斷，故
-未採用。
-
-*假設與檢查。*
-
-- _Poisson 在此是 pseudo-likelihood。_ 分鐘數不是獨立事件的計數，Poisson 的
-  變異數假設不成立。估計量的一致性只要求條件平均數 @eq:poisson 設定正確，
-  不要求分布正確；變異數則不取 Poisson 的名目值，改用 cluster-robust 估計
-  （#ref(<sec:cluster>)）。
-- _incidental parameter。_ #tc(<weidner2019bias>) 證明多組固定效應的 Poisson
-  估計量雖一致，卻帶有漸近偏誤，信賴區間的涵蓋率可能不足。該文處理三組固定
-  效應，本模型為單元與層 × 成因兩組，結構同類而不相同，結論不能直接套用，
-  須以模擬研究量測實際的涵蓋率（#ref(<ch:sim>)）。涵蓋率若不足，
-  #tc(<fernandezval2013panel>) 對雙向固定效應的非線性模型給出解析與 jackknife
-  兩種偏誤校正，Poisson 在其涵蓋範圍內。
-- _重尾。_ 延誤分鐘數強右偏。#tc(<egger2026heavy>) 指出結果變數重尾時，
-  Poisson pseudo-likelihood 的常規區間失效，並提出 bootstrap 修正。本模型的
-  區間是否受影響列為#ref(<sec:rank>)的工作。
-- _separation。_ 某公司在所有層都不曾記入某成因時，對應的 $theta_(c,k)$ 的
-  最大概似估計不存在。#tc(<correia2019existence>) 證明被 separation 的觀測對
-  其餘參數的估計不帶資訊，可安全移除。移除的若全是零，會不對稱地剔除某一類
-  單元；檢查方式是改以班次門檻整批排除小單元，零與非零一併移除，比較係數
-  是否隨門檻改變。
-
-== 歸因強度的質量點 <sec:twopart>
-
-已記入天氣的航班，其天氣分鐘數佔到達延誤的比例 $R_i in (0, 1]$ 在 $1$ 處有
-質量點：一旦認定天氣，整段延誤全數記入天氣。beta 迴歸在區間端點無定義，
-不能用。
-
-*模型。* 質量點是可觀測的，不需要潛在變數來判斷哪些觀測屬於它，故拆成兩個
-結果變數分別以 @eq:within 估計：$bb(1)(R_i = 1)$，以及給定 $R_i < 1$ 時的
-$R_i$。兩者的公司主效應分開報告，不合成單一係數。
-
-*出處。* #tc(<ospina2011inflated>) 的 zero-or-one inflated beta regression 把
-比例型結果寫成端點的質量與區間內連續分布的混合，本研究採同樣的分解。差別在
-區間內的部分：該文以 beta 分布建模，本研究只設定條件平均數並以 within
-estimator 估計，原因同#ref(<sec:within>)，beta 的概似無法消去上萬個層的固定
-效應。比例型結果只設定條件平均數而不設定分布的做法，見
-#tc(<papke1996fractional>)。
-
-*假設與檢查。* $R_i$ 只定義在已記入天氣的航班上，是以結果變數篩選的子樣本；
-各公司記入天氣的機率不同時，此處的比較落在組成不同的子樣本上。這一節的係數
-因此只輔助解讀，清單的數字取自#ref(<sec:within>)與#ref(<sec:simplex>)。
-
-== 有限混合模型 <sec:mixture>
-
-*問題。* 「整段延誤記入天氣」是同一個觀測值，卻可能出自不同的產生機制，
-例如申報系統的預設值，或延誤確實全由天氣造成。機制不可觀測，但它們對共變量
-的反應不同：若延誤全由天氣造成，延誤越長，其間混入其他成因的機會越大，整段
-記入天氣的機率應隨延誤長度遞減。這是一個 monotonicity restriction。
-
-*模型。* 令 $Z_i = bb(1)(R_i = 1)$，$bold(z)_i$ 為延誤長度與氣象嚴重度，
-$Lambda$ 為 logistic 函數。
-
-$ P(Z_i = 1) = sum_(k=1)^K w_(c(i), k) thin Lambda(a_k + bold(z)_i^top bold(b)_k),
-  quad a_1 < dots.c < a_K $ <eq:mixture>
-
-每個 mixture component 有自己的截距與斜率；$w_(c, k)$ 為公司 $c$ 的觀測屬於
-component $k$ 的比例，由 softmax 轉換給出，其未轉換的參數設階層常態先驗，
-班次少的公司向整體平均收縮。所關心的量是各 component 的延誤長度係數的正負，
-以及各公司在各 component 上的權重。
-
-*出處。* 貝氏有限混合模型的設定、成分數與標籤問題依
-#tc(<grun2024mixture>)。成分的編號不可識別，各鏈之間標籤互換會使收斂診斷
-失效 @stephens2000label，此處以截距遞增的限制固定編號。抽樣用
-No-U-Turn Sampler @hoffman2011nuts。
-
-*採貝氏估計的理由。* 清單需要的是「某公司有多少比例屬於某 component」這類
-參數的函數，其不確定性可由後驗樣本直接計算；班次少的公司由階層先驗收縮，
-不必另做一次。
-
-*假設與檢查。*
-
-- _可識別性。_ 二元結果的混合只靠共變量的變異識別，屬弱可識別。
-  #tc(<betancourt2017hmc>) 說明 divergence 是後驗幾何困難的徵兆，可作為弱
-  可識別的判讀依據。
-- _抽樣有效。_ 以 #tc(<vehtari2019rhat>) 的 rank-normalized $hat(R)$ 與有效
-  樣本數判斷。成分數 $K$ 的比較以診斷通過為先決條件：
-  #tc(<vehtari2015loo>) 的 leave-one-out 交叉驗證假設後驗樣本有效，診斷未
-  通過的 $K$ 不進入比較。
-- _能否找回已知的機制。_ 模擬研究中有一種偏移型態正是「依規則整段記入天氣，
-  且機率隨延誤長度遞增」（#ref(<ch:sim>)），用以量測此模型的檢定力。
-
-== 變異數估計 <sec:cluster>
-
-*方法。* @eq:within 的標準誤採 two-way cluster-robust variance estimator，
-同時對層與機尾號 cluster：
-
-$ hat(V) = hat(V)_S + hat(V)_T - hat(V)_(S ∩ T), $ <eq:twoway>
-
-三項分別是對層、對機尾號、對兩者交集 cluster 的 sandwich 估計量。出處為
-#tc(<cameron2011multiway>)。
-
-*為何是這兩個維度。* #tc(<abadie2017cluster>) 主張 cluster 的層級由抽樣與
-指派機制決定，而非由「殘差是否相關」的事後檢定決定。同一層的航班共用當日的
-機場狀況；同一架飛機的航班共用機型與當日的輪轉。兩個維度並非巢狀：一個
-機尾號所跨層數的中位數為 #crossing.at(0).at(1)，一層內班次的中位數僅
-#crossing.at(0).at(2)，對層 cluster 吸收不到機尾號維度的相關。
-
-*假設與檢查。* cluster-robust 推論是 cluster 數趨於無窮下的漸近結果。
-#tc(<mackinnon2022guide>) 指出 cluster 數少或 cluster 大小懸殊時，sandwich
-估計量會低估變異。本資料的總 cluster 數很大，但單一公司的係數只由該公司出現
-的層與飛機決定，小公司的有效 cluster 數遠小於總數，大小也極不均勻。
-#tc(<mackinnon2024twoway>) 的 two-way jackknife 是針對此情形的修正，列為
-#ref(<sec:rank>)的工作。@eq:poisson 的標準誤目前對單元 cluster，同一節一併
-檢查。
-
-== shrinkage 與 multiple comparisons <sec:shrink>
-
-*shrinkage。* 各公司的班次相差超過一個數量級，班次少的公司係數雜訊大，直接
-排序會讓雜訊把它們推到清單兩端。設 $hat(gamma)_c tilde.op N(gamma_c, s_c^2)$、
-$gamma_c tilde.op N(mu, tau^2)$，empirical Bayes 估計量為
-
-$ tilde(gamma)_c = hat(mu) + (1 - B_c)(hat(gamma)_c - hat(mu)),
-  quad B_c = s_c^2 / (s_c^2 + hat(tau)^2), $ <eq:eb>
-
-$hat(mu)$ 取精確度加權平均，$hat(tau)^2$ 以動差法估計，即觀測到的公司間變異
-扣除平均抽樣變異，負值截為零。出處為 #tc(<efron1973stein>)。$hat(tau)^2$ 為零
-時所有公司收縮到同一點，排序隨之消失，此步驟因此同時檢查公司間的差異是否
-超出抽樣雜訊。
-
-*multiple comparisons。* 清單是排序，但「哪幾家顯著偏離」用到了門檻，數十個
-係數同時檢定須校正。採 #tc(<benjamini1995fdr>) 的程序控制 false discovery
-rate，跨所有結果變數的係數一起校正。
-
-*假設與檢查。*
-
-- _可交換性。_ @eq:eb 假設各公司的 $gamma_c$ 來自同一個常態分布。主線與區域
-  航空的營運型態不同，是否宜共用一個先驗須檢查；替代方案是
-  #tc(<gu2020invidious>) 的非參數 empirical Bayes，不設定先驗的形狀。
-- _估計量之間獨立。_ @eq:eb 與 Benjamini–Hochberg 的原始證明都假設各
-  $hat(gamma)_c$ 獨立。本模型的係數共用同一個 reference level，也共用層，
-  並不獨立。相依對 false discovery rate 的實際影響，由模擬研究的 $H_0$ 情境
-  直接量測。
-
-== 摘要
-
-#figure(
-  text(size: 9.5pt, table(
-    columns: (auto, auto, 1fr, 1fr),
-    stroke: hline,
-    align: (left, left, left, left),
-    row-gutter: 0.35em,
-    [方法], [用於], [主要假設], [檢查方式],
-    [within estimator \ #ref(<sec:within>)], [binary part 的公司主效應], [條件平均數為線性], [模擬：非線性生成模型下的偏誤與涵蓋率],
-    [Poisson log-linear \ #ref(<sec:simplex>)], [成因分配的公司 × 成因係數], [條件平均數正確；固定效應不造成偏誤；尾部不破壞區間], [模擬的涵蓋率；bootstrap 區間；排除小單元],
-    [兩組氣象並列 \ #ref(<sec:basis>)], [氣象共變量], [觀測時點不受結果影響], [目的地取排定到達時刻；三種設定並列],
-    [質量點分解 \ #ref(<sec:twopart>)], [歸因強度], [子樣本可比], [不檢查，降為輔助解讀],
-    [有限混合模型 \ #ref(<sec:mixture>)], [整段記入天氣的產生機制], [成分可識別；抽樣有效], [divergence、$hat(R)$、有效樣本數；模擬的檢定力],
-    [two-way cluster-robust \ #ref(<sec:cluster>)], [標準誤], [cluster 數夠多且大小均勻], [two-way jackknife],
-    [empirical Bayes \ #ref(<sec:shrink>)], [排序前的收縮], [可交換；估計量獨立], [非參數 empirical Bayes 對照],
-    [Benjamini–Hochberg \ #ref(<sec:shrink>)], [顯著家數], [檢定統計量獨立], [模擬：$H_0$ 下的 false discovery rate],
-  )),
-  caption: [各方法的主要假設與檢查方式。],
-) <tbl:methods>
-
-表中半數的檢查落在模擬研究。這些假設多半沒有只靠真實資料就能回答的
-檢定，要知道區間是否有效，須在真值已知處量測。
-
-= 方法驗證：模擬研究 <ch:sim>
-
-模擬研究依 #tc(<morris2017simulation>) 的 ADEMP 框架設計與報告，依序交代
-目的、資料生成機制、估計對象、方法與表現指標。
-
-== 目的
-
-回答三個問題：沒有任何公司偏移時，方法會把幾家列入清單；植入已知大小的偏移
-後，偏移多大才偵測得到；識別假設被違反時，無偏移的公司有多少被誤列。
-
-== 資料生成機制 <sec:dgm>
-
-採 plasmode simulation @schreck2023plasmode：層、氣象、執飛公司、
-到達延誤與前一航段全部保留真實資料，只把申報成因換成模擬值。本資料的不平衡、
-稀疏的層與共變量之間的相關，正是方法最可能失效之處，純參數模擬會把這些特徵
-抹平。
+機隊對低雲與強風的耐受度，以及航線與班表差異，都可能破壞上述可比性；
+氣象測站也無法觀測航路天氣與航管指令。#ref(<ch:sim>) 以真實成因因公司而異、
+申報規則卻相同的模擬情境，評估清單因此產生的名次偏移與誤標。
+@fig:attribution-identification 用兩種情況說明：相同的申報份額差異，可能來自真實成因或申報規則。
 
 #figure(
   table(
-    columns: (auto, 1fr),
+    columns: (1.15fr, 3.2fr),
     stroke: hline,
-    align: (left, left),
+    align: left,
     row-gutter: 0.45em,
-    [情境], [生成方式],
-    [$H_0$], [以「成因分配只依層與氣象、與公司無關」的模型配適真實資料，由配適的模型抽出申報成因。所有公司的真值為零],
-    [植入偏移], [在 $H_0$ 資料上，對指定公司植入大小為 $delta$ 的偏移。型態四種：`carrier` 移往 `weather`；`NAS` 與 `late-aircraft` 移往 `weather`；由 `carrier` 均勻移出至其餘三欄；依規則整段記入 `weather`，且機率隨延誤長度遞增],
-    [識別假設被違反], [不植入申報偏移，但令指定公司實際的天氣延誤比例較高，對應機隊特性造成的差異],
+    [假設觀察], [相同觀測條件下，甲公司的非 `carrier` 申報份額高於乙公司],
+    [可能情況一], [甲真正較少遇到可歸責於公司的延誤；兩家公司申報規則相同],
+    [可能情況二], [兩家公司真實成因相近；甲的分類規則把較多分鐘記入非 `carrier`],
+    [資料能判定], [申報配置有差異，但無法只靠係數區分上述兩種原因],
   ),
-  caption: [三類情境。偏移型態取自真實資料中觀察到的申報形態，$delta$ 與被植入公司的班次規模皆設為多個水準。],
+  caption: [Two possible causes of the same observed allocation difference. Carriers A and B are hypothetical.],
+) <fig:attribution-identification>
+
+#figure(
+  image("../outputs/figures/methods_overlap_levels.png", width: 82%),
+  caption: [Multi-carrier overlap at origin airport-month and directed route-month levels. Orange: share of flights in groups with at least two carriers; blue: share of carrier pairs that ever share a group; grey: share of carrier pairs linked directly or through other carriers.],
+) <fig:methods-overlap>
+
+@fig:methods-overlap 的兩排使用同一批航班，分別按*起點機場 × 年月*與*同向航線 × 年月*
+分組。橘柱的分子是落在至少兩家公司執飛的組合內的航班數，分母是圖中全部航班數。
+藍柱與灰柱的分母是全部公司對：藍柱的分子是曾在同一組合出現的公司對，灰柱的
+分子是直接或經由其他公司連得起來的公司對。只有一家公司的組合不因間接比較而
+提供資訊，間接比較增加的是可比的公司對。
+在前一口徑，相關組合涵蓋 #pct(pick(rows("methods_overlap_levels"), "airport-month", col: 6))
+的航班；限同向航線與同年月後，有多家公司的組合只占全部航線月份組合的
+#pct(pick(rows("methods_overlap_levels"), "route-month", col: 5))，這些組合涵蓋
+#pct(pick(rows("methods_overlap_levels"), "route-month", col: 6)) 的航班。
+因此同場同月不能視為同航線競飛；即使同航線同月，這張圖仍不測量氣象條件是否相近。主模型分別控制起點與目的地的
+機場月份效果，另以同航線、同月份的競飛者作較嚴格的檢查。同層公司若
+面對不同的氣象條件，估計仍可能依賴模型外插。
+
+= 主分析：`carrier` 與非 `carrier` 的分鐘數邊界 <ch:binary>
+
+== 二類結果與估計對象
+
+令 $a_i$ 是 `reported_carrier_delay_min`，$e_i$ 是同班 `weather`、NAS、
+`security`、`late-aircraft` 四欄分鐘數之和，$L_i=a_i+e_i$。
+只對有申報義務且 $L_i>0$ 的已執飛航班定義 $q_i=e_i/L_i$。
+這個份額量的是*申報分鐘中有多少記於 `carrier` 以外欄位*，不等於真實不可控的
+延誤比例。航班等權的 $bb(E)[q_i]$ 與分鐘加權的
+$(sum_i e_i) / (sum_i L_i)$ 回答不同問題；主清單採後者的條件化版本，
+前者用於檢查長延誤航班是否主導結果。
+
+樣本中可見全記 `carrier`、全記非 `carrier` 及兩類並記的航班；多數有
+多家公司都有航班的機場月份，也呈現公司間的份額差異。這表示結果變數有足夠的
+觀測變異可供估計，卻無法據此衡量不實申報率或模型的偵測力。
+@fig:cause-groups 顯示同一組申報欄位如何分別進入二類主分析與四欄診斷。
+
+#figure(
+  cetz.canvas(length: 1cm, {
+    import cetz.draw: *
+    let border = rgb("#4b6277")
+    let arrow = (stroke: (paint: border, thickness: 0.9pt), mark: (end: ">"))
+
+    rect((0, 0.2), (4.0, 3.8), fill: rgb("#f1f4f8"), stroke: border)
+    content((2.0, 3.45), text(size: 9pt, weight: "bold")[五個申報欄位])
+    content((2.0, 2.9), text(size: 8.5pt)[carrier])
+    content((2.0, 2.35), text(size: 8.5pt)[weather])
+    content((2.0, 1.8), text(size: 8.5pt)[NAS])
+    content((2.0, 1.25), text(size: 8.5pt)[security])
+    content((2.0, 0.7), text(size: 8.5pt)[late-aircraft])
+
+    rect((6.0, 2.1), (14.3, 3.8), fill: rgb("#e7f1fb"), stroke: border)
+    content((10.15, 3.35), text(size: 9pt, weight: "bold")[主分析：二類])
+    content((10.15, 2.78), text(size: 8.5pt)[carrier  |  weather + NAS + security + late-aircraft])
+    content((10.15, 2.32), text(size: 8pt)[公司效果決定查核排序])
+
+    rect((6.0, 0.2), (14.3, 1.9), fill: rgb("#e9f4e9"), stroke: border)
+    content((10.15, 1.45), text(size: 9pt, weight: "bold")[輔助診斷：四欄])
+    content((10.15, 0.88), text(size: 8.5pt)[carrier  |  weather  |  NAS  |  late-aircraft])
+    content((10.15, 0.42), text(size: 8pt)[security 不計入四欄分母])
+
+    line((4.0, 2.75), (6.0, 2.75), ..arrow)
+    line((4.0, 1.35), (6.0, 1.35), ..arrow)
+  }),
+  caption: [五個申報欄位分別用於二類主分析與四欄成因診斷。],
+) <fig:cause-groups>
+
+== 固定總分鐘數下的二類模型
+
+令 $u=(o,d,t,c)$ 為起點 $o$、目的地 $d$、年月 $t$ 與執飛公司 $c$ 的
+單元；$m_(u,E)$ 與 $m_(u,A)$ 是該單元分別記入非 `carrier` 與
+`carrier` 的分鐘數。$M_u=m_(u,E)+m_(u,A)$，只納入 $M_u>0$ 的單元；
+兩家公司若在同一起點或目的地的機場 × 年月分層中都有航班，便有直接
+比較機會。例如一月在 X 機場有甲、丙，二月在 Y 機場有丙、乙；兩組分別
+提供甲丙和丙乙的比較資訊，模型可能據此估計甲乙的差異。這是區集設計的
+連通性（connectedness）：把公司看成處理、機場月份看成區集，線性加法模型下
+設計連通時，所有處理對比才可估計 @eccleston1974connected；分類超過兩個方向時
+連通的判定見 @weeks1964connectedness。@abowd2002connected 在人員與雇主的線性
+模型中討論同一性質，稱為連通群組。這些都是線性模型的結果；本題使用 PPML 與
+兩端機場月份效果，連通只是必要條件，仍須檢查公司效果能否辨識，
+並確認氣象共變數分布有共同支持。
+設
+
+$ mu_(u,j)=bb(E)[m_(u,j)|M_u,o,d,t,c,overline(bold(x))_u]
+  =exp(eta_u+lambda_(o,t,j)+kappa_(d,t,j)+theta_(c,j)
+  +overline(bold(x))_u^top bold(psi)_j), quad j in {A,E}. $ <eq:binary-poisson>
+
+$eta_u$ 吸收單元總量；$lambda_(o,t,j)$ 與 $kappa_(d,t,j)$ 分別吸收起點、
+目的地每月的基準歸因配置。兩端是交叉的固定效應；此加法設定控制兩端
+的平均環境，仍可能留下航線特有差異。同航線 × 同月的公司比較作較嚴格的
+敏感度分析。
+氣象與航班條件須和類別交互，否則在同一單元兩列中相同，會被 $eta_u$ 吸收。
+以 A 為基準成因、DL 為基準公司，$theta_(c,E)$ 是公司 $c$ 相對 DL，
+把分鐘記到非 `carrier` 而非 `carrier` 的比值之比的對數。DL 只是參照點，
+清單仍須以全部可比公司的等權平均為基準比較各公司。
+
+單元固定效應的估計條件使 $mu_(u,A)+mu_(u,E)=M_u$；二類 fit 的份額
+$pi_(u,E)=mu_(u,E)/M_u$ 因而落在零到一。模型使用 Poisson 的估計方程式，
+不把連續的一段延誤分鐘當成互相獨立的 Bernoulli 試驗。估計時須檢查 separation、
+少數大單元的影響，以及聚合後的氣象差異。推論先按起點 × 年月與目的地 × 年月
+雙向聚類，再由 #ref(<ch:sim>) 檢查區間涵蓋率；單元聚合未保留機尾號，
+須以逐班檢查確認機尾號相依沒有使區間失準。模型變異數不能直接作為標準誤。
+
+== 分組與航班權重的檢查
+
+`late-aircraft` 只說明前段同機尾航班晚到，沒有指出那一班為何晚到。
+另將 `late-aircraft` 與 `carrier` 同組，重估 `weather + NAS + security`
+對 `carrier + late-aircraft`；也可排除 `late-aircraft` 分鐘，比較直接外因
+與 `carrier`。#tc(<bilotkach2022causes>) 亦將前段晚到視為根因不明的
+半內生類別。若優先清單高度依賴這一欄，應將前段根因列為首要查核資料。
+`security` 在四欄診斷模型中因稀少而剔除，在五欄二分主模型中仍納入；
+兩個模型的分母因此不同，不能直接比較係數大小。
+
+一般的 logistic regression 以零或一的結果估計事件機率；逐班 fractional logit 使用相同的
+logistic 平均數形式，但以 $q_i$ 這個零到一的份額為結果，估計條件平均份額。
+兩者最大化同一個 Bernoulli log-likelihood 形式的目標函數。二元結果下，
+每筆可解讀為 Bernoulli log-likelihood；份額不是一次二元試驗，
+同一式子不能當成份額的真實 Bernoulli likelihood，因此在此稱為準概似。
+後者須正確設定條件平均數，
+並以穩健方式估計標準誤。
+此模型保留零與一端點，並納入逐班氣象條件
+@papke1996fractional。
+每班等權版檢查單元聚合與長延誤權重是否改變公司排序；若以 $L_i$ 加權且
+使用相同 logit 線性預測式，它與二類 binomial 配置模型具有相同分數方程式，
+不構成獨立的識別證據。兩種估計皆只給出申報差異，不能據此判定動機。
+
+= 成因診斷：分鐘數如何分配 <ch:simplex>
+
+== 由四個欄位到一個配置模型
+
+天氣欄申報較高時，減少的可能是 NAS 分鐘，也可能是 `carrier` 分鐘；
+兩種情況的監理意義不同。二類主模型比較責任邊界，四欄模型則辨認
+分鐘數在各成因間的配置。同一航班的申報分鐘數由各欄共同分配，
+某欄增加時，其餘欄的合計必須減少。逐欄獨立建模無法保留這項約束，
+也難以區分對天氣欄的偏好與整體非 `carrier` 申報的增加。
+
+令 $u=(o,d,t,c)$ 表示同一航線 × 年月內的一家公司，$m_(u k)$ 是該單元所有
+航班在成因 $k$ 上的分鐘數合計。$k$ 取 `carrier`、`weather`、`NAS`、
+`late-aircraft`。`security` 在稽核樣本極少，剔除後四欄定義分析用的
+總分鐘數 $M_u=sum_k m_(u k)$。只納入 $M_u>0$ 的單元，並檢查公司間
+可比的航線及兩端機場月份重疊。
+成因為零是有效的分類結果，不能為了取對數而加常數或刪除。
+
+#figure(
+  image("../outputs/figures/methods_cause_mix.png", width: 84%),
+  caption: [Unadjusted reported-minute shares by cause. Security is excluded from the four-cause model.],
+) <fig:methods-cause-mix>
+
+@fig:methods-cause-mix 呈現未調整的成因分鐘數分布，不能取代控制兩端
+機場月份與氣象後的公司比較。@fig:methods-simplex 則呈現各成因欄位的零值情形。
+
+#figure(
+  image("../outputs/figures/methods_simplex_zeros.png", width: 98%),
+  caption: [Zero structure in four-cause reports with positive total and complete weather. Left: positive causes per flight; right: zero-minute route-month-carrier units, with the grey bar counting units where at least one cause is zero.],
+) <fig:methods-simplex>
+
+圖中可見，多數航班只啟用少數成因；右圖以航線 × 年月 × 公司為單元
+計算零值比例，與模型的單元相同。即使聚合後各欄仍有零值，故要求四個份額
+皆為正的對數比模型會丟掉有效申報。
+四欄又共享同一筆總分鐘數，成因診斷仍在固定總量內聯合估計。
+
+聚合後，每個單元以四列記錄成因分鐘數，既保留聯合配置，也讓高維固定效應
+的估計可行。不過，逐班氣象差異會被單元平均值取代；後續驗證將檢查
+這項近似對估計的影響。
+
+== Poisson 表達如何維持總量約束
+
+設 $zeta_(u k)$ 為成因 $k$ 的相對強度，模型寫成
+
+$ zeta_(u k) = lambda_(o(u),t(u),k) + kappa_(d(u),t(u),k)
+  + theta_(c(u), k)
+  + overline(bold(x))_u^top bold(psi)_k, $ <eq:composition>
+
+$ mu_(u k) = bb(E)[m_(u k) | M_u, o(u), d(u), t(u), c(u), overline(bold(x))_u]
+  = exp(eta_u + zeta_(u k)). $ <eq:poisson>
+
+其中 $eta_u$ 是單元固定效應，$lambda_(o,t,k)$ 與 $kappa_(d,t,k)$ 允許
+兩端機場月份各有自己的基準成因分配；$overline(bold(x))_u$ 是單元內
+氣象與航班特徵的平均，並與
+成因交互。若只放共變量的共同主效應，它在四列中相同，會被 $eta_u$ 吸收。
+
+Poisson pseudo log-likelihood 對 $eta_u$ 的一階條件是
+$sum_k(m_(u k)-mu_(u k))=0$。因此 fit 的四欄期望值必須加總為 $M_u$。
+把這個條件代回 @eq:poisson，可得
+
+$ mu_(u k) = M_u pi_(u k), quad
+  pi_(u k) = exp(zeta_(u k)) / (sum_l exp(zeta_(u l))). $ <eq:softmax>
+
+消去 $eta_u$ 後，與模型參數有關的目標函數等於
+$ sum_(u,k) m_(u k) log pi_(u k)
+  = sum_u M_u sum_k (m_(u k)/M_u) log pi_(u k). $
+因此方法實際比較的是*固定總量下的成因份額*，並以單元總分鐘數
+$M_u$ 加權；$M_u=0$ 的單元不提供配置資訊。
+二類模型若令 $p_u=pi_(u,E)$，此準則為
+$sum_u [m_(u E) log p_u + m_(u A) log(1-p_u)]$。
+在相同總量與預測式下，它與總分鐘加權的 logistic regression 有相同的點估計；
+這是估計準則的代數關係，不表示分鐘是獨立的二項試驗。
+#tc(<baker1994multinomial>) 的 multinomial–Poisson transformation 給出
+*計數資料*在固定類別總量時兩種係數表示的精確關係。本題的分鐘數是時長，
+即使記為整數也不是獨立事件的計數，因此不把此轉換解讀成分鐘數的
+multinomial 或 Poisson 分布假設。借用的是固定總量下條件平均數的代數形式。
+Poisson 寫法讓單元與層 × 成因固定效應
+得以用高維固定效應工具估計，而不須逐一展開大量虛擬變數。
+
+混合二項模型另假設單元來自數個未觀測群體，各群有不同的二項配置機率
+@grun2024mixture。它可把零值頻率與配置差異歸於不同群體，但需指定群體數、
+群體分布，並說明以分鐘作二項試驗的理由。即使估出群體，也不能只憑申報資料
+將其辨認為真實天氣、系統預設或刻意改報。PPML 的優點是估計對象限於條件
+平均分鐘，所需的分布假設較少；代價是不能單獨解釋零值的發生機制，
+也不能辨認未觀測群體。零值的啟用率另作分析。
+
+== 公司係數與申報欄位對比
+
+為使係數有固定的參照點，設 $theta_(c, #raw("carrier"))=0$、
+$theta_("DL",k)=0$。在相同兩端機場月份效果與單元共變量下，
+$exp(theta_(c,k))$ 是公司 $c$ 相對 DL、成因 $k$ 相對 `carrier` 的
+*比值之比*。下式的 $pi_(c,k)$ 表示在相同兩端月份效果與共變量下，把
+@eq:softmax 評估於公司 $c$：
+
+$ exp(theta_(c,k)) =
+  (pi_(c,k) / pi_(c,#raw("carrier")))
+  / (pi_("DL",k) / pi_("DL",#raw("carrier"))). $ <eq:ratio>
+
+例如 $theta_(c,#raw("weather"))$ 為正，表示此公司相對 DL，把同一總量
+配置在天氣而非 `carrier` 的比值較高；它本身不表示實際有多少分鐘被人從
+`carrier` 改寫到天氣。`weather` 相對 NAS 的公司對比由
+$theta_(c,#raw("weather"))-theta_(c,#raw("NAS"))$ 表示，兩係數的協方差
+必須放進此對比的標準誤。這個欄位間的比較不能辨認實際責任。
+DL 同樣只是模型基準，$theta_("DL",k)=0$ 不是「DL 沒有偏離」
+的證據；所有公司的優先次序應由參照不變的公司間對比或可比公司效果的等權平均決定。
+
+#figure(
+  table(
+    columns: (1.2fr, 1.6fr),
+    stroke: hline,
+    align: left,
+    row-gutter: 0.45em,
+    [係數形態], [條件化後的申報結構解讀],
+    [`weather` 為正、NAS 與 `late-aircraft` 相對偏低], [相對配置集中於天氣；須比較 `weather`／NAS 與 `weather`／`late-aircraft`],
+    [`weather`、NAS 與 `late-aircraft` 都為正], [相對 DL，這三欄對 `carrier` 的份額比都較高；須查各欄原始紀錄],
+    [`weather` 與 NAS 一正一負], [這兩個申報欄位的相對份額有差異],
+  ),
+  caption: [Interpretation of weather contrasts across causes. The entries describe estimands, not estimated results.],
+) <tbl:patterns>
+
+#figure(
+  image("../outputs/figures/methods_cause_contrasts.png", width: 100%),
+  caption: [Exploratory origin-month carrier contrasts and 95% intervals, relative to DL. These are not the final audit list.],
+) <fig:methods-contrasts>
+
+@fig:methods-contrasts 把兩條邊界並排：同一公司的天氣對 `carrier` 對比，
+未必與天氣對 NAS 的對比同向。圖中零線代表與 DL 的對比為零，不表示 DL
+正確；正式排序仍採 #ref(<ch:deliver>) 的可比公司等權平均與驗證規則。
+
+== 為何是 pseudo-likelihood，以及會在哪裡失效
+
+真實航班的分鐘數並非相互獨立的 Poisson 計數：總量已被申報制度固定，分配
+又可能由系統規則產生整段全記或多欄同時為零。這裡使用 Poisson 的估計方程式
+而非相信其完整分布。對任意非負分鐘數，可最大化省去與參數無關項的
+pseudo log-likelihood
+$ sum_(u,k) [m_(u k) log mu_(u k) - mu_(u k)]. $
+它不要求 $m_(u k)$ 是整數；即使資料記為整數分鐘，結果量的仍是時間長度，
+而非獨立事件的次數。保留零值是此準則的性質，單有零質量點並不足以支持
+Poisson 的分布假設。令 $bold(z)_(u k)$ 為 @eq:composition 的迴歸設計列。
+當 @eq:poisson 的*條件平均數*設定正確時，對迴歸係數的 score 為
+$sum_(u,k) bold(z)_(u k)(m_(u k)-mu_(u k))$，其期望為零；
+分布的變異數即使不是 Poisson 形式，係數仍可由 pseudo-likelihood 估計
+@gourieroux1984pml。這個論點不能替條件平均數設錯、聚合遺漏變異，或高維
+固定效應偏誤提供保證，也不能使用 Poisson 的 model-based 標準誤。
+
+單元只以氣象平均控制公司之間的天氣差異；如果真實氣象效果是非線性的，
+$exp(bold(psi)^top overline(bold(x))_u)$ 通常不等於單元內
+$exp(bold(psi)^top bold(x)_i)$ 的平均。航班聚合可能因此留下組成差異。
+應比較單元內氣象分散程度與公司係數，並在 #ref(<ch:sim>) 以含逐班非線性
+氣象效果的生成機制檢查偏誤。這是選擇可計算的單元模型所付出的近似成本。
+
+若某家公司在可比的層中從不記入某成因，對應係數可能趨向無窮，屬
+separation 而非強烈且精確的效果 @correia2019existence。估計時須檢查
+各公司 × 成因的正值與分離狀態，不能把不收斂的係數排上清單。高維固定
+效應隨單元數增加，也可能引入有限樣本偏誤；穩健標準誤只處理變異數，
+不會消掉係數偏誤 @weidner2019bias。
+
+探索性估計按起點月份單元聚類，容許同一單元的四欄結果相關；起點與
+目的地月份之間共享的航管或天氣衝擊，則仍可能使區間過窄。分鐘數的
+右偏分布也可能讓少數大型單元主導估計。正式分析將檢查這些單元的影響，
+並以 #ref(<ch:sim>) 評估共同衝擊下的區間涵蓋率，再選擇聚類或重抽方式。
+
+= 輔助診斷：天氣欄的啟用與零值 <ch:within>
+
+== 從研究問題到估計量
+
+令 $i$ 為航班，$s(i)$ 為起點機場 × 年月層，$c(i)$ 為執飛公司，
+$Y_i = bb(1)(#raw("reported_weather_delay_min") > 0)$。同一場天氣可以造成
+不同長度的延誤；這個結果只問申報表*有沒有啟用天氣欄*，不把分鐘數的大小混入。
+所比較的母體是達申報門檻的已執飛航班。
+此模型補充主分析：它區分「天氣欄啟用率較低」與「啟用率相近但申報分鐘數較少」，
+不單獨決定公司的查核名次，也不能代替非 `carrier` 份額。
+
+#figure(
+  image("../outputs/figures/methods_y1_rate.png", width: 72%),
+  caption: [Unadjusted positive-weather share by carrier with more than 5,000 flights. This is not an audit list.],
+) <fig:methods-y1>
+
+天氣欄是否啟用是二元結果。@fig:methods-y1 顯示各公司未調整的啟用率
+有所不同，但各公司營運的機場與遭遇的天氣也不同，不能直接將此差異
+歸於申報行為。下式在控制機場月份與氣象條件後估計公司間的差異。
+
+估計式為
+
+$ bb(E)[Y_i | s(i), c(i), bold(x)_i] = alpha_(s(i)) + gamma_(c(i))
+  + bold(x)_i^top bold(beta), quad gamma_"DL" = 0. $ <eq:within>
+
+若條件平均數確為 @eq:within 的加法形式，$gamma_c$ 就是公司 $c$ 相對 DL、
+在同一層和同樣 $bold(x)$ 下記入天氣的機率差；乘以 100 後以百分點表示。兩家非基準公司
+的差為 $gamma_c - gamma_d$。若真實機率對天氣為非線性、公司效果又隨機型
+變動，估計係數只是樣本中按航班配置加權的*線性投影*，不能無條件稱為所有
+航班上的平均因果效果。#tc(<chen2023lpm>) 討論了線性機率模型與非線性機率模型
+之平均偏效果的關係，這裡保留條件平均數形式與此限制。
+
+DL 只是辨識模型所需的參照水準，不代表它的申報正確。換一家公司作基準會改變
+各 $gamma_c$ 的表示，卻不改變任意兩家公司 $gamma_c-gamma_d$ 的差。
+清單不能因 DL 的係數設定為零就視它為已通過查核；要比較全部公司，須報
+參照不變的公司間對比或把係數重新中心化到可比公司效果的等權平均。
+
+== 為何固定在同一機場與月份比較
+
+各公司營運的機場不同，跑道、除冰能力、航管慣例與季節性天氣都可能影響
+成因申報。@eq:within 讓每個起點機場月份各有截距 $alpha_s$，避免以
+多雪與少雪機場之間的差異估計公司效果。目的地月份環境仍可能影響結果，
+正式診斷須另加目的地 × 年月效果，檢查公司效果是否改變；兩端交叉固定效應
+不能只靠一次起點層去均值消去，須另作交替吸收。定義 $D_(i c)=bb(1)(c(i)=c)$，對任何變數
+$a_i$ 令 $tilde(a)_i=a_i-overline(a)_(s(i))$。從 @eq:within 扣除同層平均，得到
+
+$ tilde(Y)_i = sum_(c != "DL") tilde(D)_(i c) gamma_c
+  + tilde(bold(x))_i^top bold(beta) + tilde(epsilon)_i. $ <eq:demean>
+
+$alpha_s$ 正好消失，對去均值後的資料做最小平方即可估 $gamma_c$。
+#tc(<mundlak1978pooling>) 的 within estimator 提供這個固定效應消去方式。
+單一公司層內所有 $tilde(D)_(i c)$ 都為零，無法識別公司對比；兩家公司若從不
+出現在同一或連通的層，彼此也缺少可比路徑。層數很多不等於每家公司的效果
+都精確，真正有用的是層內的競飛與氣象重疊。
+
+層內 $Y_i$ 全為零或全為一時，該層仍可能影響線性機率模型的斜率估計：
+$tilde(Y)_i=0$ 仍會進入最小平方的估計條件。因此不能僅因結果全同便
+刪除整層。共用估計程序目前會排除此類層，正式估計前須修正篩選條件並
+重新估計。這與單一公司層無法識別公司間對比，是不同的問題。
+
+== 後續檢驗：Logistic GLMM 與組內相關 <sec:glmm>
+
+若調整機場月份與氣象條件後，同機尾號或同機場日期的航班仍有明顯的
+天氣欄啟用相關，將以廣義線性混合模型（GLMM）作敏感度分析。
+目標是明確建模群組異質性與組內相關，檢查公司啟用率差異及其不確定性
+是否穩定。#tc(<brooks2017glmmtmb>) 說明 GLMM 如何透過隨機效果處理
+重複觀測相關；本題擬先使用 Logistic GLMM，保留公司與兩端機場月份固定效果。
+
+令 $Y_i$ 仍為天氣欄是否記入正分鐘，$s(i)$、$r(i)$ 分別為起點與目的地
+機場 × 年月，$h(i)$ 為機尾號，$g(i)$ 為起點機場 × 日期。
+候選模型為
+
+$ Y_i | bold(x)_i,u,v tilde.op op("Bernoulli")(p_i), quad
+  op("logit")(p_i)=alpha_(s(i))+kappa_(r(i))+gamma_(c(i))
+  +bold(x)_i^top bold(beta)+u_(h(i))+v_(g(i)), $ <eq:glmm>
+
+其中 $u_h tilde.op N(0,sigma_u^2)$、$v_g tilde.op N(0,sigma_v^2)$ 為候選隨機
+截距。先檢查各群的重複觀測與剩餘相關，再比較加入機尾號、機場日期及兩者
+並用的設定。公司效果維持固定，避免同時引入公司收縮而混合不同的比較目的。
+隨機效果與公司、航網及氣象共變數間的關係須另作檢查；均值為零、分布形式及
+群組間獨立等假設，不能僅由模型可以收斂而視為成立。
+
+*資料與輸出。* 使用與 @eq:within 相同的有效申報航班，一班一列，加入機尾號
+及機場日期識別碼。@eq:glmm 的 $gamma_c-gamma_d$ 是給定隨機效果後的
+對數優勢比，不能直接與線性機率模型的機率差比較。比較時對隨機效果積分，
+再於共同可比的航班條件分布上平均各公司的預測機率，報告標準化公司機率差及
+其區間。另與具有相同固定效果的普通 logistic 模型對照，以區分連結函數改變
+和加入隨機效果的影響；在 #ref(<ch:sim>) 檢查偏誤、區間涵蓋與估計穩定性。
+
+*與過度離散的關係。* Poisson 混合模型可透過發生率異質性產生超過 Poisson
+基準的變異，但逐班 Bernoulli 結果的變異數由其機率決定；本節主要處理航班間
+相關，而非對單筆二元結果另估離散參數。分鐘主模型使用的 PPML 本來就不要求
+變異數等於平均數 @santossilva2006log，故不能僅憑分鐘數變異較大，就改用
+Poisson GLMM。本節是待評估的啟用率診斷方案，不改變二類分鐘主排序的定義。
+
+== 天氣、航班特徵與資訊時點 <sec:weather-sets>
+
+$bold(x)_i$ 分別包含起點與目的地的能見度、雲幕、風速、降水與飛行規則類別，
+另有距離、班表壅塞、前一航段及實際到達延誤長度。起點和目的地不能只留一端：
+兩地天氣可能不同，申報人卻只填一組成因分鐘數。天氣使用三種資訊設定：
+
+#figure(
+  table(
+    columns: (auto, 1.3fr, 1.4fr),
+    stroke: hline,
+    align: left,
+    row-gutter: 0.45em,
+    [設定], [氣象欄位], [係數所回答的比較],
+    [起飛前], [`wx_`], [給定事前可知的天氣],
+    [事件時刻], [`oracle_origin_dep_*`、`oracle_dest_scharr_*`], [給定事後填報時已發生的天氣],
+    [兩組並用], [以上兩組], [再控制事前至事件時刻的天氣變化],
+  ),
+  caption: [Three weather information sets for the same flights. The audit sample is defined using `wx_` throughout.],
+) <tbl:weather>
+
+本題研究的是事後填報，不是事前預測，所以事件時刻的 `oracle_` 可作回溯共變量。
+`oracle_dest_arr_*` 的時點卻隨本班實際到達而變，會把延誤長度機械帶入氣象
+欄位，故以前綴排除。`reported_*` 是被稽核的結果，不能拿來解釋本班延誤。
+雪深、陣風與前一航段的結構性缺失依其適用條件處理，不當作隨機缺失插補。
+
+實際到達延誤長度在填表時已知，控制它可比較同樣延誤長度的申報；但它本身
+受公司營運與天氣影響。納入後 $gamma_c$ 是*給定延誤長度*的申報對比，
+不是公司對所有航班的總效果。申報門檻更使研究母體依到達延誤而定：
+如果公司影響延誤是否達門檻，條件化可能使原本不同的航班組成進入比較。
+這兩點須與未控制延誤長度、及以全部已執飛航班為分母的描述並列，
+但描述後者時，須將未達門檻者視為無申報義務，而非申報零分鐘。
+
+延誤長度作為 $bold(x)_i$ 的一項，而不作為分層的依據。它不能取代機場月份：
+同樣長度的延誤，在暴雪中的機場與晴天的機場有不同的真實成因，只依長度
+比較會把各公司航點與天氣的差異算進 $gamma_c$。也不在機場月份之內再依長度
+分層：層切得愈細，只有一家公司的層愈多，而這類層對公司對比沒有資訊。
+以連續共變量控制的代價是函數形式：短延誤與長延誤的成因分配若不同，線性項
+未必足以描述。因此另將延誤長度分成數段，於各段內重估，檢查公司的排序
+是否改變。
+
+== 係數的不確定性與可檢查條件
+
+二元結果本身異質變異，且同層航班共享機場狀況、同機尾號航班共享機隊與輪轉。
+故不用同方差的 OLS 標準誤；按層 $S$ 與機尾號 $T$ 雙向聚類，變異數由
+
+$ hat(V) = hat(V)_S + hat(V)_T - hat(V)_(S ∩ T) $ <eq:twoway>
+
+組成 @cameron2011multiway。交集項避免同一對相關被加兩次。這個估計仍仰賴
+足夠多的有效層與機尾號；小公司的比較可能只由少數競飛層支撐。
+
+分析時應檢查三件事：各公司在多少層與 DL 或其他公司競飛；公司之間的天氣
+分布是否重疊；三種資訊設定下 $gamma_c$ 的方向與大小是否穩定。
+若 fit 的值在觀測支持內大量超出零到一，線性平均函數不適合把係數讀作固定
+機率差，應縮小解讀範圍或改用非線性平均函數。這些檢查處理的是模型近似與
+重疊問題；即使全部通過，@eq:mixture 的未觀測真實成因仍無法由資料驗證。
+
+= 清單的排序、證據與界限 <ch:deliver>
+
+主清單以 @eq:binary-poisson 的二類責任邊界為核心。二類公司效果先相對所有
+可比公司的*等權平均*重新中心化，使包括 DL 在內的每家公司都有相對該平均的對比；
+這只改變參照點，不改變任意兩家公司之間的差。全部可比公司按中心化效果的
+絕對值由大到小排序，並分欄標示偏高或偏低。每列附效果大小、區間、
+可比層數、航班等權的份額檢查，以及 `late-aircraft` 改分組後的方向。
+三種氣象資訊設定下的二類公司效果並列，檢查排序對資訊時點是否敏感。
+
+用完整共變異矩陣計算公司對比的標準誤，對全部可比公司的雙側檢定作
+Benjamini–Hochberg 校正 @benjamini1995fdr。通過者在*證據欄*標記，
+不通過者仍保留在排序清單。四欄模型另列天氣、NAS 與 `late-aircraft`
+相對 `carrier` 的係數，以及天氣相對 NAS 的分類對比；天氣欄啟用率
+用於解讀零值。這些診斷分欄呈現，不壓成單一分數，也不改變二類排序。
+
+點排序之外，依公司效果的聯合不確定性報告可能的名次範圍；比較兩家公司
+的絕對偏離程度時須納入係數共變異數，不能只看各自區間是否重疊。
+名次範圍重疊表示優先次序尚不明確，不直接宣稱兩家公司效果相同。
+BH 標記的 false discovery rate 與名次範圍的涵蓋率均由 #ref(<ch:sim>)
+在設定過的情境下檢查；若未達預定標準，正式使用前須調整並重新驗證。
+
+未觀測的機隊耐受度、航路天氣與航管指令仍可能解釋公司差異；模擬只測試設定過的
+競爭解釋。氣象基準不是逐班真實成因，清單供監理優先查核，不構成違規認定。
+取消的航班沒有到達延誤，不進入稽核樣本。樣本期間的成因分類適用當時制度，
+不能直接延伸到後續修訂的分類 @dot2026causes。
+
+= 驗證：以已知真值檢查清單 <ch:sim>
+
+== 目的、基底與未知的真值
+
+真實資料沒有逐班延誤的客觀成因，無法直接檢驗實證清單是否正確。
+模擬研究先設定逐班成因真值，再對指定公司植入已知的申報偏移，
+依正式分析程序重新產出排序與證據標記。
+驗證單位是公司，與交付物一致；流程見 @fig:sim-flow。
+
+#figure(
+  cetz.canvas(length: 1cm, {
+    import cetz.draw: *
+    let border = rgb("#4b6277")
+    let arrow = (stroke: (paint: border, thickness: 0.9pt), mark: (end: ">"))
+    let boxes = (
+      (0.0, rgb("#e7f1fb"), [保留觀測航班], [公司、氣象、航線], [與到達延誤]),
+      (2.95, rgb("#f1f4f8"), [生成潛在成因], [五欄非負分鐘], [總量固定]),
+      (5.90, rgb("#fff0d5"), [植入申報偏移], [指定公司改報], [維持總分鐘數]),
+      (8.85, rgb("#e7f1fb"), [重估分析模型], [相同樣本], [相同分析規則]),
+      (11.80, rgb("#e9f4e9"), [評估查核清單], [比較排序標記], [與植入答案]),
+    )
+    for (x, fill, title, detail1, detail2) in boxes {
+      rect((x, 0.2), (x + 2.6, 2.1), fill: fill, stroke: border)
+      content((x + 1.3, 1.62), text(size: 9pt, weight: "bold")[#title])
+      content((x + 1.3, 1.02), text(size: 7.5pt)[#detail1])
+      content((x + 1.3, 0.70), text(size: 7.5pt)[#detail2])
+    }
+    for x in (2.6, 5.55, 8.50, 11.45) {
+      line((x, 1.15), (x + 0.35, 1.15), ..arrow)
+    }
+  }),
+  caption: [Plasmode simulation 從觀測航班到公司層級查核清單的生成與評估流程。],
+) <fig:sim-flow>
+#tc(<brakenhoff2018profiling>) 的醫療機構 profiling 研究也以真實個體特徵
+作為模擬基底，按機構評估漏列與誤列；本題借其*評估層級與情境設計*，
+不借用二元結果模型。依 #tc(<morris2017simulation>) 的 ADEMP，分別檢查
+零偏移時的排序與 BH 誤標、已知改報的標記力，以及真實受天氣影響不同時的誤標。
+
+plasmode simulation 固定真實航班的層、公司、氣象、機尾號、前一航段與到達延誤，
+只替換申報成因 @schreck2023plasmode。十五分鐘以下仍無申報，生成後再取與
+正式分析相同的稽核樣本；公司航網、班次不均與稀疏層因此保留。
+
+由於資料不含客觀成因，生成機制先設定一組*潛在真實成因分鐘數* $T_(i,k)$，
+$k$ 取五個申報成因。逐班保留可分配總量 $L_i$，使
+
+$ T_(i,k) >= 0, quad sum_k T_(i,k)=L_i, quad
+  H_i = bb(1)(T_(i,#raw("weather")) > 0). $ <eq:true-causes>
+
+$H_i$ 表示本班是否真的有天氣造成延誤；$T_(i,k)$ 與 $H_i$ 都不是從
+`reported_*` 成因欄反推的真值。其分布由事先指定的氣象反應情境生成，
+涵蓋機隊容忍度與航路天氣未被測站捕捉的可能性。因為真實的 $T_(i,k)$
+無法校準，模擬只能說「在這些設定下能否分辨」，不能推算實證清單的真實誤列率。
+
+== 資料如何生成，與分析模型如何區隔
+
+先令 $bold(w)_i$ 為事件時刻氣象。潛在天氣成因的機率可設為
+
+$ op("logit") P(H_i=1 | bold(w)_i,s(i),r(i),t(i))
+  = a_(s(i)) + a_(r(i)) + f(bold(w)_i) + b_(t(i)), $ <eq:latent>
+
+$s(i)$ 與 $r(i)$ 分別是起點、目的地機場 × 年月，$t(i)$ 是機尾號；$f$
+含兩端的能見度、雲幕、風、降水與交互作用。先依 $H_i$
+與 $L_i$ 生成滿足 @eq:true-causes 的真實五欄分鐘數；再以同一套*申報規則*
+決定是否在填報時啟用天氣欄：
+
+$ op("logit") P(Y_i=1 | H_i,bold(w)_i,c(i))
+  = kappa_(H_i) + g(bold(w)_i) + v_(d(i)) + v_(t(i))
+    + delta_(c(i))^Y. $ <eq:reporting>
+
+$d(i)$ 是機場 × 日期；$v_d$ 與 $v_t$ 使同日與同機尾號的申報相關。
+$delta_c^Y=0$ 表示在相同真實成因與天氣下，公司沒有額外的申報傾向。
+資料生成使用 logit 與氣象交互作用，天氣欄啟用分析則使用線性機率模型
+與較簡單的氣象項；
+目的地月份效果使模擬也能檢查只控制起點時的遺漏偏差。
+藉此檢驗分析模型設定不完全時的表現。
+
+先依 @eq:reporting 抽出是否啟用天氣欄，再在固定 $L_i$ 下分配申報分鐘：
+若抽到不啟用，將天氣真值分鐘轉至其他欄；若抽到啟用而天氣真值為零，
+從有正分鐘數的其他欄移入天氣欄。植入公司效果時也遵守此順序，
+使天氣啟用狀態與最後的申報分鐘一致；只改動分鐘配置的情境須固定已抽出的
+$Y_i$，啟用時保留天氣欄正分鐘數，不啟用時不得移入天氣欄。
+令 $R_(i,k)$ 為模擬後可供分析的五欄*申報*，它由真值加上改報量形成：
+
+$ R_(i,k)=T_(i,k)+Delta_(i,k), quad
+  sum_k Delta_(i,k)=0, quad R_(i,k)>=0. $ <eq:misreport>
+
+共同的填報雜訊可讓 $R_i$ 偏離 $T_i$，但所有公司使用同一規則；再對指定公司
+額外植入已知的改報偏移。分別模擬 `carrier` 移往 `weather`、NAS 或
+`late-aircraft`，以及 NAS 移往 `weather`、`weather` 移往 NAS，
+並加入隨延誤長度整段全記天氣；每次移轉量
+不得超過移轉當下來源欄可用的分鐘數。若 $Y_i=0$，$R_(i,#raw("weather"))=0$；
+若 $Y_i=1$，天氣欄有正分鐘數。五欄申報總量維持 $L_i$，並保留多零、
+整段全記與右尾形態，避免只用平滑的 multinomial 模型替分析模型出題。
+
+#figure(
+  table(
+    columns: (auto, 1fr, 1fr),
+    stroke: hline,
+    align: left,
+    row-gutter: 0.45em,
+    [情境], [資料如何生成], [檢查什麼],
+    [零偏移], [各公司共用 @eq:reporting 的規則與申報雜訊，沒有公司特有偏移], [航網與天氣不同時的名次與 BH 誤標],
+    [植入偏移], [只對指定公司改動五欄分鐘數的移轉規則或天氣啟用率], [二類主清單對責任邊界偏移的排序與標記力，以及輔助模型對偏移形式的辨識能力],
+    [機隊差異], [保持申報規則相同，只提高指定公司在 @eq:latent 的真實天氣成因機率], [識別假設違反時的名次與誤標],
+  ),
+  caption: [Three base simulation scenarios.],
 ) <tbl:scenarios>
 
-*生成模型須比分析模型有彈性。* #tc(<shaw2025plasmode>) 指出，生成模型與分析
-模型相同時，模擬量到的只是模型對自己的配適，方法的表現會被高估。$H_0$ 的
-生成模型因此加入分析模型沒有的項，例如氣象共變量之間的交互作用與非線性的
-連結函數。#ref(<sec:within>)的線性假設即由此檢查。
+== 植入範圍與受影響公司的組成
 
-*生成模型用事件時刻的氣象。* 成因分配由 `oracle_` 氣象決定，這對應申報人
-實際擁有的資訊。分析模型則依@tbl:basis 的三種設定各估一次。只用 `wx_` 的
-設定少了生成機制用到的資訊，它在 $H_0$ 下的誤列率就是資訊集不對齊的代價，
-其餘兩種設定是對照。
-
-== 估計對象
-
-@eq:within 的 $gamma_c$、@eq:lp 的 $theta_(c, k)$ 及其 contrast，以及由這些
-係數決定的各公司的 rank。真值由生成機制給定：$H_0$ 下全為零，植入偏移的
-情境下由 $delta$ 決定。
-
-== 方法
-
-#ref(<ch:methods>)的全部方法，加上#ref(<sec:rank>)的 confidence set for
-ranks 與#ref(<sec:restrict>)的 test of restrictions。每一次重複都執行與真實
-資料分析完全相同的程式，包含層的篩選、收縮與校正。
-
-== 表現指標
+植入設計的三個維度見 @tbl:sim-factors。受植入公司集合事先指定，並保留其
+真實航班配置。#tc(<brakenhoff2018profiling>) 支持同時改變異常者比例與
+機構規模；#tc(<steinbuss2020outlier>) 支持把局部異常與全域異常分開評估。
 
 #figure(
   table(
-    columns: (auto, 1fr),
+    columns: (1fr, 1.7fr, 1.7fr),
     stroke: hline,
-    align: (left, left),
-    row-gutter: 0.45em,
-    [指標], [回答的問題],
-    [$H_0$ 下的 type I error 與 false discovery rate], [無偏移時是否誤列],
-    [各 $delta$ 下的檢定力], [偏移多大才偵測得到，與公司班次的關係],
-    [估計量的偏誤與信賴區間的涵蓋率], [高維固定效應與重尾結果下，區間是否仍有效],
-    [rank 的還原率與 confidence set for ranks 的涵蓋率], [被植入的公司能否排到清單前段],
-    [識別假設被違反時的誤列率], [未觀測的差異會把無偏移者推上清單多少],
-    [理論參照與 empirical null 的 false discovery rate], [參照分布由資料估計時，誤列是否減少],
-    [三種氣象設定各自的誤列率], [只用起飛前氣象時，資訊集不對齊的代價],
-    [test of restrictions 的檢定力], [monotonicity 與交互作用檢定能否偵測對應型態的偏移],
+    align: left,
+    row-gutter: 0.5em,
+    [Factor], [Settings], [What it tests],
+    [Planted carriers], [Few or many], [Peer-reference contamination],
+    [Carrier flight volume], [Across sizes; concentrated in small or large carriers], [Misses driven by unequal volume],
+    [Injection scope], [All eligible flights; selected airports, months, or weather states], [Local signals masked by an overall average],
   ),
-  caption: [表現指標。各指標另報 Monte Carlo 標準誤。],
+  caption: [Simulation factors crossed with the base scenarios.],
+) <tbl:sim-factors>
+
+條件式植入只改動指定情境內的航班，仍按 @eq:misreport 在五欄間轉移分鐘數，
+維持非負、總量及零值關係。Steinbuss 與 Böhm 的生成法需要已標記為正常的資料；
+本題沒有這種標籤，因此只借用其異常型態的區分，不照搬生成分布。
+
+條件式植入包含兩種情形：一種仍會改變公司整體的平均申報配置；
+另一種只影響特定條件下的航班，使公司整體平均接近不變。
+主模型估計*平均公司效應*，未納入公司 × 機場或公司 × 天氣的
+交互作用。後一種情境若未排在前段且未獲 BH 標記，表示主清單難以凸顯這類局部異常，
+不能把它解讀成平均效應估計有偏。故局部情境的名次與標記率單獨報，
+並列受影響條件內的申報差異與全體航班平均差異；不把它混入全域改報的
+偵測力摘要。此項檢查用於界定清單能辨認的異常範圍。
+
+== 真值、重複分析與表現指標
+
+植入參數 $delta_c^Y$ 在 logit 尺度上；天氣欄啟用模型的 $gamma_c$ 卻是
+線性投影的機率差，不能把前者直接當成後者的「真值」。二類與四欄配置模型
+也可能因聚合與固定效應而有不同的目標值。每個情境先由生成機制計算
+理論條件平均：對天氣啟用模型的設計矩陣作同一個投影，得 $gamma_c^*$；
+對兩個配置模型，分別將理論平均分鐘數代入各自的 Poisson score 求得
+對應目標。這是分析程序在該情境下應估到的值；若目的是判定「申報規則
+是否被改動」，另以植入的 $delta_c$ 作真正的公司異常標籤。
+
+每次重複都重新生成 $T_i$ 與五欄申報、重新套樣本規則、重新擬合二類主模型
+與成因診斷模型，並依 #ref(<ch:deliver>) 的規則形成完整排序與 BH 證據標記。
+模擬和真實資料須用同一規則；看到模擬結果再挑門檻會高估表現。
+對 `carrier` 移往非 `carrier` 與非 `carrier` 欄彼此互換，分別報告名次與標記力。
+後一種改報不改變二類份額，
+二類排序理應無法辨認；若要查天氣欄的分類習慣，須另看四欄診斷。
+另依受影響公司數、班次規模與偏移範圍分組，比較相同偏移幅度在小公司
+是否較難檢出，以及多家公司同向偏移時，未植入公司是否被標記為反向異常。
+局部偏移能否反映在清單前段，也須單獨檢查。
+
+以被植入公司為陽性標籤，逐次記錄 BH 正確標記、誤標與漏標。
+標記的偵測力是植入者獲標記的比例；每次獲標記者中未被植入者的比例是
+查核誤標比例，沒有標記時定為零。統計意義的 false discovery proportion 則須以
+生成機制下真正滿足中心化公司效果為零者作虛無集合，跨重複平均為 false discovery rate。
+由於重新中心化會使未植入公司的效果也可能非零，查核誤標比例與統計 FDR 須分開報告。
+另報植入者的名次分布、無偏移公司的標記率與方向判對率。這些指標分別評估
+完整排序與證據標記，比單一 accuracy 更適合少數公司被植入的情境。真實資料仍沒有這些
+標籤，不能把模擬指標寫成實際航空公司的判錯率。
+
+#figure(
+  table(
+    columns: (1.3fr, 1.6fr),
+    stroke: hline,
+    align: left,
+    row-gutter: 0.45em,
+    [表現指標], [實際回答的問題],
+    [零偏移下的 BH 誤標率與 false discovery rate], [申報規則相同時的標記情形],
+    [偏移情境的標記力、名次與方向判定], [不同偏移形式與公司規模下的標記與排序表現],
+    [受影響公司數與局部情境的分層結果], [可比公司等權平均受污染或偏移只在部分航班發生時，清單覆蓋到哪裡],
+    [$hat(gamma)_c$、$hat(theta)_(c,k)$ 的偏誤], [線性近似、聚合或固定效應是否扭曲係數],
+    [係數區間與名次範圍的涵蓋率], [標準誤與排序不確定性是否對同日、同尾號與右尾資料有效],
+    [機隊差異情境的名次與 BH 誤標率], [真實天氣成因不同時的排序與標記情形],
+  ),
+  caption: [Performance measures for estimates, intervals, and the audit list.],
 ) <tbl:performance>
 
-== 結論的界限
+若重複次數為 $B$、某項表現指標是每次為零或一的事件，其 Monte Carlo
+標準誤為 $sqrt(hat(p)(1-hat(p))/B)$。通過標準應在執行前依名目水準與
+Monte Carlo 標準誤訂定；所需 $B$ 由可接受的 Monte Carlo 誤差與單次
+高維 Poisson 擬合時間共同決定。若區間涵蓋不足，要分辨是係數偏誤、
+單元聚類遺漏同層相關，還是重尾單元主導估計，而不是只換一個名目信賴水準。
 
-模擬只能否證方法，不能證實方法 @karim2026plasmode。通過的只是所設定
-的偏移型態與生成機制；未設定的偏移型態是否偵測得到，模擬回答不了。真實資料
-的清單若與模擬中「識別假設被違反」的情境形態相似，也無法由模擬區分兩者。
-這兩點會在最終報告中明說。
-
-== 計算成本
-
-每一次重複都要重新配適兩個模型，這是本研究第一個同一運算大量重複的環節。
-實測單次配適的時間，within estimator 以秒計，含高維固定效應的 Poisson 模型以
-數十秒計。前者重複數百次不成問題；後者須平行執行，但不必抽取部分的層。重複
-次數由 Monte Carlo 標準誤的目標精確度反推。
-
-= 分析計畫 <ch:plan>
-
-以下各節各自處理清單的一個弱點。
-
-== 清單的不確定性 <sec:rank>
-
-*問題。* 交付物是排序，現有的區間卻是係數的區間。監理單位問的是「排在最前面
-的那一家有多確定是最前面」，係數的區間不能直接回答：兩家的係數區間不重疊，
-不代表整張清單的順序都確定。機構排名的這個問題由
-#tc(<goldstein1996league>) 提出。
-
-*rank 的推論。* 對 rank 本身建立信賴集合。#tc(<almohamad2017ranks>) 給出整張
-清單同時成立的集合，#tc(<chetverikov2024csranks>) 另提供單一公司的邊際集合與
-實作。兩者的輸入是係數估計與其共變異矩陣，可直接接在現有估計之後。
-成因分配的 rank 可改用 #tc(<bazylik2024multinomial>) 針對 multinomial 資料的
-版本；#tc(<chandra2025ranks>) 提供有限樣本下有效的集合，作為漸近版本的對照。
-
-*清單該列幾家。* rank 的信賴集合若很寬，完整排序即無意義，交付物應改為分級。
-#tc(<gu2020invidious>) 把排序與選擇寫成 compound decision，在控制誤選率之下
-決定選出哪些單位；#tc(<kline2023reportcard>) 以同一框架為雇主評級，在評級的
-資訊量與排序錯誤之間取捨。後者的處境與本研究相同：對一批機構的行為差異給出
-可公開的分級。
-
-*區間本身是否有效。* rank 的推論以係數的區間為輸入，係數的區間若失準，其後
-全部失準。待檢查的有三項，前兩項的理由見#ref(<sec:simplex>)，第三項見
-#ref(<sec:cluster>)：incidental parameter 造成的偏誤、重尾結果下的區間，以及
-小公司的有效 cluster 數。做法是以 cluster bootstrap 與 two-way jackknife
-重算區間，與 sandwich 區間並列；三者的涵蓋率在模擬研究中量測。
-
-== 未觀測混淆 <sec:confound>
-
-*問題。* #ref(<sec:estimand>)的識別假設可能因機隊特性而不成立：小型支線機對
-低雲與強風的容忍度較低，確實較常被天氣拖延。此時公司主效應反映的是機隊差異。
-
-*敏感度分析。* #tc(<cinelli2020sensitivity>) 以 partial $R^2$ 表示未觀測變數
-與處理、與結果的關聯強度，回答「要多強的未觀測混淆才能使係數歸零或變號」，
-並以已觀測共變量的強度作為比較基準。本研究的處理變數是公司，在層內才有變異，
-#tc(<strezhnev2026ovb>) 指出處理在群集層變動時原公式須修正；
-#tc(<wainstein2025wls>) 處理加權估計的情形。計畫對清單前段的每一家公司報告
-使其係數歸零所需的混淆強度，並以氣象共變量的強度為基準。
-
-*機尾號固定效應。* 機型隨機尾號固定，加入機尾號的固定效應可消去機隊特性。
-代價在識別：此時公司主效應只能由曾為多家公司執飛的飛機識別。稽核樣本的
-#thou(pick(tails, "機尾號")) 個機尾號中，只有 #thou(pick(tails, "跨公司的機尾號")) 個
-曾為兩家以上公司執飛，其班次佔 #pct(pick(tails, "跨公司機尾號的班次佔比"), d: 1)。
-這些飛機把 #thou(pick(tails, "最大成分的公司數")) 家公司連成一個連通成分，全數是
-區域航空；其餘公司各自孤立，沒有任何一架飛機與他家共用。此模型因此只能回答這
-幾家區域航空之間的比較。主線公司之間、主線與區域之間的機隊差異，只能由敏感度
-分析處理。
-
-== 由模型導出的限制條件 <sec:restrict>
-
-*問題。* 因子水準間的比較只能說某公司高於另一公司，而偏高可以有正當的解釋。
-test of restrictions 不依賴公司之間的比較：由申報的機械關係導出一個應成立的
-限制，檢驗各公司的資料是否違反。
-
-- _monotonicity restriction。_ 延誤越長，整段記入天氣的機率應遞減
-  （#ref(<sec:mixture>)）。迴歸函數是否單調可用 #tc(<chetverikov2012monotonicity>)
-  的無母數檢定，不必先設定函數形式。
-- _共變量 × 公司的交互作用檢定。_ 同一架飛機的前一航段晚到，會消耗班表留下
-  的周轉時間，本班的延誤便有明確的機械成因，應記入 `late-aircraft`。以排定
-  周轉時間減去前一航段的到達延誤為剩餘緩衝，兩個輸入都在本班起飛前確定，
-  不受本班的申報影響。檢定的是剩餘緩衝對天氣歸因的影響是否因公司而異：
-  剩餘緩衝小時反而更常記入天氣的公司，違反此限制。
-- _天氣變化 × 公司的交互作用檢定。_ 以排定到達時刻的 `oracle_` 飛行規則類別
-  減去起飛前的 `wx_` 類別，為航班起飛後的天氣變化（#ref(<sec:basis>)）。
-  天氣惡化時更常記入天氣是應有的反應。檢定的是此反應是否因公司而異：天氣
-  未惡化時仍提高天氣歸因、或惡化時毫無反應的公司，違反此限制。比較發生在
-  同一家公司的不同航班之間，不受各公司航網差異的影響。
-- _對實際天氣的 monotonicity restriction。_ 記入天氣的機率應隨事件時刻的
-  天氣嚴重度遞增。此限制對 `wx_` 不成立也無妨，申報人依據的本來就不是起飛前
-  的天氣；對 `oracle_` 則應成立。逐公司檢定，不遞增的區段即須解釋。
-  檢定須在只含 `oracle_` 的設定下進行（@tbl:basis）：`wx_` 的類別同在模型內時，
-  嚴重度的係數是給定起飛前天氣之後的條件效應，不是此限制所指的量。
-  飛行規則類別是四級的有序變數，有序解釋變數加上單調限制時的檢定與信賴區域見
-  #tc(<espinosa2021ordinal>)。
-
-*待處理。* 剩餘緩衝在資料中恆為正（緩衝若耗盡，同一架飛機無法執飛本班），
-沒有自然的斷點，只能取低於第 $q$ 分位數者為一組。$q$ 是選定的值，須報告結論
-隨 $q$ 的變化。各項檢定的檢定力在模擬研究中量測（@tbl:performance）。
-
-== 氣象判定以外的航班 <sec:negctl>
-
-*問題。* 稽核樣本以起飛前的 `wx_` 判定惡劣天氣。以事件時刻的 `oracle_` 再
-判定一次，有申報義務的航班分成四類。
-
-#figure(
-  table(
-    columns: (auto, auto, auto),
-    stroke: hline,
-    align: (left, left, left),
-    row-gutter: 0.45em,
-    [], [事件時刻惡劣], [事件時刻良好],
-    [起飛前惡劣], [稽核樣本，#cell-n("true", "true") 班], [稽核樣本，#cell-n("true", "false") 班],
-    [起飛前良好], [未納入，#cell-n("false", "true") 班], [未納入：negative control，#cell-n("false", "false") 班],
-  ),
-  caption: [依兩組氣象判定的四類航班。惡劣指起點或目的地為 IFR 或 LIFR。班次不含任一組氣象類別缺觀測者。],
-) <tbl:fourfold>
-
-下列的兩類不在稽核樣本內，各有用途。主樣本維持不變，使結論能與提案及既有
-輸出對照；下列兩類各自另做一個分析。
-
-*起飛前良好、事件時刻惡劣。* 這些航班確實遭遇惡劣天氣，只因起飛前尚未轉壞
-而被排除。以同一組模型在這批航班上另行估計公司主效應。兩批航班的結論若
-一致，清單即不依賴樣本以哪一組氣象判定；若不一致，差異本身說明哪些公司的
-申報對「起飛後才出現的天氣」反應不同。
-
-*兩組氣象皆良好：negative control。* #tc(<lipsitch2010negative>) 的想法是
-找一個預期沒有效應的情境，若該處仍觀察到關聯，即顯示有未測量的因素在作用。
-其假設與設計準則見 #tc(<shi2020negative>) 的綜述。
-兩端機場在起飛前與事件時刻都不是惡劣天氣的航班，記入天氣沒有機場觀測支持。
-各公司在這類航班上記入天氣的機率有兩個用途：
-
-- _方向性的證據。_ 主樣本的公司主效應只說明某公司高於其他公司。這裡的參照
-  點是「沒有觀測到的天氣」，比例偏高的公司須說明天氣從何而來。
-- _檢查主效應的來源。_ 某公司在 negative control 上的主效應若與主樣本同樣
-  大小，它在主樣本的偏高便不是對天氣的反應較強，而是一種與天氣無關的記帳
-  習慣。兩者的監理意義不同。
-
-*假設與檢查。*
-
-- _機場天氣良好不等於沒有天氣。_ 航路上的對流天氣不在測站觀測內，前段航班
-  因天氣晚到也可能被記入天氣。此處的比例因此不會是零，有訊號的是公司之間的
-  差異。層改取起點 × 目的地 × 年月，同一層的航班飛同一條航路，航路天氣在
-  公司之間相同。代價是可比較的範圍：以機場 × 年月為層時，含兩家以上公司且
-  結果有變異的層涵蓋 negative control #nc-share("機場 × 年月") 的航班，改取
-  航線 × 年月則降至 #nc-share("航線 × 年月")。故以機場 × 年月為主要設定，
-  航線 × 年月作為檢查，其結論只及於有多家公司飛行的航線。
-- _樣本來源。_ 這兩類航班有申報義務，只是未通過惡劣天氣的判定，可由同一份
-  已清理的資料取得，處理方式與稽核樣本相同。
-
-*延伸。* 機場逐時氣象可算出航班排定時間窗內機場處於惡劣天氣的時數，把
-「惡劣與否」換成連續的曝露量。時間窗須以排定的起飛與到達時刻界定；以實際
-到達時刻界定，延誤越久時間窗越長，曝露量即成為結果的函數。
-
-== 判定偏離的參照分布 <sec:null>
-
-*問題。* 檢定的虛無假設是「公司主效應恰為零」。樣本達百萬班時標準誤極小，
-任何非零的差異都會顯著。而即使沒有任何公司的申報有問題，氣象共變量未能完全
-調整的差異也會使主效應不為零。以理論上的零為參照，顯著與否便失去鑑別力。
-醫療機構的評比有同樣的處境 @normand2007profiling：
-#tc(<xia2019profiling>) 指出，慣用的固定效應與隨機效應做法都會不成比例地
-標記大機構，原因是參照分布沒有納入風險調整不完全所造成的機構間變異。
-
-*方法。* 該文的做法是 empirical null @efron2007size：參照分布由資料
-估計，不取理論值。設公司 $c$ 的估計量在「申報無異常」之下服從
-
-$ hat(gamma)_c tilde.op N(mu_0, tau_0^2 + s_c^2), $ <eq:null>
-
-$s_c^2$ 是抽樣變異，$tau_0^2$ 是與申報異常無關的公司間變異。各公司的 $s_c$
-相差懸殊，參照分布因此隨公司而異，這一點同 #tc(<hartman2022null>) 的個別化
-empirical null。以 @eq:null 算出的 $p$ 值再進入#ref(<sec:shrink>)的
-Benjamini–Hochberg 程序。
-
-*$mu_0$ 與 $tau_0^2$ 從哪裡估計。* empirical null 通常由估計值分布的中央部分
-估計，前提是多數單位屬於虛無。本研究只有 #thou(pick(dims, "執飛航空公司")) 家
-公司，中央部分無從界定。改由#ref(<sec:negctl>)的 negative control 估計：在
-兩組氣象皆良好的航班上以同一組模型估計公司主效應，其分布的位置與離散即
-$mu_0$ 與 $tau_0^2$。這是 #tc(<schuemie2014calibration>) 的 empirical
-calibration 的做法，該文以預期無效應處的估計值分布校正主分析的 $p$ 值。
-
-*與 shrinkage 的關係。* @eq:eb 的 $tau^2$ 是公司間的全部變異。此處把它拆成
-兩部分：negative control 上也出現的 $tau_0^2$，以及只在惡劣天氣下出現的
-其餘部分。清單要找的是後者。
-
-*呈現。* 清單另附一張 funnel plot @spiegelhalter2005funnel：以估計量的
-精確度為橫軸，畫出 @eq:null 的界限。班次少的公司界限寬，是否越界一望即知，
-不必把所有公司排成一列。
-
-*假設與檢查。*
-
-- _negative control 與主樣本的偏誤來源相同。_ #tc(<hwang2021calibration>)
-  檢視了 empirical calibration 在不同偏誤情境下的表現。本研究中此假設只部分
-  成立：機隊對惡劣天氣的容忍度不同，這項差異只在惡劣天氣下起作用，天氣良好
-  的航班量不到它。$tau_0^2$ 因此只涵蓋與天氣無關的公司間變異，機隊造成的
-  部分仍由#ref(<sec:confound>)處理。
-- _公司數少。_ 估計 $tau_0^2$ 的資料點只有公司數那麼多，估計值本身不確定，須把它的抽樣誤差
-  傳入 @eq:null。機場層級的清單單位數多得多，empirical null 在該處較能發揮。
-- _與天氣無關的偏高仍有監理意義。_ 以 @eq:null 判定，會放過在任何天氣下
-  都偏好記入天氣的公司。這類公司由#ref(<sec:negctl>)的 negative control
-  本身標出，兩個判定並列報告。
-- _實際的錯誤率。_ 理論參照與 empirical null 兩種判定在 $H_0$ 情境與識別
-  假設被違反的情境下的 false discovery rate，由模擬研究比較
-  （#ref(<ch:sim>)）。
-
-== 機場層級的清單 <sec:airport>
-
-*問題。* 清單目前以公司為單位。監理單位派員查核時，「某公司在哪幾座機場」
-比「某公司」更可執行。
-
-*方法上的困難。* 清單所用的近期資料共有 #thou(pick(units, "公司 × 機場單位")) 個
-公司 × 機場的單位，班次的中位數為 #thou(pick(units, "單位班次中位數"))，
-#pct(pick(units, "班次少於 30 的單位佔比")) 的單位不足三十班。困難在單位小，
-不在 separation：結果全同的單位佔 #pct(pick(units, "結果全同的單位佔比"))，但只含
-#pct(pick(units, "結果全同單位的班次佔比"), d: 1) 的班次。可比較的範圍也足夠，
-有兩家以上公司的機場涵蓋 #pct(pick(units, "兩家以上公司機場的班次佔比")) 的班次。
-
-主要的處理因此是階層模型，令公司 × 機場的效應向公司的主效應收縮。少數出現
-separation 的單位，以 #tc(<firth1993bias>) 的懲罰概似得到有限的估計量；相應的
-cluster-robust 推論見 #tc(<mackinnon2024logit>)。公司與機場並非巢狀，須設為交叉
-分類的隨機效應；此結構在大樣本下的估計見 #tc(<ghosh2020backfitting>)，貝氏抽樣見
-#tc(<papaspiliopoulos2021crossed>)。此層的抽樣誤差相對於真實變異大得多，收縮預期會實質改變排序。
-
-*順序。* 此方向的工作量最大，並引出新的識別問題：一座機場若只有少數公司，
-公司 × 機場的效應與機場本身的效應難以分開。它排在其餘方向之後，且以公司
-層級的方法通過模擬驗證為前提。
-
-= 界限 <ch:limits>
-
-- *清單不是違規認定。* 方法量到的是申報行為在公司之間的差異。由差異推到
-  申報不實，須有#ref(<sec:estimand>)的識別假設，而該假設不可檢驗。認定需要
-  航空公司的內部運行紀錄。
-- *模擬的結論限於所設定的情境。* 見#ref(<ch:sim>)。
-- *氣象基準仍少於申報人所知。* 兩組氣象都是機場測站的逐時觀測。申報人另有
-  機組回報、航管指令與簽派紀錄，這些不在公開資料內。
-- *取消的航班不在樣本內。* 取消班沒有到達延誤，不進入稽核樣本；取消本身也是
-  一次成因申報，其與延誤申報的關係另行檢視。
+plasmode 保留了觀測到的公司與航班配置，不能模擬「同一班若改由另一公司
+執飛，是否仍會達十五分鐘門檻」的反事實選入過程。它可量測已觀測樣本結構
+下的名次與標記錯誤，不能解決門檻造成的全部選擇問題。#tc(<karim2026plasmode>) 的
+提醒亦適用：在設定過的機制下通過，只表示未被這些情境否證。
 
 #bibliography("refs.yml", style: "apa", title: [參考文獻])

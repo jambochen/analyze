@@ -151,6 +151,7 @@ BTS 只要求延誤達 15 分鐘的航班填報成因。不是隨機缺失，也
 
 ## 輸出
 
-- `data/processed/audit_sample.parquet`：稽核樣本
-- `data/processed/audit_clean.parquet`：清理後的完整稽核樣本，供對照
-- `data/processed/bad_weather.parquet`：惡劣天氣子樣本，主要分析用
+- `data/processed/audit_sample.parquet`：達申報門檻的航班，未清理
+- `data/processed/audit_clean.parquet`：稽核樣本，清理後的全部達申報門檻航班；
+  天氣狀態記在 `is_bad_weather`，起飛前飛行類別缺失者為 null
+- `data/processed/bad_weather.parquet`：惡劣天氣子樣本，天氣歸因的三個比例用

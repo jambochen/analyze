@@ -1,6 +1,7 @@
 data/raw/
 data/processed/
 outputs/
+ref/
 *.Rhistory
 .Rproj.user/
 __pycache__/

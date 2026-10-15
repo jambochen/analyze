@@ -62,7 +62,7 @@
 
 - 欄位名用 `#raw` 等寬：`reported_weather_delay_min`
 - 專有名詞裸寫，不加樣式：BTS、NOAA ISD、CC BY 4.0
-- 一般術語盡量譯出，譯不出才裸寫：retrospective 譯回溯，cutoff gate 可留
+- 一般術語的中英選擇與首次說明依 `report-language.md`；熟悉的譯名可用中文，生硬或難懂的譯名保留英文原文並說明用途
 
 中英之間不手動加空格，交給字體處理。
 

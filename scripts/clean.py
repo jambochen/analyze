@@ -30,11 +30,16 @@ d = d.with_columns((pl.col("marketing_carrier") != pl.col("operating_carrier")).
 
 print(d.group_by("operating_carrier").agg(pl.col("is_regional").mean()).sort("is_regional", descending=True))
 
-# 天氣晴朗時談低報天氣延誤沒有意義，主要分析限定於惡劣天氣。
-bad = d.filter(
-    pl.col("wx_origin_flight_category").is_in(["IFR", "LIFR"])
-    | pl.col("wx_dest_flight_category").is_in(["IFR", "LIFR"])
+# 天氣狀態是稽核樣本內的變數，不是篩選條件：好天氣時延誤照樣要在各欄之間分配。
+# 以起飛前的 wx_ 判定，使三種氣象設定的分組一致。類別缺失者留 null，兩種狀態皆不屬。
+# 欄名不以 wx_ 開頭，避免被依前綴取氣象欄位的腳本當成氣象特徵。
+d = d.with_columns(
+    (pl.col("wx_origin_flight_category").is_in(["IFR", "LIFR"])
+     | pl.col("wx_dest_flight_category").is_in(["IFR", "LIFR"])).alias("is_bad_weather")
 )
+
+# Y1 至 Y3 問的是天氣歸因，天氣晴朗時沒有意義，只在惡劣天氣子樣本上定義。
+bad = d.filter(pl.col("is_bad_weather")).drop("is_bad_weather")
 
 # Y1 是否歸因天氣，Y2 歸因時掛多少比例，Y3 天氣佔天氣與 NAS 之和。
 # 三者問的是不同問題，分別建模，不合成單一指標。
