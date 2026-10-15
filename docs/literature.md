@@ -59,7 +59,25 @@
 - **QuickSkill: Novice Skill Estimation in Online Multiplayer Games**（arXiv 2208.07704，已查證）。新手等級分不準的冷啟動問題，對應本題的新手期。https://arxiv.org/abs/2208.07704
 - **Analysis of player's in-game performance vs rating: Case study of Heroes of Newerth**（arXiv 1305.5189，已查證）。比較遊戲內表現與 MMR，指出玩家會利用系統弱點。https://arxiv.org/abs/1305.5189
 - 團隊賽的實力加總與以行為特徵評分：arXiv 2106.11397、2207.00528、2112.04379，已查證。用於「類推到電競的界線」
-- Glicko-2 的原始定義（Glickman）與 Lichess 的等級分實作：待補
+- Glicko-2 的原始定義（Glickman）：待補。Lichess 的實作見「Lichess 的等級分實作」
+
+## Lichess 的等級分實作
+
+以下皆為 lila 原始碼與 commit 的一手出處，已查證。
+
+- **參數**：2014 年 7 月的版本（commit `f09a2e9893`）初始值為等級分 1500、RD 350、volatility 0.06，τ = 0.75（`modules/round/src/main/PerfsUpdater.scala`、`modules/rating/src/main/java/glicko2/RatingCalculator.java`）。每一局各自更新一次，一局即一個 rating period。等級分低於 800 時以 800 計算（`math.max(800, perf.glicko.rating)`）
+- **分層**：同一局同時更新全站、執白或執黑、棋種、速度類別（Bullet、Blitz、Slow）與 pool 的等級分；pool 對局不更新全站等級分。線上存入對局的 RatingDiff 是全站等級分的變動
+- **改用 Glicko-2**：commit `bd6896a731`「convert all site to glicko ratings」、`6732496607`「migrate game collection with glicko ratings」、`d4d8b0e695`「fix rating calculator tau factor」，2013 年 12 月 17 日至 21 日
+- **等級分下限**：commit `90efa51203`「glicko2 rating lower bound」，2014 年 4 月
+- **等級分重構與遷移**：commit `505fb753f5`「perfs refactoring WIP」、`4a071d186b`「faster ratings migration」、`90208cbdd5`「rename Slow to Classical」、`6ce10d41a0`「make the standard perf a function of its sub perfs」，2014 年 7 月 26 日至 29 日
+- **全部歷史對局的重算**：`modules/api/src/main/RatingFest.scala`（2014 年 7 月 27 日至 30 日，最後一版 commit `c89cb1eb33`）。先清空所有玩家的等級分，再依對局建立時間的先後逐局以當時的 `PerfsUpdater` 重算，並以 `resetGameRatings = true` 改寫每局存的對局前等級分與 RatingDiff。跳過未完成、從自訂局面開始與自己對自己的對局；有一方被標為作弊的對局取消計分、移除 RatingDiff。每次並行處理 4 局（`bulkSize = 4`），同一玩家相鄰的對局落在同一批時處理順序可能顛倒
+- **重算所用的規則**：`modules/round/src/main/PerfsUpdater.scala`（commit `bfad573339`「tweak rating recalculator」）。Bullet、Blitz、Classical 只由標準棋對局更新，變體對局不影響；無限時（Unlimited）對局併入 Classical 計分。Glicko-2 的實作為 `org.goochjs.glicko2` 程式庫
+- **通信棋獨立計分**：commit `804567893e`「support correspondence games in ratings and histories」，2014 年 12 月
+- **灌分帳號不更新**：commit `e75a9d8608`「don't update boosters ratings」，2015 年 2 月
+- **provisional 門檻提高**：commit `6fc785b387`「raise provisional glicko2 deviation threshold」，2015 年 6 月
+- **研究期間之後**：commit `4673e347e8`「very slightly re-inject rating points (+1% for winner)」，2015 年 7 月
+
+月檔的等級分與 RatingDiff 並非線上當時存入的全站值：整段期間（含 2013 年）本局等級分加 RatingDiff 大多等於同一玩家同一時間類別下一局的等級分（`scripts/explore/rating_consistency.py`），可見月檔的數值已改寫為各速度類別的值，即 `RatingFest` 重算的結果：2014 年 7 月底以前的數值來自這次重算，之後為線上即時計算。不相符的部分，候選原因有：2014 年 12 月以前無限時對局與 Classical 共用等級分，但月檔時間制為 `-`、檢查中歸入通信棋；重算時的並行處理使順序顛倒；作弊帳號的對局取消計分。待驗證。
 
 ## Lichess 的配對機制
 
