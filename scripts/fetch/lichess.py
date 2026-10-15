@@ -1,15 +1,17 @@
-"""下載 Lichess 標準棋 rated 對局 2014 全年月檔，並以官方 sha256 驗證。
+"""下載 Lichess 標準棋 rated 對局月檔，並以官方 sha256 驗證。
 
-取 2014 年：每月約 70 萬到 135 萬局，全年壓縮檔約 2 GB，只解析表頭即可分析，
-規模足以切出連續對局與流失。連續十二個月讓跨月的玩家序列不在月底被截斷。
-2014 年的棋步尚無時鐘與引擎評估標註，研究問題只用表頭，不受影響。
+2014 全年：arena 錦標賽整年隨機配對，提供匹配品質的自然實驗。每月約 70 萬到
+135 萬局，只解析表頭即可分析。連續十二個月讓跨月的玩家序列不在月底被截斷。
+
+2015 年 1 至 6 月：arena 於 2015 年 4 月改依等級分配對，取改制前後各約三個月，
+比較隨機配對與等級分配對下的留存。
 """
 
 import subprocess
 from pathlib import Path
 
 BASE = "https://database.lichess.org/standard"
-MONTHS = [f"2014-{m:02d}" for m in range(1, 13)]
+MONTHS = [f"2014-{m:02d}" for m in range(1, 13)] + [f"2015-{m:02d}" for m in range(1, 7)]
 
 ROOT = Path(__file__).resolve().parents[2]
 DEST = ROOT / "data" / "raw" / "lichess"
