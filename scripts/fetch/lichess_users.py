@@ -32,15 +32,17 @@ ids = (
     .with_columns(id=pl.col("user").str.to_lowercase())
 )
 ids.write_csv(DEST / "requested.csv")
-ids = ids["id"].to_list()
-print(len(ids))
+# 中斷後續傳：已取得的帳號不重查，省下 API 的每日額度
+done = {json.loads(l)["id"] for l in open(DEST / "users.ndjson")} if (DEST / "users.ndjson").exists() else set()
+ids = [i for i in ids["id"].to_list() if i not in done]
+print(len(done), len(ids))
 
 URL = "https://lichess.org/api/users?profile=false"
 
 
 async def main():
     async with aiohttp.ClientSession() as session:
-        with open(DEST / "users.ndjson", "w") as out:
+        with open(DEST / "users.ndjson", "a") as out:
             for i in range(0, len(ids), 300):
                 while True:
                     async with session.post(URL, data=",".join(ids[i : i + 300])) as r:
