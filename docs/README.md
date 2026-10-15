@@ -6,6 +6,9 @@
 |---|---|
 | `design.md` | 研究問題是什麼？交付物？為什麼選這個題目？哪些方向不做？ |
 | `plan.md` | 各方法要解決什麼問題？借用的方法在原論文與本研究中各解決什麼？方法之間的依賴與優先級？ |
+| `calibration.md` | 等級分給出的期望得分是否校準？後續的匹配品質與基準該用什麼？ |
+| `random-pairing.md` | 2014 年 arena 的配對是否確與等級分無關？randomization inference 該用哪些配對批次？ |
+| `sessions.md` | 續下、離開、回訪如何定義？門檻怎麼決定？`player_games.parquet` 有哪些欄位？ |
 | `directions.md` | 本資料可做的匹配相關方向，依完整性、資料、統計模型、與電競的貼近程度如何排名？ |
 | `other-data.md` | Lichess 以外還有哪些可取得原始資料的對局資料？哪一份適合作為第二份資料？ |
 | `literature.md` | 這個問題有哪些文獻？哪些出處已查證？ |
