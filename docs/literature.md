@@ -14,11 +14,11 @@
 
 ## 匹配與流失
 
-- **EOMM: An Engagement Optimized Matchmaking Framework**（EA）。以投入度而非勝率最佳化匹配。https://arxiv.org/abs/1702.06820
+- **EOMM: An Engagement Optimized Matchmaking Framework**（EA，arXiv 1702.06820，已查證，已讀全文）。以投入度而非勝率最佳化匹配：把等待配對的玩家建成完全圖，以 minimum weight perfect matching 求總流失最小的配對。關鍵假設為給定本局結果、對手狀態不再影響流失；策略比較以 EA 資料設定的模擬進行。方法與本研究的用法見 `docs/plan.md`。https://arxiv.org/abs/1702.06820
 - **EnMatch**：以玩家投入度為目標的匹配（網易伏羲，AAAI 2024）。https://ojs.aaai.org/index.php/AAAI/article/view/28760
 - **A Data-Driven Decision Support Framework for Player Churn Analysis in Online Games**（網易伏羲，KDD 2023）。資料為網易內部，不公開。https://dl.acm.org/doi/10.1145/3580305.3599759
 - 網易伏羲的 OptMatch（KDD 2020）與全域匹配（KDD 2021）：見作者頁面 https://wu-runze.github.io/collection-archive/
-- **Match experiences affect interest: Impacts of matchmaking and performance on churn in a competitive game**（Heliyon 2024）。https://pmc.ncbi.nlm.nih.gov/articles/PMC10839887/
+- **Match experiences affect interest: Impacts of matchmaking and performance on churn in a competitive game**（Kang、Suh、Kim，Heliyon 2024，已查證，已讀全文）。Netmarble 手遊的伺服器紀錄，論文明寫資料不公開。玩家日為單位、14 天無對局為流失，以雙向固定效應 logistic 迴歸估計分差、分差變異、勝率與連勝連敗對流失的效果。配對由系統依分數決定，作者承認為觀察資料。方法與本研究的用法見 `docs/plan.md`。https://pmc.ncbi.nlm.nih.gov/articles/PMC10839887/
 - **The Role of Skill in Matchmaking**（Activision 白皮書）。含實力相當下連敗發生率的機率基準，以及放寬技術匹配的實驗。https://www.activision.com/cdn/research/CallofDuty_Matchmaking_Series_2.pdf
 - **Skill-Based Matchmaking for Competitive Two-Player Games**（Yuksel，ACM TOG 2024）。https://dl.acm.org/doi/10.1145/3651303
 - **Opponent Indifference in Rating Systems: A Theoretical Case for Sonas**（arXiv 2209.03950，已查證）。玩家能看到對手分數並挑選或中止時，等級分系統會誘使玩家策略性選對手。支撐「大廳自選對手混淆分差效果」的論點。https://arxiv.org/abs/2209.03950
