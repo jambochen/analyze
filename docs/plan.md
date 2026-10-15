@@ -44,7 +44,7 @@
 - **延伸**：以核心結果為輸入，轉為建議或交叉驗證
 - **附屬**：附屬問題
 
-| 方法 | 解決的問題 | 依賴 | 優先級 |
+| 方法 | 解決的問題 | 所需的資料與前置工作 | 優先級 |
 |---|---|---|---|
 | 連續對局與流失的定義 | 「續下」「離開」「回訪」的操作定義。須同時備妥 EOMM 的 8 小時、Heliyon 的 14 天，與依開局間隔切分的連續對局，並說明本研究的主定義 | 單一 parquet | 基礎 |
 | arena 配對批次的重建 | 找出每次配對時同時空閒的玩家：randomization inference 的打亂範圍、EOMM 模擬的等待名單都取自這裡 | 單一 parquet | 基礎 |
@@ -208,76 +208,123 @@
 - **多重比較**：分層與多個反應變數的檢定，以 Holm 法控制族錯誤率，主要假設事先指定
 - **時間切分**：凡需預測評估者，以時間先後切分，不隨機切分，避免以未來資訊預測過去
 
-## 依賴關係
+## 結論之間的依賴
+
+上表的「所需的資料與前置工作」是工作流程上的先後。這一節談的是推論上的依賴：一個方法的結論，決定另一個方法能否做、該怎麼做、結果如何解讀。每個結論都有成立與不成立兩種走向，計劃須兩邊都備妥。
+
+### 會影響其他方法的結論
+
+| 結論 | 由哪個方法得出 | 影響的方法 |
+|---|---|---|
+| 配對確為隨機：批內雙方等級分無關 | arena 配對批次的重建 | 隨機配對下匹配品質的效果、EOMM 關鍵假設的檢驗、配對策略的模擬 |
+| 期望得分校準：Elo 形式是否校準，和局與先手是否隨等級變化 | 期望得分的校準 | 幾乎所有方法：匹配品質 $q$ 的定義、勝和負機率、連勝的虛無模型、表現的基準 |
+| 新手期的門檻，及累計局數代理是否可用 | 新手期的界定 | 校準、隨機配對下的效果、Heliyon 的遊戲階段 |
+| 重放能否重現表頭等級分 | Glicko-2 重放 | 校準（Glicko-2 形式）、新手期（provisional 定義） |
+| 結論對流失定義的門檻是否敏感 | 連續對局與流失的定義 | 所有以離開為反應變數的方法 |
+| 匹配品質對離開的總效果 $\gamma$ | 隨機配對下匹配品質的效果 | EOMM 檢驗的解讀、Heliyon 的比較基準、2015 年的預測值、續下模型 |
+| 給定結果，分差是否仍影響離開；$c(\text{勝}) + c(\text{負}) - 2c(\text{和})$ 的正負 | EOMM 關鍵假設的檢驗 | 配對策略的模擬、系統端建議 |
+| 離開模型是否校準 | 配對策略的模擬（模型驗證） | 模擬結果能否作為建議 |
+| 改制前的平行趨勢 | 2015 年改制的交叉驗證（前期檢定） | 改制效果能否解讀 |
+
+### 各方法在結論成立與不成立時的走向
+
+| 方法 | 依賴的結論 | 成立時 | 不成立時 |
+|---|---|---|---|
+| 期望得分的校準 | 新手期的門檻 | 新手期的對局分開校準 | 門檻不明確時，以多個門檻做敏感度分析 |
+| | 重放能重現表頭 | 加做 Glicko-2 形式的校準，比較兩種期望得分 | 只做 Elo 形式，報告缺少 RD 的限制 |
+| 新手期的界定 | 重放能重現表頭 | 以 Lichess 的 provisional（RD 門檻）作為另一個定義 | 只用帳號年齡與累計局數 |
+| 隨機配對下匹配品質的效果 | 配對確為隨機 | 全部 arena 批次做 randomization inference | 只用空閒超過 12 人的批次（原始碼為純隨機）；或依批內實際的配對規則模擬虛無分布 |
+| | 期望得分校準 | $q$ 用 Elo 形式的期望得分 | $q$ 改由校準模型的期望得分計算；和局機率隨等級變化時一併納入 |
+| | 對流失定義不敏感 | 報告主定義 | 各定義並列，結論以一致者為準 |
+| EOMM 關鍵假設的檢驗 | 配對確為隨機、期望得分校準 | 同上 | 同上 |
+| | 總效果 $\gamma$ | $\gamma \ne 0$：直接效果與經由結果的間接效果分開報告 | $\gamma \approx 0$：仍須檢驗直接效果，若直接效果不為 0，表示直接與間接效果方向相反而相互抵消 |
+| 配對策略的模擬 | 給定結果，分差不影響離開 | EOMM 原本的簡化流失模型即可，策略的差異只來自結果的分布 | 流失模型須納入分差，超出 EOMM 原本的設定 |
+| | $c(\text{勝}) + c(\text{負}) - 2c(\text{和})$ 的正負 | 為正且分差無直接效果：理論上等實力配對即最佳，模擬是確認 | 為負：等實力配對理論上最差，模擬量化差距，是系統端建議的主要依據 |
+| | 期望得分校準 | 勝和負機率取自 Elo 形式加和局模型 | 取自校準修正後的模型 |
+| | 離開模型校準 | 模擬結果作為建議 | 只報告策略間的方向，不報告幅度 |
+| Heliyon 模型的比較 | 總效果 $\gamma$ 的精確度 | 信賴區間夠窄：與大廳樣本的估計比較有意義 | 信賴區間太寬：比較沒有資訊，只報告大廳樣本的估計 |
+| | 新手期的門檻 | 遊戲階段以此分段 | 改以帳號年齡的分位數分段 |
+| 2015 年改制的交叉驗證 | 總效果 $\gamma$ | 預測的留存變動 = 匹配品質變動 × $\gamma$ | $\gamma \approx 0$ 時預測為無變動，檢驗此預測 |
+| | 改制前的平行趨勢 | 改制後的差異可解讀為改制效果 | 納入改制前的趨勢；仍不成立則只作描述，不作交叉驗證 |
+| 連勝連敗的 parametric bootstrap | 期望得分校準 | 以 Elo 形式的機率模擬 | 以校準修正後的機率模擬；若修正後仍不校準，連勝的「異常」可能只是基準失準，結論不採 |
+| 贏輸效應與表現衰退 | 期望得分校準 | 以期望得分為基準 | 以校準修正後的期望得分為基準 |
+| | 續下模型的預測力 | inverse probability weighting | 預測力不足時，權重不可信，改報告選擇偏誤的界限 |
+| AoE2 的外部效度 | 總效果 $\gamma$、EOMM 檢驗的結論 | 檢驗同樣的關係是否在排隊配對中出現 | Lichess 上無效果時，AoE2 只作描述 |
+
+### 依賴圖
+
+方框為方法，六角形為會影響其他方法的結論。
 
 ```mermaid
 flowchart TD
-    parquet[(單一 parquet)]
-    users[(帳號建立時間)]
-    y2015[(2015 年資料)]
-    aoe[(AoE2 資料)]
-
-    churn[連續對局與流失的定義]
     wave[arena 配對批次的重建]
-    novice[新手期的界定]
-    replay[Glicko-2 重放]
-    calib[期望得分的校準]
-    survival[描述性的留存曲線]
-    ri[隨機配對下匹配品質的效果]
-    eommtest[EOMM 關鍵假設的檢驗]
-    heliyon[Heliyon 模型的複製與比較]
-    sim[配對策略的模擬]
-    did[2015 年改制的交叉驗證]
-    streak[連勝連敗的 parametric bootstrap]
-    decline[贏輸效應與表現衰退]
-    ext[AoE2 的外部效度]
+    calibm[期望得分的校準]
+    novm[新手期的界定]
+    replaym[Glicko-2 重放]
+    churnm[連續對局與流失的定義]
+    rim[隨機配對下匹配品質的效果]
+    eommm[EOMM 關鍵假設的檢驗]
+    simm[配對策略的模擬]
+    helm[Heliyon 模型的比較]
+    didm[2015 年改制的交叉驗證]
+    streakm[連勝連敗的 bootstrap]
+    declm[贏輸效應與表現衰退]
+    extm[AoE2 的外部效度]
 
-    parquet --> churn
-    parquet --> wave
-    parquet --> novice
-    users --> novice
-    parquet --> replay
-    parquet --> calib
-    novice --> calib
-    replay -.->|Glicko-2 形式| calib
-    churn --> survival
-    churn --> ri
-    wave --> ri
-    calib --> ri
-    ri --> eommtest
-    eommtest -->|流失模型| sim
-    wave -->|等待名單| sim
-    calib -->|勝和負機率| sim
-    ri --> heliyon
-    churn --> heliyon
-    novice --> heliyon
-    ri --> did
-    y2015 --> did
-    calib --> streak
-    ri -->|續下模型| decline
-    calib --> decline
-    ri --> ext
-    aoe --> ext
+    crand{{配對確為隨機}}
+    ccal{{期望得分校準}}
+    cnov{{新手期門檻}}
+    crep{{重放重現表頭}}
+    csens{{對流失定義不敏感}}
+    cgamma{{匹配品質的總效果}}
+    cdirect{{給定結果的直接效果與勝和負不等式}}
+    csimcal{{離開模型校準}}
+    cpar{{改制前平行趨勢}}
 
-    classDef base fill:#e8eef7,stroke:#4a6fa5
-    classDef core fill:#fdecea,stroke:#c0392b
-    classDef extend fill:#eaf5ea,stroke:#3c8d3c
-    classDef sub fill:#f2f2f2,stroke:#888
-    class churn,wave,novice base
-    class replay,calib,survival,ri,eommtest core
-    class heliyon,sim,did,ext extend
-    class streak,decline sub
+    wave --> crand
+    calibm --> ccal
+    novm --> cnov
+    replaym --> crep
+    churnm --> csens
+    rim --> cgamma
+    eommm --> cdirect
+    simm --> csimcal
+    didm --> cpar
+
+    crep -.-> calibm
+    crep -.-> novm
+    cnov --> calibm
+    crand --> rim
+    ccal --> rim
+    csens --> rim
+    cnov --> rim
+    crand --> eommm
+    ccal --> eommm
+    cgamma --> eommm
+    cdirect --> simm
+    ccal --> simm
+    csimcal --> simm
+    cgamma --> helm
+    cnov --> helm
+    cgamma --> didm
+    cpar --> didm
+    ccal --> streakm
+    ccal --> declm
+    cgamma -->|續下模型| declm
+    cgamma --> extm
+    cdirect --> extm
+
+    classDef concl fill:#fff4d6,stroke:#c99a06
+    class crand,ccal,cnov,crep,csens,cgamma,cdirect,csimcal,cpar concl
 ```
 
-顏色：藍為基礎、紅為核心、綠為延伸、灰為附屬。虛線表示可延後的依賴。
-
-連勝連敗的 parametric bootstrap 只依賴校準，可與核心並行。AoE2 在核心有結果後才開始。
+虛線表示該結論只決定是否加做敏感度分析，不影響主分析能否進行。
 
 ## 執行上的判斷
 
-- **關鍵路徑**是流失定義、配對批次與校準三者，之後才能估隨機配對下的效果。三者彼此獨立，可並行
-- **Glicko-2 重放可延後**：校準先以 Elo 形式的期望得分進行；重放成功後再補 Glicko-2 形式，作為校準與匹配品質量測的敏感度分析。重放若無法重現表頭等級分，本研究仍可完成，只是少了 rating deviation
-- **EOMM 關鍵假設的檢驗是本研究最有新穎性的一項**：原論文無法檢驗，隨機配對正好可以。估計隨機配對下的效果時，模型須同時納入本局結果與分差，才能直接回答
-- **Heliyon 的比較放在核心之後**：它的價值在於與隨機配對下的估計對照，沒有核心結果就沒有比較的對象
-- **配對批次的重建是 EOMM 模擬的前提**：原論文只能從資料抽樣模擬等待名單；本研究用真實的同時空閒玩家，模擬才有依據
+- **先做會左右最多方法的結論**：期望得分是否校準影響幾乎所有方法；配對是否確為隨機決定核心的識別。兩者應最先得出，且彼此不依賴，可並行
+- **隨機配對下的總效果 $\gamma$ 是第二層的樞紐**：EOMM 檢驗的解讀、Heliyon 的比較、2015 年的預測與續下模型都依賴它
+- **Glicko-2 重放的結論只決定敏感度分析**：重放失敗不影響主分析，故可延後
+- **配對是否隨機若不成立，仍有退路**：原始碼顯示空閒超過 12 人時是純隨機，只用這些批次即可，代價是樣本變小
+- **EOMM 關鍵假設的檢驗是本研究最有新穎性的一項**：原論文無法檢驗，隨機配對正好可以。它的結論直接決定配對模擬要用哪種流失模型，以及系統端建議的方向
 - **EOMM 關鍵假設的檢驗有一個中介變數的問題**：分差是隨機指派的，但控制本局結果後估得的是 controlled direct effect，須另外假設結果與離開之間沒有未觀測的共同原因。這是本研究識別上最弱的一環，報告須附敏感度分析
