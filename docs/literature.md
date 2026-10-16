@@ -104,3 +104,18 @@
 - **大廳的分數範圍篩選**：commit `909f5a8e89`「fix lobby filter rating range」（2015-01-08），表示此前已有此功能。https://github.com/lichess-org/lila/commit/909f5a8e89
 - **現行 quick pairing（pool）**：2016 年 11 月底至 12 月初的 `pool` 分支 commit
 - **API 的配對來源欄**：`GameSource` 列出 `source` 的取值；以 ID 匯出對局的端點一次最多 300 個 ID，不需帳號。API 規格的 rate limiting 一節要求同一時間只發一個請求，收到 HTTP 429 時至少等一分鐘。官方資料庫的批量檔案（各棋種 rated 對局、轉播、puzzles、局面評估、開局）皆不含配對來源。https://github.com/lichess-org/api/blob/master/doc/specs/lichess-api.yaml 。https://github.com/lichess-org/api/blob/master/doc/specs/schemas/GameSource.yaml 、https://github.com/lichess-org/api/blob/master/doc/specs/tags/games/api-games-export-_ids.yaml
+
+## 檢定與離散分析
+
+以下出處尚未在本專案查證，引用前須核對。
+
+- **Glicko 對一局結果的預測式**（Glickman，Applied Statistics 48(3)，1999，Parameter estimation in large dynamic paired comparison experiments）。以雙方 RD 的合成把分差往 0 收縮。三個基準的 Glicko 形式所依據
+- **相依資料下的概似比與 score 檢定**：Rotnitzky、Jewell（Biometrika 77(3)，1990）給出工作概似下概似比統計量的加權卡方分布；Boos（The American Statistician 46(4)，1992）的 generalized score test
+- **非巢狀模型的比較**：Cox（Proceedings of the Fourth Berkeley Symposium，1961）的 tests of separate families；Vuong（Econometrica 57(2)，1989）的概似比檢定
+- **類別資料分析**：Agresti，Categorical Data Analysis。Cochran–Mantel–Haenszel 檢定、Mantel–Haenszel 估計量、Breslow–Day 檢定、adjacent-categories logit、partial proportional odds、loglinear 模型、Cochran–Armitage 趨勢檢定
+- **和局的配對比較模型**：Davidson（JASA 65，1970）
+- **有序結果的配適度檢定**：Lipsitz、Fitzmaurice、Molenberghs（Applied Statistics 45，1996）
+- **risk-adjusted CUSUM**：Steiner、Cook、Farewell、Treasure（Biostatistics 1(4)，2000）
+- **觀察研究的敏感度分析**：Rosenbaum，Observational Studies
+- **部分識別的界限**：Manski（American Economic Review 80(2)，1990）；Lee（Review of Economic Studies 76(3)，2009）
+

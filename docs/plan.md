@@ -189,18 +189,19 @@ flowchart TD
 
 ### 待辦（依序）
 
-1. **期望勝率的三個基準**：只用 2014 年；比較完後決定主基準，在估計 crossover 模型之前寫定
-2. **arena 的 crossover 模型**：簡化形式、前一至三局的 carryover、劑量反應、平衡檢驗
-3. **續下的選擇模型**：待 arena 的對局結束時間取得
-4. **inverse probability weighting、Lee 界限與模擬**
-5. **量測誤差的修正**
-6. **依狀態調整的勝率與預測對照**
-7. **停止規則的比較**：Markov chain、CUSUM
-8. **附屬**：連勝連敗的檢驗、貝氏變點模型、效果的異質性、rematch 的實測
-9. **前瞻驗證的登記文件**，之後才動用 2015 年 1 月 1 日至 4 月 19 日的 arena
-10. **demo**
-11. **附錄**：以對局結束起算的 hazard 模型扣除匹配品質效果中的對局長度機械效果
-12. **有餘裕時**：AoE2 的外部效度
+1. **期望勝率的三個基準**：只用 2014 年；三者巢狀於加入 rating deviation 的模型，以修正的概似比檢定比較；先確認 Glicko 形式該用對手的 RD 或雙方合成的 RD。比較完後決定主基準，在估計 crossover 模型之前寫定
+2. **已完成分析的檢定改為修正的概似比檢定**：`scripts/calibration.py`、`scripts/eomm_assumption.py`、`scripts/fixed_effects_churn.py` 中以 sandwich Wald 作決策的檢定，改為以 dyadic 或玩家相依修正的概似比檢定，做不到時用 robust score 檢定；delta method 的區間不變
+3. **arena 的 crossover 模型**：簡化形式、前一至三局的 carryover、劑量反應、平衡檢驗
+4. **續下的選擇模型**：待 arena 的對局結束時間取得
+5. **inverse probability weighting、Lee 界限與模擬**
+6. **量測誤差的修正**
+7. **依狀態調整的勝率與預測對照**
+8. **停止規則的比較**：Markov chain、CUSUM
+9. **附屬**：連勝連敗的檢驗、貝氏變點模型、效果的異質性、rematch 的實測
+10. **前瞻驗證的登記文件**，之後才動用 2015 年 1 月 1 日至 4 月 19 日的 arena
+11. **demo**
+12. **附錄**：以對局結束起算的 hazard 模型扣除匹配品質效果中的對局長度機械效果
+13. **有餘裕時**：AoE2 的外部效度
 
 ## 執行上的判斷
 

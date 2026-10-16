@@ -103,9 +103,9 @@
 - **檢驗的假設**：
   - Elo 形式是否校準：把斜率固定為 Elo 隱含值 $\ln 10 / 400$ 的受限模型對自由模型，概似比檢定
   - 和局機率是否隨等級上升、先手優勢是否隨等級擴大：$\bar r$ 相關項是否為 0，概似比檢定
-  - proportional odds 假設：與分開兩個二元 logit 的模型比較
+  - proportional odds 假設：對 partial proportional odds 模型（分差的斜率在兩個切點各自估計）的概似比檢定
 - **預測評估**：以時間切分（前段估計、後段評估），比較 log loss 與 ranked probability score
-- **推論**：同一玩家的多局不獨立；以雙方帳號做 two-way cluster 的穩健標準誤，或以玩家為單位的 block bootstrap
+- **推論**：同一玩家的多局不獨立，且同一玩家兼執白與執黑；概似比檢定以 dyadic 的 sandwich 共變異修正虛無分布（見「檢定與區間」）
 - **套件**：statsmodels（`OrderedModel`）；自訂模型以 scipy 最大概似
 
 ### 期望勝率的三個基準
@@ -113,9 +113,11 @@
 - **反應變數**：白方視角的勝、和、負，有序類別
 - **模型**：
   - 有序 logistic：即「期望得分的校準」的主模型
-  - Glicko 形式：依對手的 rating deviation 把期望得分往 0.5 收縮，和局機率沿用有序 logistic 的帶寬
-  - 加入 rating deviation 的有序 logistic：分差的斜率隨雙方的 rating deviation 變化
-- **比較**：有序 logistic 與加入 rating deviation 者巢狀，以概似比檢定；Glicko 形式與兩者都不巢狀，以 2014 年下半年的樣本外 log loss 比較，必要時加 Vuong 檢定
+  - Glicko 形式：分差乘上 $g(\sigma)$ 往 0 收縮，$g(\sigma) = 1/\sqrt{1 + 3 q^2 \sigma^2 / \pi^2}$，$q = \ln 10/400$，$\sigma = \sqrt{RD_W^2 + RD_B^2}$，即 Glickman 對一局結果的預測式；斜率固定為 $q$，切點自由估計，以表示和局帶寬與先手優勢
+  - 加入 rating deviation 的有序 logistic：線性預測式為 $\beta_1 d + \beta_4 g(\sigma) d + \beta_2 \bar r + \beta_3 d \bar r$，分差的斜率隨雙方的 rating deviation 變化
+- **巢狀關係**：有序 logistic 是第三者在 $\beta_4 = 0$ 的特例；Glicko 形式是第三者在 $\beta_1 = \beta_2 = \beta_3 = 0$、$\beta_4 = q$ 的特例。三者都以第三者為共同的完整模型，各以概似比檢定比較，不需要非巢狀的檢定
+- **比較**：上述概似比檢定以 dyadic 相依修正；另以 2014 年下半年的樣本外對數分數（log loss）與 ranked probability score 評估預測，差值的標準誤用 dyadic sandwich
+- **待確認**：lila 的 Glicko-2 更新只用對手的 RD，Glickman 對一局結果的預測式用雙方 RD 的合成；兩者何者對應「系統給的期望勝率」，以及式中 RD 的尺度，須對照 lila 原始碼與 Glickman 的原文
 - **主從**：三者都進入後續分析；主基準在估計 crossover 模型之前決定，最遲寫進前瞻驗證的登記文件
 - **套件**：statsmodels（`OrderedModel`）、scipy
 
@@ -245,7 +247,7 @@
 | 環節 | 基礎方法 | 診斷 | 不通過時升級到 |
 |---|---|---|---|
 | 標準誤 | 以玩家為單位的 bootstrap | 與 sandwich 標準誤相差不大 | 兩者並報 |
-| 基準的比較 | 概似比檢定 | 兩模型巢狀 | 樣本外 log loss，必要時 Vuong 檢定 |
+| 基準的比較 | 以 dyadic 相依修正的概似比檢定，三者皆巢狀於加入 rating deviation 的模型 | partial proportional odds 的概似比檢定不拒絕，或拒絕但切點間的斜率差換算成等級分可忽略 | 以 partial proportional odds 為完整模型重做 |
 | 主問題的效果 | 有序 logistic 加 permutation test | 殘差、leverage 與 influence 診斷 | 以玩家為單位的 bootstrap，並報告影響大的玩家群 |
 | 續下的選擇 | 只用有下一局的樣本 | 續下率與上一局對手強弱無關 | hazard 模型加 inverse probability weighting，再加 Lee 界限 |
 | 效果的異質性 | 依速度類別、等級分區間分組 | 組間差異小 | 經驗貝氏、有限混合迴歸 |
@@ -254,8 +256,39 @@
 
 ## 模型比較與效果大小
 
-- **概似比檢定**：檢驗事先指定的一項是否為 0
-- **樣本外 log loss**：選擇預測用的模型
-- **BIC**：只用於有限混合迴歸的群數，並以 parametric bootstrap 的概似比檢定核對；群數的檢定落在參數空間的邊界，卡方近似不成立
-- **AIC**：不用
+- **概似比檢定**：檢驗事先指定的一項是否為 0。檢定的優先序見「檢定與區間」
+- **非巢狀的模型**：依序
+  1. 造一個包住兩者的完整模型，改為巢狀後以概似比檢定（Cox 1961 的 encompassing 原則）。三個基準即如此處理
+  2. 無法巢狀時用 Vuong 檢定：兩模型逐點對數概似差的標準化，即非巢狀版本的概似比檢定；逐點差的變異數以 dyadic sandwich 估計
+  3. 選預測用的模型時，以時間切分的樣本外對數分數比較，差值的標準誤用 dyadic sandwich。機器學習模型沒有可用的概似，只用這一步
+- **本題的非巢狀比較**：cumulative logit 對 adjacent-categories logit 或 Davidson 模型、Elo 形式的和局分配對有序模型，用 Vuong 檢定加樣本外對數分數；對手 RD 對雙方合成的 RD，兩項同時放入模型後以概似比檢定
+- **AIC**：不用。AIC 估計的是期望的樣本外對數分數，其懲罰項 $k$ 須假設模型正確且觀察值獨立，相依或設定錯誤時正確的懲罰為 $\operatorname{tr}(I^{-1}J)$；本資料樣本大，可直接以驗證樣本量測，不必靠懲罰項近似。AIC 的差值也沒有標準誤
+- **BIC**：只用於有限混合迴歸的群數，並以 parametric bootstrap 的概似比檢定核對；群數的檢定落在參數空間的邊界，卡方近似不成立。其他場合不用：相依資料下 $\log n$ 的 $n$ 沒有定義，且其一致性要求真模型在候選之中
 - **效果大小**：本資料樣本大，概似比檢定對幾乎任何一項都會拒絕。每個效果都換算成「相當於讓對手幾分」並附信賴區間，顯著與否只作附帶
+
+## 檢定與區間
+
+- **優先序**：概似比檢定優先，做不到時用 score 檢定，最後才用 Wald 檢定。概似比檢定不受參數化影響；Wald 檢定在 logistic 類模型的效果大或層稀疏時有 Hauck–Donner 效應。score 檢定只需配適虛無模型，層化的 Cochran–Mantel–Haenszel 檢定即屬此類
+- **相依資料**：同一玩家的多局與同一局的兩位玩家都使觀察值相依，一般的概似比與 score 統計量的虛無分布不再是卡方。概似比統計量不變，虛無分布改為 $\sum_j \lambda_j \chi^2_1$，$\lambda_j$ 為受檢參數那一塊 $I^{-1}V$ 的特徵值，$I$ 為負 Hessian，$V$ 為 dyadic 的 meat（Rotnitzky、Jewell 1990）；score 檢定改用 sandwich 形式的變異數（Boos 1992）。兩者都做不到時才用 sandwich 的 Wald 檢定
+- **信賴區間**：delta method 可用；以 permutation test 推論者，區間由反轉檢定或 bootstrap 求得
+
+## 離散分析的做法
+
+配對批次多半只有兩人，是大量的小層；結果分勝、和、負三類；每局是兩位玩家的配對比較。下列做法針對這三個特徵，出處見 `docs/literature.md`「檢定與離散分析」。
+
+| 環節 | 做法 | 定位 | 理由 | 限制 |
+|---|---|---|---|---|
+| 主問題的總效果 | 以配對批次分層的 Cochran–Mantel–Haenszel 檢定，有序的 mean-score 版本 | 與 permutation test 互相核對 | 即層內邊際固定下置換分布的大樣本近似，層多而小時仍有效 | 一局一批的層沒有層內變異，自動不貢獻 |
+| 輸棋本身的效果 | 兩階段都用平均分數差，比值即 Wald 估計量；上一局對手強弱二分時即 2×2×K 的 complier average causal effect | 主要做法 | 平均分數差可 collapse，比值有定義；有序 logistic 的係數相除沒有定義 | 仍須假設上一局對手只經由結果影響下一局 |
+| crossover 模型的玩家項 | adjacent-categories logit 加玩家截距，以條件概似消去 | 主要做法 | 屬指數族，玩家截距有充分統計量，沒有 incidental parameters 偏誤；cumulative logit 做不到 | 係數為相鄰兩類的 log-odds，解讀另寫 |
+| 大量小層的共同效果 | Mantel–Haenszel 共同 odds ratio，Robins–Breslow–Greenland 變異數 | 檢查 | 層數趨於無限、每層大小固定時仍一致 | 只處理單一暴露，連續變數須分組 |
+| 一局兩人的相依 | Bradley–Terry 加 Davidson 的和局參數，每位玩家一個實力參數 | 檢查 | 玩家實力吸收大部分相依，和局在模型內 | 參數多，限 arena 子樣本或改為隨機效應 |
+| 跨群或跨年的效果是否相同 | Breslow–Day 或 Tarone 的同質性檢定 | 主要做法 | 取代「組間差異小」的目測 | 不拒絕不等於相同，另報差異的信賴區間 |
+| 模型配適 | Pearson $X^2$／自由度看過度離散；有序模型以 Lipsitz 檢定；選擇模型以 c-statistic 與 Hosmer–Lemeshow | 診斷 | 診斷有數值依據 | 大樣本下配適度檢定幾乎必拒絕，看量值不看 p 值 |
+| 新手期門檻的趨勢 | 累計局數分組，Cochran–Armitage 趨勢檢定；斷點以二項概似比掃描 | 敏感度分析 | 取代 LOWESS 的目測轉折點 | 掃描統計量的虛無分布以模擬求得 |
+| CUSUM | risk-adjusted 的多項分布 CUSUM：每局累加「cumulative odds 往不利方向位移」對校準機率的 log 概似比 | 主要做法 | 每局的期望機率不同、結果三類皆正確處理；門檻以虛無下的平均連串長度決定，以 Markov chain 近似 | 位移量須事先指定，取前瞻驗證的最小可偵測效果 |
+| 結果的一階相依 | 上一局與下一局結果的 3×3 表，以期望得分分層，loglinear 模型檢驗條件獨立 | 主要做法 | 以分層取代「扣除期望後的狀態」 | 有限序列的偏誤仍在，虛無分布以玩家內打亂求得 |
+| 未觀測因素的敏感度 | Rosenbaum 的 $\Gamma$，配對批次為 matched set | 敏感度分析 | 敏感度參數有明確意義 | 本題的未觀測因素作用在續下而非指派，須改寫為選擇的版本 |
+| 續下的選擇的界限 | Manski 的 worst-case 界限，加單調性即 Lee 界限，兩者並報 | 與 Lee 界限並報 | 得分有界，界限有限；假設逐層加上 | worst-case 界限通常很寬 |
+| 機器學習的機率校準 | 在另留的校準樣本上，以 cumulative logit 重估截距與斜率 | 主要做法 | 即有序結果的 Cox 校準，可檢定斜率為 1 | 須另切校準樣本 |
+
