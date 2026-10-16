@@ -344,6 +344,42 @@ flowchart TD
 
 虛線表示該結論只決定是否加做敏感度分析，不影響主分析能否進行。
 
+## 進度與待辦
+
+### 已定的原則
+
+- **方法限制在分析者修過的範圍**：logistic 迴歸、permutation test、存活分析、階層貝氏、Monte Carlo。randomization inference 以 permutation test 陳述；conditional logit 與固定效應 logit 以「每組有自己截距的 logistic 迴歸」陳述。difference-in-differences、中介分析的正式框架、Glicko-2 重放只作附錄或技術細節
+- **主問題待定**：等下列「待辦」中的模擬、階層模型與存活框架試做完成後再決定。候選與比較見 `docs/directions.md`
+- **一次只跑一個分析**：一個分析能用滿硬體時依序執行，以 `systemd-run --user --scope -p MemoryMax=20G -p MemorySwapMax=0` 加上執行緒數的環境變數限制。熱點先向量化，再考慮 numba，最後才寫 Rust（rayon、faer、fearless_simd、native 編譯；保留 Python 參考實作）
+
+### 已完成
+
+| 分析 | 文件 |
+|---|---|
+| 期望得分的校準 | `docs/calibration.md` |
+| arena 配對的隨機性 | `docs/random-pairing.md` |
+| 連續對局與流失的定義 | `docs/sessions.md` |
+| 隨機配對下匹配品質的效果 | `docs/match-quality-leave.md` |
+| EOMM 關鍵假設的檢驗 | `docs/eomm-assumption.md` |
+| Heliyon 模型的複製與比較 | `docs/fixed-effects-churn.md` |
+| Glicko-2 重放 | `docs/glicko-replay.md` |
+| 速度類別的修正 | `docs/speed-class.md` |
+
+### 進行中
+
+- **2014 年對局的配對來源與對局時間**：`scripts/fetch/lichess_game_meta.py` 以 systemd unit `lichess-game-meta` 在背景執行，arena 對局先、大廳對局後，可續傳，網路錯誤自動重試，行程失敗時 systemd 自動重啟。進度見 `data/raw/lichess-game-meta/fetch.log`。速率由伺服器限制，帶 token 也不會加快。完成後須補寫 `data/raw/lichess-game-meta/SOURCE.md`
+
+### 待辦（依序）
+
+1. **模擬驗證**：已知真值的配對資料，參數取自真實資料，加入同時影響離開與選對手的未觀測玩家狀態。變動真實效果（0 與真實資料的估計值）、自選對手的強度（無、中、強）、樣本大小；每種設定重複 500 到 1,000 次。評估一般 logistic 迴歸在自選對手下的偏誤、conditional logit 與 permutation test 的型一誤差、檢定力與覆蓋率，並重現不扣 $\bar q$ 時 permutation test 失準。靜態設計，各次重複獨立。以 numpy 向量化與 jax `vmap` 為主，迴圈用 numba（已宣告於 `pyproject.toml`）
+2. **帳號改為整數 ID**：在 `lichess_games.parquet` 與 `player_games.parquet` 一次性加入整數帳號 ID，後續分組與串接一律用它。先前資料處理的記憶體不足多源於以帳號字串分組
+3. **bootstrap 驗證拆成獨立腳本**：`fixed_effects_churn.py` 的 bootstrap 只用於確認 sandwich 標準誤，拆出後主分析重跑不必重做
+4. **階層貝氏 logistic**：玩家隨機截距並加入玩家平均（Mundlak 項），以 nutpie 的 jax 後端抽樣（CPU 與 GPU 實測後擇快）。判準任一不成立即維持固定效應：$\hat R < 1.01$ 且有效樣本數足夠；可在抽樣玩家上估計但精度不明顯變差；與 conditional logit 方向一致、大小相近
+5. **存活框架**：到下一局的時間、期末右設限。從開局起算的 Kaplan–Meier 現在可做；以對局結束起算的 hazard 模型待 arena 的對局時間取得後進行，用以扣除懸殊對局較短的機械效果
+6. **新手期代理的驗證**：以 `data/raw/lichess-users/` 的帳號建立時間驗證累計局數代理。已關閉的帳號缺建立時間，缺失非隨機，須作類別或敏感度分析
+7. **大廳對局的配對來源取得後**：排除指定邀戰，重跑使用大廳對局的分析（校準、流失定義、Heliyon 比較）
+8. **主問題的決定**：待上列 1、4、5 完成後討論
+
 ## 執行上的判斷
 
 - **先做會左右最多方法的結論**：期望得分是否校準影響幾乎所有方法；配對是否確為隨機決定核心的識別。兩者應最先得出，且彼此不依賴，可並行

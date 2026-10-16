@@ -10,6 +10,7 @@ dependencies = [
     "ipykernel>=7.3.0",
     "jax[cuda13]>=0.11.2",
     "matplotlib>=3.11.2",
+    "numba>=0.67",
     "numpy>=2.5.3",
     "polars>=1.44.2",
     "pyfixest>=0.60.0",
