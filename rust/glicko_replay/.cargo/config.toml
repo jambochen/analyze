@@ -1,0 +1,3 @@
+# 只針對本機 CPU 最佳化，產出的 wheel 不可攜到其他機器
+[build]
+rustflags = ["-C", "target-cpu=native"]

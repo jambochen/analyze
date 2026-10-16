@@ -1,0 +1,17 @@
+[build-system]
+requires = ["maturin>=1.15,<2"]
+build-backend = "maturin"
+
+[project]
+name = "glicko_replay"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = ["numpy"]
+
+[tool.maturin]
+features = ["pyo3/extension-module"]
+module-name = "glicko_rs"
+
+# uv 對 path 依賴預設只看 pyproject.toml 判斷是否重建；Rust 原始碼變動也須觸發重建
+[tool.uv]
+cache-keys = [{ file = "pyproject.toml" }, { file = "Cargo.toml" }, { file = ".cargo/config.toml" }, { file = "src/**/*.rs" }]

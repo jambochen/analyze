@@ -118,6 +118,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "aiohttp" },
+    { name = "glicko-replay" },
     { name = "ipykernel" },
     { name = "jax", extra = ["cuda13"] },
     { name = "matplotlib" },
@@ -140,6 +141,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "aiohttp", specifier = ">=3.14.3" },
+    { name = "glicko-replay", directory = "rust/glicko_replay" },
     { name = "ipykernel", specifier = ">=7.3.0" },
     { name = "jax", extras = ["cuda13"], specifier = ">=0.11.2" },
     { name = "matplotlib", specifier = ">=3.11.2" },
@@ -864,6 +866,17 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/e0/a3/5982da14e113d07b325230f95060e2169f5311b1017ea8af2a29b374c289/frozenlist-1.8.0-cp314-cp314t-win_arm64.whl", hash = "sha256:102e6314ca4da683dca92e3b1355490fed5f313b768500084fbe6371fddfdb79", size = 42507, upload-time = "2025-10-06T05:37:54.513Z" },
     { url = "https://files.pythonhosted.org/packages/9a/9a/e35b4a917281c0b8419d4207f4334c8e8c5dbf4f3f5f9ada73958d937dcc/frozenlist-1.8.0-py3-none-any.whl", hash = "sha256:0c18a16eab41e82c295618a77502e17b195883241c563b00f0aa5106fc4eaa0d", size = 13409, upload-time = "2025-10-06T05:38:16.721Z" },
 ]
+
+[[package]]
+name = "glicko-replay"
+version = "0.1.0"
+source = { directory = "rust/glicko_replay" }
+dependencies = [
+    { name = "numpy" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "numpy" }]
 
 [[package]]
 name = "google-crc32c"
