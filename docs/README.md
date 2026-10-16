@@ -9,6 +9,10 @@
 | `calibration.md` | 等級分給出的期望得分是否校準？後續的匹配品質與基準該用什麼？ |
 | `random-pairing.md` | 2014 年 arena 的配對是否確與等級分無關？randomization inference 該用哪些配對批次？ |
 | `sessions.md` | 續下、離開、回訪如何定義？門檻怎麼決定？`player_games.parquet` 有哪些欄位？ |
+| `glicko-replay.md` | 重放 Glicko-2 能否重現表頭的等級分？重放的 rating deviation 能否採用？速度類別的規則何時生效？ |
+| `match-quality-leave.md` | 隨機配對下，匹配品質是否影響續下與離開？效果的機制是什麼？ |
+| `eomm-assumption.md` | EOMM 的關鍵假設（給定結果，對手不影響離開）是否成立？等實力配對是否最好？ |
+| `fixed-effects-churn.md` | Heliyon 2024 的固定效應模型在 Lichess 上能否複製？自選對手與隨機配對下的估計差多少？ |
 | `directions.md` | 本資料可做的匹配相關方向，依完整性、資料、統計模型、與電競的貼近程度如何排名？ |
 | `other-data.md` | Lichess 以外還有哪些可取得原始資料的對局資料？哪一份適合作為第二份資料？ |
 | `literature.md` | 這個問題有哪些文獻？哪些出處已查證？ |
