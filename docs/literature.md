@@ -59,7 +59,7 @@
 ## 選擇偏誤與量測誤差的方法
 
 - **Review of inverse probability weighting for dealing with missing data**（Seaman、White，Statistical Methods in Medical Research 22(3)，2013，已查證）。IPW 修正完整案例分析的偏誤，涵蓋缺失機制模型的選擇、權重截斷、穩定化權重與 augmented IPW。續下的選擇等同於後段局序的「缺失」，以續下模型的倒數加權。https://journals.sagepub.com/doi/10.1177/0962280210395740
-- **Correcting for regression dilution bias: comparison of methods for a single predictor variable**（Frost、Thompson，Journal of the Royal Statistical Society Series A 163(2)，2000，已查證）。解釋變數含量測誤差時迴歸係數往 0 收縮，比較六種修正係數的估計法。對應校準斜率小於 1 的推測來源：對局前等級分是實力的含誤差量測；修正所需的重複量測可由 Glicko-2 重放的 RD 代替。https://ideas.repec.org/a/bla/jorssa/v163y2000i2p173-189.html
+- **Correcting for regression dilution bias: comparison of methods for a single predictor variable**（Frost、Thompson，Journal of the Royal Statistical Society Series A 163(2)，2000，已查證）。解釋變數含量測誤差時迴歸係數往 0 收縮，比較六種修正係數的估計法。只適用於 classical 量測誤差；Glicko 的等級分為事後平均，誤差屬 Berkson 型，不使斜率衰減，所以本研究不以它解釋校準斜率小於 1，只作為對照的出處。https://ideas.repec.org/a/bla/jorssa/v163y2000i2p173-189.html
 
 ## 等級分系統
 
@@ -118,4 +118,10 @@
 - **risk-adjusted CUSUM**：Steiner、Cook、Farewell、Treasure（Biostatistics 1(4)，2000）
 - **觀察研究的敏感度分析**：Rosenbaum，Observational Studies
 - **部分識別的界限**：Manski（American Economic Review 80(2)，1990）；Lee（Review of Economic Studies 76(3)，2009）
+- **隨機化實驗中的共變數調整**：Freedman（Advances in Applied Mathematics 40(2)，2008）；Lin（Annals of Applied Statistics 7(1)，2013）。加入共變數只影響精度，不影響隨機化推論的有效性
+- **truncation by death 與 principal stratification**：Zhang、Rubin（Journal of Educational and Behavioral Statistics 28(4)，2003）。survivor average causal effect 的界限
+- **pattern-mixture 模型**：Little（JASA 88，1993）。依退出時點分組處理縱貫資料的退出
+- **邊界上的概似比檢定**：Self、Liang（JASA 82，1987）。變異數成分為 0 時，虛無分布為卡方的混合
+- **最適停止**：Chow、Robbins、Siegmund，Great Expectations: The Theory of Optimal Stopping（1971）。單調問題下 one-stage look-ahead 規則為最適
+- **CUSUM 的最適性**：Lorden（Annals of Mathematical Statistics 42(6)，1971）；Moustakides（Annals of Statistics 14(4)，1986）
 
