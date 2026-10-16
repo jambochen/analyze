@@ -350,7 +350,7 @@ flowchart TD
 ### 已定的原則
 
 - **方法限制在分析者修過的範圍**：logistic 迴歸、permutation test、存活分析、階層貝氏、Monte Carlo。randomization inference 以 permutation test 陳述；conditional logit 與固定效應 logit 以「每組有自己截距的 logistic 迴歸」陳述。difference-in-differences、中介分析的正式框架、Glicko-2 重放只作附錄或技術細節
-- **主問題待定**：等下列「待辦」中的模擬、階層模型與存活框架試做完成後再決定。候選與比較見 `docs/directions.md`
+- **主問題待定**：題目取自本來就有的問題，不依已看到的結果決定。候選題目與可借用的方法見 `docs/topic-options.md`，兩條故事線的方法見 `docs/story-methods.md`
 - **帳號以整數代碼分組與串接**：`lichess_games.parquet` 的 `white_id`、`black_id` 與 `player_games.parquet` 的 `player`、`opponent` 是同一套代碼。以帳號字串分組是先前記憶體不足的主因；帳號名稱只在與 API 資料串接時使用
 - **一次只跑一個分析**：一個分析能用滿硬體時依序執行，以 `systemd-run --user --scope -p MemoryMax=20G -p MemorySwapMax=0` 加上執行緒數的環境變數限制。熱點先向量化，再考慮 numba，最後才寫 Rust（rayon、faer、fearless_simd、native 編譯；保留 Python 參考實作）
 
