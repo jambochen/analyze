@@ -21,10 +21,11 @@
 - **A Data-Driven Decision Support Framework for Player Churn Analysis in Online Games**（網易伏羲，KDD 2023）。資料為網易內部，不公開。https://dl.acm.org/doi/10.1145/3580305.3599759
 - 網易伏羲的 OptMatch（KDD 2020）與全域匹配（KDD 2021）：見作者頁面 https://wu-runze.github.io/collection-archive/
 - **Match experiences affect interest: Impacts of matchmaking and performance on churn in a competitive game**（Kang、Suh、Kim，Heliyon 2024，已查證，已讀全文）。Netmarble 手遊的伺服器紀錄，論文明寫資料不公開。玩家日為單位、14 天無對局為流失，以雙向固定效應 logistic 迴歸估計分差、分差變異、勝率與連勝連敗對流失的效果。配對由系統依分數決定，作者承認為觀察資料。方法與本研究的用法見 `docs/plan.md`。https://pmc.ncbi.nlm.nih.gov/articles/PMC10839887/
-- **The Role of Skill in Matchmaking**（Activision 白皮書）。含實力相當下連敗發生率的機率基準，以及放寬技術匹配的實驗。https://www.activision.com/cdn/research/CallofDuty_Matchmaking_Series_2.pdf
+- **The Role of Skill in Matchmaking**（Activision 白皮書，以新聞報導核對存在與內容，全文未讀）。Call of Duty: Modern Warfare 3 的內部實驗，逐步放寬技術配對並追蹤離開與留存，結論為放寬後中途離開與不再遊玩增加；另含實力相當下連敗發生率的機率基準。內部資料，未經獨立驗證。https://www.activision.com/cdn/research/CallofDuty_Matchmaking_Series_2.pdf
 - **Skill-Based Matchmaking for Competitive Two-Player Games**（Yuksel，ACM TOG 2024）。https://dl.acm.org/doi/10.1145/3651303
 - **Opponent Indifference in Rating Systems: A Theoretical Case for Sonas**（arXiv 2209.03950，已查證）。玩家能看到對手分數並挑選或中止時，等級分系統會誘使玩家策略性選對手。支撐「大廳自選對手混淆分差效果」的論點。https://arxiv.org/abs/2209.03950
 - **Mean-Field Analysis and Optimal Control of a Dynamic Rating and Matchmaking System**（arXiv 2512.22038，已查證）。以平均場理論分析等級分準確度與配對強度的關係。https://arxiv.org/abs/2512.22038
+- **Paths, Trees, and Flowers**（Edmonds，Canadian Journal of Mathematics 17，1965，已查證）。一般圖上最大匹配的 blossom 演算法，minimum weight perfect matching 的實作依據。https://doi.org/10.4153/CJM-1965-045-4
 - **Rule Designs for Optimal Online Game Matchmaking**（arXiv 1911.11852，已查證）。以排隊理論分析 2v2 配對規則與等待時間。https://arxiv.org/abs/1911.11852
 - **CUPID**（arXiv 2406.19720）與 **CHAMP**（arXiv 2609.04870），已查證。MOBA 的重新配對系統，兼顧公平與位置偏好。https://arxiv.org/abs/2406.19720 、https://arxiv.org/abs/2609.04870
 - **Cinder: A fast and fair matchmaking system**（arXiv 2602.17015，已查證）。組隊玩家實力分散時的公平配對。https://arxiv.org/abs/2602.17015
@@ -47,6 +48,7 @@
 - **Measuring Player Retention and Monetization using the Mean Cumulative Function**（arXiv 1709.06737，已查證）。以 mean cumulative function 處理玩家尚未流失造成的設限。https://arxiv.org/abs/1709.06737
 - **Churn Prediction in Mobile Social Games: Towards a Complete Assessment Using Survival Ensembles**（arXiv 1710.02264）與 **Games and Big Data: A Scalable Multi-Dimensional Churn Prediction Model**（arXiv 1710.02262），已查證。以 survival ensembles 預測流失，明確處理設限。https://arxiv.org/abs/1710.02264 、https://arxiv.org/abs/1710.02262
 - **Game Data Mining Competition on Churn Prediction and Survival Analysis using Commercial Game Log Data**（arXiv 1802.02301，已查證）。NCSOFT 的流失預測競賽，資料跨越月費制改為免費制的前後。https://arxiv.org/abs/1802.02301
+- **It's About Time: Using Discrete-Time Survival Analysis to Study Duration and the Timing of Events**（Singer、Willett，Journal of Educational and Behavioral Statistics 18(2)，1993，已查證）。離散時間 hazard 模型：每個時段一個截距的 logistic 迴歸，處理右設限。https://journals.sagepub.com/doi/10.3102/10769986018002155
 - **Who Benefits from AI? Self-Selection, Skill Gap, and the Hidden Costs of AI Feedback**（arXiv 2409.18660，已查證）。線上棋平台上，越有動機的玩家越常使用 AI 回饋，造成效果的假象。本資料做不了同一題，但自我選擇造成假象的論證結構與續下的選擇偏誤相同。https://arxiv.org/abs/2409.18660
 
 ## 參考點與損失規避
