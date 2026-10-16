@@ -124,4 +124,7 @@
 - **邊界上的概似比檢定**：Self、Liang（JASA 82，1987）。變異數成分為 0 時，虛無分布為卡方的混合
 - **最適停止**：Chow、Robbins、Siegmund，Great Expectations: The Theory of Optimal Stopping（1971）。單調問題下 one-stage look-ahead 規則為最適
 - **CUSUM 的最適性**：Lorden（Annals of Mathematical Statistics 42(6)，1971）；Moustakides（Annals of Statistics 14(4)，1986）
+- **賭博系統與 optional stopping**：Doob，Stochastic Processes（1953）；Dubins、Savage，How to Gamble If You Must（1965）
+- **dynamic treatment regime**：Murphy（Journal of the Royal Statistical Society Series B 65(2)，2003）。依逐期狀態決定處理的方案及其價值的估計
+- **多條規則比較的 data snooping**：Hansen（Journal of Business & Economic Statistics 23(4)，2005）的 SPA 檢定；Romano、Wolf（Econometrica 73(4)，2005）的逐步檢定
 
