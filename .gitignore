@@ -11,3 +11,6 @@ __pycache__/
 docs/archive/*.pdf
 report/*.pdf
 report/*.html
+
+# 憑證與 token，絕不入版控
+.env
