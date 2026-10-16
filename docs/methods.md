@@ -121,7 +121,7 @@
 - **為什麼用雙方合成的 RD**：lila 更新等級分時用的期望得分只含對手的 RD（`scripts/glicko.py` 的 `new_rating` 逐行移植自 lila），那是各自更新等級分用的量：白方用黑方的 RD、黑方用白方的 RD，兩方的期望得分相加不等於 1，不是一局的機率。Glickman 在《The Glicko system》中給出一局結果的預測式，以雙方 RD 的合成收縮，兩方相加為 1。本題的基準是一局的勝、和、負機率，所以用合成的 RD；Lichess 不對玩家顯示勝率，報告說明兩者的差別即可
 - **RD 的尺度**：重放輸出的 RD 為 Glicko-1 的顯示尺度（`glicko_replay.parquet` 的 `white_rd`、`black_rd`）。Glicko-2 內部的 $\phi = RD/173.7178$，而 $173.7178 = 400/\ln 10 = 1/q$，兩種寫法的期望得分相同，式中直接用 RD 與 $q$
 - **期望得分本身的校準**：Elo 與 Glicko 的期望得分各以 Cox 校準截距與斜率檢查，依新手與否分層，這一步直接檢驗 Glicko 原式，不經有序模型
-- **主從**：三者都進入後續分析；主基準在估計 crossover 模型之前決定，最遲寫進前瞻驗證的登記文件
+- **主從**：主基準為加入 rating deviation 的有序 logistic，在估計 crossover 模型之前決定，寫進前瞻驗證的登記文件；另兩者作敏感度分析（`docs/expected-score-baselines.md`）
 - **腳本**：`scripts/expected_score_baselines.py`；概似比檢定的修正在共用的 `scripts/likelihood.py`，其檢定水準以 `scripts/adjusted_lrt_size.py` 的模擬核對
 
 ### arena 的 crossover 模型
