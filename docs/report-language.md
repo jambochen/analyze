@@ -1,6 +1,6 @@
 # 報告用詞與方法說明
 
-適用於 `report/` 的書面報告、投影片及講稿。簡報的句型與版面另見 `slides.md`；個別術語的定義見根目錄 `GLOSSARY.md` 與 `docs/glossary.md`。
+適用於 `report/` 的書面報告、投影片及講稿。簡報的句型與版面另見 `slides.md`；個別術語的定義見根目錄 `GLOSSARY.md`。
 
 ## 讀者與首次說明
 

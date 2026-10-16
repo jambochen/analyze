@@ -7,7 +7,7 @@
 - **Streaks and Coping: Decoding Player Performance in League of Legends Using Big Data from Top Players' Matches**（FDG 2024）。以頂尖玩家的對戰序列分析連勝連敗後的表現與換角、休息的關係。與本題主問題最接近。https://dl.acm.org/doi/fullHtml/10.1145/3665463.3678787
 - **Understanding Tilt in Esports: A Study on Young League of Legends Players**（CHI 2021）。高中電競選手的問卷與訪談，界定 tilt 的觸發因素，屬質性研究。https://dl.acm.org/doi/pdf/10.1145/3411764.3445143
 - **Playing with Streakiness in Online Games: How Players Perceive and React to Winning and Losing Streaks in League of Legends**（CHI 2018）。https://dl.acm.org/doi/pdf/10.1145/3173574.3174152
-- **Investigating Experiential Effects in Online Chess using a Hierarchical Bayesian Analysis**（Gee、Seese、Curley、Ward，arXiv 2503.21713，已查證，已讀全文）。以 Lichess 資料檢驗贏輸效應：近幾局的勝率是否影響下一局。連續對局以開局間隔切分，Bullet 與 Blitz 門檻不同；模型為階層貝氏 logistic 迴歸，控制分差並加玩家層隨機效應。結論為沒有全體一致的效應，少數玩家個別有。資料是先選定玩家、再爬取其全部對局；論文稱資料與爬取程式碼放在作者的 GitHub，未查得網址。與附屬問題最接近；本題的差異在於全體玩家而非抽樣、和局不丟棄、處理續下的選擇偏誤、並看留存。https://arxiv.org/abs/2503.21713
+- **Investigating Experiential Effects in Online Chess using a Hierarchical Bayesian Analysis**（Gee、Seese、Curley、Ward，arXiv 2503.21713，已查證，已讀全文）。以 Lichess 資料檢驗贏輸效應：近幾局的勝率是否影響下一局。連續對局以開局間隔切分，Bullet 與 Blitz 門檻不同；模型為階層貝氏 logistic 迴歸，控制分差並加玩家層隨機效應。結論為沒有全體一致的效應，少數玩家個別有。資料是先選定玩家、再爬取其全部對局；論文稱資料與爬取程式碼放在作者的 GitHub，未查得網址。與主問題最接近；本題的差異在於以 arena 的隨機對手識別上一局結果的效果、全體玩家而非抽樣、和局不丟棄、處理續下的選擇偏誤。https://arxiv.org/abs/2503.21713
 - **Quantifying human performance in chess**（Chowdhary、Iacopini、Battiston，arXiv 2207.07780，已查證，已讀全文）。Lichess 2013 至 2016 年全部對局。以打亂時間順序為虛無模型，發現連勝連敗長於隨機，新手的連勝更長；另發現高手專精少數開局，但連續兩局間比新手更常換開局。虛無模型只保留勝和負總數，忽略等級分的變化：進步中的玩家等級分追不上實力，本來就會連勝。本題以對局前等級分的期望得分為基準，修正的正是這一點。資料取自官方資料庫 database.lichess.org 的月檔，與本研究同一來源。https://arxiv.org/abs/2207.07780
 - **Fast Algorithm for Calculating Probability of Chess Winning Streaks**（arXiv 2503.11669，已查證）。給定每局勝和負機率，計算各種連勝的機率。https://arxiv.org/abs/2503.11669
 - **Surprised by the Hot Hand Fallacy? A Truth in the Law of Small Numbers**（Miller、Sanjurjo，Econometrica 86(6)，2018，已查證）。證明在有限長度的序列中，「連續 k 次之後下一次的成功率」這種常見的量測本身有偏誤：序列越短、連勝長度越長，偏誤越大；修正後推翻了 hot hand 經典研究的結論。附屬問題若以「連輸 k 局之後的表現」為量測，須處理同一種選擇偏誤。https://econometricsociety.org/publications/econometrica/2018/11/01/surprised-hot-hand-fallacy-truth-law-small-numbers
@@ -16,11 +16,11 @@
 
 ## 匹配與流失
 
-- **EOMM: An Engagement Optimized Matchmaking Framework**（EA，arXiv 1702.06820，已查證，已讀全文）。以投入度而非勝率最佳化匹配：把等待配對的玩家建成完全圖，以 minimum weight perfect matching 求總流失最小的配對。關鍵假設為給定本局結果、對手狀態不再影響流失；策略比較以 EA 資料設定的模擬進行。方法與本研究的用法見 `docs/plan.md`。https://arxiv.org/abs/1702.06820
+- **EOMM: An Engagement Optimized Matchmaking Framework**（EA，arXiv 1702.06820，已查證，已讀全文）。以投入度而非勝率最佳化匹配：把等待配對的玩家建成完全圖，以 minimum weight perfect matching 求總流失最小的配對。關鍵假設為給定本局結果、對手狀態不再影響流失；策略比較以 EA 資料設定的模擬進行。方法與本研究的用法見 `docs/methods.md`。https://arxiv.org/abs/1702.06820
 - **EnMatch**：以玩家投入度為目標的匹配（網易伏羲，AAAI 2024）。https://ojs.aaai.org/index.php/AAAI/article/view/28760
 - **A Data-Driven Decision Support Framework for Player Churn Analysis in Online Games**（網易伏羲，KDD 2023）。資料為網易內部，不公開。https://dl.acm.org/doi/10.1145/3580305.3599759
 - 網易伏羲的 OptMatch（KDD 2020）與全域匹配（KDD 2021）：見作者頁面 https://wu-runze.github.io/collection-archive/
-- **Match experiences affect interest: Impacts of matchmaking and performance on churn in a competitive game**（Kang、Suh、Kim，Heliyon 2024，已查證，已讀全文）。Netmarble 手遊的伺服器紀錄，論文明寫資料不公開。玩家日為單位、14 天無對局為流失，以雙向固定效應 logistic 迴歸估計分差、分差變異、勝率與連勝連敗對流失的效果。配對由系統依分數決定，作者承認為觀察資料。方法與本研究的用法見 `docs/plan.md`。https://pmc.ncbi.nlm.nih.gov/articles/PMC10839887/
+- **Match experiences affect interest: Impacts of matchmaking and performance on churn in a competitive game**（Kang、Suh、Kim，Heliyon 2024，已查證，已讀全文）。Netmarble 手遊的伺服器紀錄，論文明寫資料不公開。玩家日為單位、14 天無對局為流失，以雙向固定效應 logistic 迴歸估計分差、分差變異、勝率與連勝連敗對流失的效果。配對由系統依分數決定，作者承認為觀察資料。方法與本研究的用法見 `docs/methods.md`。https://pmc.ncbi.nlm.nih.gov/articles/PMC10839887/
 - **The Role of Skill in Matchmaking**（Activision 白皮書，以新聞報導核對存在與內容，全文未讀）。Call of Duty: Modern Warfare 3 的內部實驗，逐步放寬技術配對並追蹤離開與留存，結論為放寬後中途離開與不再遊玩增加；另含實力相當下連敗發生率的機率基準。內部資料，未經獨立驗證。https://www.activision.com/cdn/research/CallofDuty_Matchmaking_Series_2.pdf
 - **Skill-Based Matchmaking for Competitive Two-Player Games**（Yuksel，ACM TOG 2024）。https://dl.acm.org/doi/10.1145/3651303
 - **Opponent Indifference in Rating Systems: A Theoretical Case for Sonas**（arXiv 2209.03950，已查證）。玩家能看到對手分數並挑選或中止時，等級分系統會誘使玩家策略性選對手。支撐「大廳自選對手混淆分差效果」的論點。https://arxiv.org/abs/2209.03950
@@ -91,24 +91,16 @@
 - **provisional 門檻提高**：commit `6fc785b387`「raise provisional glicko2 deviation threshold」，2015 年 6 月
 - **研究期間之後**：commit `4673e347e8`「very slightly re-inject rating points (+1% for winner)」，2015 年 7 月
 
-月檔的等級分與 RatingDiff 並非線上當時存入的全站值：整段期間（含 2013 年）本局等級分加 RatingDiff 大多等於同一玩家同一時間類別下一局的等級分（`scripts/explore/rating_consistency.py`），可見月檔的數值已改寫為各速度類別的值，即 `RatingFest` 重算的結果：2014 年 7 月底以前的數值來自這次重算，之後為線上即時計算。不相符的部分，候選原因有：2014 年 12 月以前無限時對局與 Classical 共用等級分，但月檔時間制為 `-`、檢查中歸入通信棋；重算時的並行處理使順序顛倒；作弊帳號的對局取消計分。待驗證。
+月檔的等級分與 RatingDiff 並非線上當時存入的全站值：整段期間（含 2013 年）本局等級分加 RatingDiff 大多等於同一玩家同一時間類別下一局的等級分（`scripts/explore/rating_consistency.py`），可見月檔的數值已改寫為各速度類別的值，即 `RatingFest` 重算的結果：2014 年 7 月底以前的數值來自這次重算，之後為線上即時計算。不相符的部分，候選原因有：2014 年 12 月以前無限時對局與 Classical 共用等級分，但月檔時間制為 `-`、檢查中歸入通信棋；重算時的並行處理使順序顛倒；作弊帳號的對局取消計分。重放的驗證見 `docs/glicko-replay.md`「不相符的來源」。
 
 ## Lichess 的配對機制
 
 以下皆為 Lichess 原始碼（lila）與 API 規格的一手出處，已查證。
 
 - **2014 年 arena 錦標賽的配對**：`modules/tournament/src/main/arena/PairingSystem.scala`（commit `f09a2e9893`）。空閒玩家超過 12 人時隨機配對，12 人以下時避免重複對手並優先配對等待最久者，不使用等級分。此前的 `modules/tournament/src/main/Pairing.scala` 邏輯相同。https://github.com/lichess-org/lila/blob/f09a2e9893/modules/tournament/src/main/arena/PairingSystem.scala
-- **arena 改依等級分與排名配對**：commit `91155129bc`「pair arena players based on rating」、`7efa063e52`「use ranking in arena tournament pairing」、`355477ae1e`「let player rating slightly impact arena pairings」，皆在 2015 年 4 月 20 日至 23 日；5 月有 `d32490926f`、`9ec9e25558`、`d5fb74155d`、`4256ddaa49`、`4dec1bb29a` 等後續調整。為識別二的改制依據。https://github.com/lichess-org/lila/commit/91155129bc
+- **arena 改依等級分與排名配對**：commit `91155129bc`「pair arena players based on rating」、`7efa063e52`「use ranking in arena tournament pairing」、`355477ae1e`「let player rating slightly impact arena pairings」，皆在 2015 年 4 月 20 日至 23 日；5 月有 `d32490926f`、`9ec9e25558`、`d5fb74155d`、`4256ddaa49`、`4dec1bb29a` 等後續調整。為前瞻驗證樣本止於 2015 年 4 月 19 日的依據。https://github.com/lichess-org/lila/commit/91155129bc
 - **2014 年的 pool 試行**：2014 年 6 月起的一系列 commit，含「pool games don't affect global rating」；2014-10-01 的「hide homepage pool buttons」停用入口。可在 lila 以 commit 搜尋 `pool` 查得
 - **錦標賽的執子顏色**：commit `7032c7c355`「randomize piece colors in tournament pairings」在 2015 年 4 月，表示 2014 年錦標賽的顏色分配可能不是隨機的，具體規則待查。https://github.com/lichess-org/lila/commit/7032c7c355
 - **大廳的分數範圍篩選**：commit `909f5a8e89`「fix lobby filter rating range」（2015-01-08），表示此前已有此功能。https://github.com/lichess-org/lila/commit/909f5a8e89
 - **現行 quick pairing（pool）**：2016 年 11 月底至 12 月初的 `pool` 分支 commit
 - **API 的配對來源欄**：`GameSource` 列出 `source` 的取值；以 ID 匯出對局的端點一次最多 300 個 ID，不需帳號。API 規格的 rate limiting 一節要求同一時間只發一個請求，收到 HTTP 429 時至少等一分鐘。官方資料庫的批量檔案（各棋種 rated 對局、轉播、puzzles、局面評估、開局）皆不含配對來源。https://github.com/lichess-org/api/blob/master/doc/specs/lichess-api.yaml 。https://github.com/lichess-org/api/blob/master/doc/specs/schemas/GameSource.yaml 、https://github.com/lichess-org/api/blob/master/doc/specs/tags/games/api-games-export-_ids.yaml
-
-## 本資料可做的其他方向
-
-不屬於本題的研究問題，記錄供取捨。皆已在 arXiv 查證。
-
-- **開局行為**：開局熱門程度符合 Zipf 定律（0704.2711）；新變化的出現率隨前序頻率衰減（1309.0336）；以線上平台資料建立開局相似度網路並預測玩家將改下的開局（2206.14312）。本資料有 `ECO` 與 `Opening`
-- **對手網路**：線上與實體棋賽的對手網路結構（1708.06694）；以對手網路的中心性預測排名，資料混用 Chess.com 與 Dota 2（2501.19220）。本資料由 `White`、`Black` 即可建網路
-- **賽制公平性**：瑞士制在奇數輪時多一局白棋的玩家得分較高（2410.19333）。2014 年已有瑞士制，API 的 `source` 可區分 arena 與 swiss
