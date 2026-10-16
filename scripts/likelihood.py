@@ -35,6 +35,11 @@ def fit(ll, t0, free, args, w, b):
     full = lambda x: t0.at[free].set(x)
     nll = lambda x, *a: -jnp.sum(ll(full(x), *a))
     cs = [tuple(a[k : k + CHUNK] for a in args) for k in range(0, len(w), CHUNK)]
+    # 受限模型可能把參數全部固定（例如 Elo 完全校準），此時只需算固定參數下的對數概似
+    if len(free) == 0:
+        f0 = jax.jit(lambda *a: jnp.sum(ll(t0, *a)))
+        z = np.zeros((0, 0))
+        return np.asarray(t0), float(sum(f0(*c) for c in cs)), z, z, np.zeros((len(w), 0)), z
     f_, g_, h_ = jax.jit(nll), jax.jit(jax.grad(nll)), jax.jit(jax.hessian(nll))
     sc = jax.jit(jax.jacfwd(lambda x, *a: ll(full(x), *a)))
     r = optimize.minimize(
@@ -54,6 +59,12 @@ def fit(ll, t0, free, args, w, b):
 def lr_weights(Hi, V, idx):
     idx = np.asarray(idx)
     return np.sort(np.real(np.linalg.eigvals(np.linalg.solve(Hi[np.ix_(idx, idx)], V[np.ix_(idx, idx)]))))
+
+
+# 受檢的是線性限制 R theta = r 時，同理取 (R H^-1 R')^-1 (R V R') 的特徵值
+def lr_weights_linear(Hi, V, R):
+    R = np.atleast_2d(R)
+    return np.sort(np.real(np.linalg.eigvals(np.linalg.solve(R @ Hi @ R.T, R @ V @ R.T))))
 
 
 # Imhof (1961) 的反轉公式。被積函數是 sin(A(u) - x u / 2) / (u rho(u))，在無窮區間上振盪；

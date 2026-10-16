@@ -47,7 +47,7 @@ Kang、Suh、Kim（Heliyon 2024）以一款手機桌遊的對局紀錄，問配�
 | 當日局數 | `n`：當日該類型的局數 | 同原文，線性進入 |
 | 現金、金幣等遊戲內經濟變數 | 無 | Lichess 沒有對應物 |
 
-階段的交互作用改寫成「每個階段各有一個係數」（spec `raw_stage`、`ecal_stage`），與原文的主效果加交互作用等價，但各階段的效果可以直接讀出。
+階段的交互作用改寫成「每個階段各有一個係數」（spec `raw_stage`、`ecal_stage`），與原文的主效果加交互作用等價，但各階段的效果可以直接讀出。「係數在五個階段相同」以概似比檢定：受限模型以一個共同係數取代五個階段係數，虛無分布以玩家 cluster 的 sandwich 修正；Wald 統計量並列作對照（`fixed_effects_churn_stage_tests.csv`）。
 
 ### 為對照隨機配對分析而加的版本
 
@@ -87,7 +87,7 @@ conditional logit 只作對照，不作主要估計：大廳隨機抽 20,000 位
 
 ### Hausman 檢定
 
-原文以 Hausman 檢定比較固定效應與隨機效應。傳統的 Hausman 統計量須假設隨機效應估計在虛無假設下有效率；以玩家 cluster 推論時這個前提不成立，且 logit 沒有現成可對照的隨機效應估計。改用 Mundlak 形式：在只有日期固定效應的模型中加入各解釋變數的玩家平均，以玩家 cluster 的 Wald 檢定其係數全為 0。這在穩健共變異下與 Hausman 檢定漸近等價，檢驗的是同一件事：玩家的不隨時間變的特質是否與解釋變數相關。線性機率模型與 logit 各做一次（`fixed_effects_churn_hausman.csv`）。
+原文以 Hausman 檢定比較固定效應與隨機效應。傳統的 Hausman 統計量須假設隨機效應估計在虛無假設下有效率；以玩家 cluster 推論時這個前提不成立，且 logit 沒有現成可對照的隨機效應估計。改用 Mundlak 形式：在只有日期固定效應的模型中加入各解釋變數的玩家平均，檢驗其係數全為 0。這與 Hausman 檢定漸近等價，檢驗的是同一件事：玩家的不隨時間變的特質是否與解釋變數相關。logit 以概似比檢定作決策，受限模型去掉玩家平均項，虛無分布以玩家 cluster 的 sandwich 修正為加權卡方（`docs/methods.md`「檢定與區間」）；線性機率模型只是原文設定的對照，以玩家 cluster 的 Wald 檢定（`fixed_effects_churn_hausman.csv`）。
 
 ### 原文的穩健性檢查
 

@@ -2,10 +2,17 @@
 # 樣本為 2014 年 Bullet、Blitz、Classical 的有鐘對局；2013 年起的對局只用來算累計局數與首局。
 
 import json
+import os
+import sys
+
+os.environ["JAX_PLATFORMS"] = "cpu"
+sys.path.insert(0, "scripts")
 
 import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
+
+import likelihood as lk
 
 UTC = "UTC"
 CLASSES = ["Bullet", "Blitz", "Classical"]
@@ -120,14 +127,6 @@ print(share)
 
 # 分層的 Cox 校準：logit E[S] = a + b logit(E)，fractional logit 以 Newton 法估計。
 # 推論照 calibration.py 用 dyadic cluster：任兩局只要有共同玩家就相關
-def dyad_meat(S, w, b):
-    P = int(max(w.max(), b.max())) + 1
-    Sp = np.stack([np.bincount(w, S[:, j], P) + np.bincount(b, S[:, j], P) for j in range(S.shape[1])], 1)
-    pair = np.unique(np.minimum(w, b).astype(np.int64) * P + np.maximum(w, b), return_inverse=True)[1]
-    Sq = np.stack([np.bincount(pair, S[:, j]) for j in range(S.shape[1])], 1)
-    return Sp.T @ Sp - Sq.T @ Sq
-
-
 def cox(m):
     X = np.stack([np.ones(m.height), m["L"].to_numpy()], 1)
     s = m["score"].to_numpy()
@@ -141,7 +140,7 @@ def cox(m):
             break
     p = 1 / (1 + np.exp(-X @ t))
     Hi = np.linalg.inv(X.T @ (X * (p * (1 - p))[:, None]))
-    V = Hi @ dyad_meat(X * (s - p)[:, None], m["w"].to_numpy(), m["b"].to_numpy()) @ Hi
+    V = Hi @ lk.dyad_meat(X * (s - p)[:, None], m["w"].to_numpy(), m["b"].to_numpy()) @ Hi
     return t, V
 
 

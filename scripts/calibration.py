@@ -2,8 +2,10 @@
 # 樣本為 2014 年 Bullet、Blitz、Classical 的對局；2013 年起的對局只用來算累計局數。
 
 import os
+import sys
 
 os.environ["JAX_PLATFORMS"] = "cpu"
+sys.path.insert(0, "scripts")
 
 import jax
 import jax.numpy as jnp
@@ -12,6 +14,8 @@ import numpy as np
 import polars as pl
 from scipy import optimize, stats
 
+import likelihood as lk
+
 jax.config.update("jax_enable_x64", True)
 
 UTC = "UTC"
@@ -19,7 +23,6 @@ CLASSES = ["Bullet", "Blitz", "Classical"]
 # 累計局數的門檻是暫定的新手期界線；calibration_experience.png 用來檢查這條界線是否落在校準斜率趨穩之後
 N_EST = 30
 ELO = np.log(10) / 400
-CHUNK = 250_000
 # 有序模型與 proportional odds 檢驗在每個速度類別抽 N_FIT 局的簡單隨機樣本上估計
 N_FIT = 1_000_000
 
@@ -41,7 +44,6 @@ g = (
 # 帳號代碼在子樣本中不連續，壓成連續代碼，後面 bincount 以代碼為群
 code = pl.concat([g["w"], g["b"]]).rank("dense").cast(pl.UInt32) - 1
 g = g.with_columns(w=code[: g.height], b=code[g.height :])
-P = int(code.max()) + 1
 del code
 # 資料從 2013-01 開始，此月就出現的帳號此前可能已有對局，累計局數低估
 censored = (
@@ -156,41 +158,14 @@ def ll_frac(t, xr, L, s):
     return s * jax.nn.log_sigmoid(z) + (1 - s) * jax.nn.log_sigmoid(-z)
 
 
-def ll_bin(t, X, z):
-    eta = X @ t
-    return z * jax.nn.log_sigmoid(eta) + (1 - z) * jax.nn.log_sigmoid(-eta)
-
-
-# 概似、梯度與 Hessian 逐塊加總，避免 jax 在數百萬列上一次展開中間陣列
-def fit(ll, t0, free, args, w, b):
-    free = np.asarray(free)
-    t0 = jnp.asarray(t0, dtype=jnp.float64)
-    full = lambda x: t0.at[free].set(x)
-    nll = lambda x, *a: -jnp.sum(ll(full(x), *a))
-    cs = [tuple(a[k : k + CHUNK] for a in args) for k in range(0, len(w), CHUNK)]
-    f_, g_, h_ = jax.jit(nll), jax.jit(jax.grad(nll)), jax.jit(jax.hessian(nll))
-    sc = jax.jit(jax.jacfwd(lambda x, *a: ll(full(x), *a)))
-    r = optimize.minimize(
-        lambda x: float(sum(f_(x, *c) for c in cs)), np.asarray(t0[free]),
-        jac=lambda x: np.asarray(sum(g_(x, *c) for c in cs)),
-        hess=lambda x: np.asarray(sum(h_(x, *c) for c in cs)),
-        method="trust-exact",
-    )
-    H = np.asarray(sum(h_(r.x, *c) for c in cs))
-    S = np.concatenate([np.asarray(sc(r.x, *c)) for c in cs])
-    Hi = np.linalg.inv(H)
-    return np.asarray(full(r.x)), -r.fun, Hi @ dyad_meat(S, w, b) @ Hi, Hi, S, H
-
-
-# 同一玩家的多局不獨立，且玩家同時以白方與黑方出現：任兩局只要有一位共同玩家，
-# 分數的乘積就計入 meat（dyadic cluster）。sum_p S_p S_p' 對同一對手組合的對局重複計了兩次，
-# 減去以無序對手組合為群的一次
-def dyad_meat(S, w, b):
-    S = S.reshape(len(w), -1)
-    Sp = np.stack([np.bincount(w, S[:, j], P) + np.bincount(b, S[:, j], P) for j in range(S.shape[1])], 1)
-    pair = np.unique(np.minimum(w, b).astype(np.int64) * P + np.maximum(w, b), return_inverse=True)[1]
-    Sq = np.stack([np.bincount(pair, S[:, j]) for j in range(S.shape[1])], 1)
-    return Sp.T @ Sp - Sq.T @ Sq
+# proportional odds 的對立模型：勝的門檻上，分差與分差乘等級分的斜率另有位移 t8、t9。
+# 位移大到兩門檻交錯時和局機率為負，以極小值截住，概似因此極低，不會被選中
+def ll_ppo(t, xr, xd, y):
+    eta = t[0] + t[1] * xr + t[2] * xr**2 + (t[3] + t[4] * xr) * xd
+    w = jnp.exp(t[5] + t[6] * xr + t[7] * xr**2)
+    u, v = eta + w, eta - w + (t[8] + t[9] * xr) * xd
+    ldraw = jax.nn.log_sigmoid(u) + jax.nn.log_sigmoid(-v) + jnp.log(-jnp.expm1(-jnp.maximum(u - v, 1e-12)))
+    return jnp.where(y == 2, jax.nn.log_sigmoid(v), jnp.where(y == 0, jax.nn.log_sigmoid(-u), ldraw))
 
 
 def wald(theta, V, R, r):
@@ -210,7 +185,7 @@ for tc in CLASSES:
     m = d.filter(pl.col("speed") == tc, pl.col("est")).sample(N_FIT, seed=1)
     w, b = m["w"].to_numpy(), m["b"].to_numpy()
     xr, xd, y = (m[c].to_numpy().astype(np.float64) for c in ["xr", "xd", "y"])
-    th, ll1, V, Hi, S, H = fit(ll_ord, T0, IDX, (xr, xd, y), w, b)
+    th, ll1, V, Hi, S, H = lk.fit(ll_ord, T0, IDX, (xr, xd, y), w, b)
     fits[tc] = th
     for k in range(8):
         coef_rows.append({"speed": tc, "model": "ordinal", "param": ORD[k], "est": th[k], "se_dyadic": np.sqrt(V[k, k]), "se_iid": np.sqrt(Hi[k, k])})
@@ -226,34 +201,23 @@ for tc in CLASSES:
     ]:
         t0 = np.array(T0, dtype=float)
         t0[idx] = val
-        _, ll0, *_ = fit(ll_ord, t0, np.setdiff1d(IDX, idx), (xr, xd, y), w, b)
-        R = np.eye(8)[idx]
-        ws, df, wp = wald(th, V, R, np.array(val, dtype=float))
-        lr = 2 * (ll1 - ll0)
-        test_rows.append({"speed": tc, "model": "ordinal", "test": name, "df": df, "wald_dyadic": ws, "p_dyadic": wp, "lr_iid": lr, "p_lr_iid": stats.chi2.sf(lr, df)})
+        _, ll0, *_ = lk.fit(ll_ord, t0, np.setdiff1d(IDX, idx), (xr, xd, y), w, b)
+        ws, _, wp = wald(th, V, np.eye(8)[idx], np.array(val, dtype=float))
+        test_rows.append({"speed": tc, "model": "ordinal", "test": name, **lk.adjusted_lrt(2 * (ll1 - ll0), lk.lr_weights(Hi, V, idx)), "wald_dyadic": ws, "p_wald_dyadic": wp})
 
-    # proportional odds：兩個累積事件各自做 logit，以同一組共變數，比較分差項是否相同。
-    # 兩組分數一起進 dyadic meat，以取得兩組係數的共變異
-    X = np.stack([np.ones_like(xr), xr, xr**2, xd, xd * xr], 1)
-    tw, _, _, Hw, Sw, _ = fit(ll_bin, np.zeros(5), np.arange(5), (X, (y == 2).astype(np.float64)), w, b)
-    tn, _, _, Hn, Sn, _ = fit(ll_bin, np.zeros(5), np.arange(5), (X, (y >= 1).astype(np.float64)), w, b)
-    Hi2 = np.zeros((10, 10))
-    Hi2[:5, :5], Hi2[5:, 5:] = Hw, Hn
-    V2 = Hi2 @ dyad_meat(np.hstack([Sw, Sn]), w, b) @ Hi2
-    R = np.zeros((2, 10))
-    R[0, 3], R[0, 8], R[1, 4], R[1, 9] = 1, -1, 1, -1
-    ws, df, wp = wald(np.concatenate([tw, tn]), V2, R, np.zeros(2))
-    wi, _, pi = wald(np.concatenate([tw, tn]), Hi2, R, np.zeros(2))
-    test_rows.append({"speed": tc, "model": "binary_pair", "test": "proportional_odds_in_diff", "df": df, "wald_dyadic": ws, "p_dyadic": wp, "wald_iid": wi, "p_wald_iid": pi})
-    for k, nm in enumerate(["intercept", "rating", "rating2", "diff", "diff_x_rating"]):
-        coef_rows.append({"speed": tc, "model": "logit_win", "param": nm, "est": tw[k], "se_dyadic": np.sqrt(V2[k, k]), "se_iid": np.sqrt(Hw[k, k])})
-        coef_rows.append({"speed": tc, "model": "logit_not_loss", "param": nm, "est": tn[k], "se_dyadic": np.sqrt(V2[5 + k, 5 + k]), "se_iid": np.sqrt(Hn[k, k])})
+    # proportional odds：對立模型讓勝的門檻上的分差斜率另有位移，概似比檢定位移為 0
+    tp, llp, Vp, Hip, *_ = lk.fit(ll_ppo, T0 + [0, 0], np.arange(10), (xr, xd, y), w, b)
+    ws, _, wp = wald(tp, Vp, np.eye(10)[[8, 9]], np.zeros(2))
+    test_rows.append({"speed": tc, "model": "partial_po", "test": "proportional_odds_in_diff", **lk.adjusted_lrt(2 * (llp - ll1), lk.lr_weights(Hip, Vp, [8, 9])), "wald_dyadic": ws, "p_wald_dyadic": wp})
+    for k, nm in enumerate(["slope_diff_shift_win", "slope_diff_x_rating_shift_win"]):
+        coef_rows.append({"speed": tc, "model": "partial_po", "param": nm, "est": tp[8 + k], "se_dyadic": np.sqrt(Vp[8 + k, 8 + k]), "se_iid": np.sqrt(Hip[8 + k, 8 + k])})
 
     # 得分平均的校準（Cox 校準截距與斜率），E 是否在平均上校準；參數少，用該類別全部的老手對局
     mf = d.filter(pl.col("speed") == tc, pl.col("est"))
     L = np.log(mf["E"].to_numpy() / (1 - mf["E"].to_numpy()))
-    tf, llf, Vf, Hf, *_ = fit(ll_frac, [0, 0, 1, 0], np.arange(4), (mf["xr"].to_numpy(), L, mf["score"].to_numpy()), mf["w"].to_numpy(), mf["b"].to_numpy())
-    del mf
+    af = (mf["xr"].to_numpy(), L, mf["score"].to_numpy())
+    wf, bf = mf["w"].to_numpy(), mf["b"].to_numpy()
+    tf, llf, Vf, Hf, *_ = lk.fit(ll_frac, [0, 0, 1, 0], np.arange(4), af, wf, bf)
     for k, nm in enumerate(["intercept", "intercept_x_rating", "slope_logitE", "slope_logitE_x_rating"]):
         coef_rows.append({"speed": tc, "model": "frac_logit", "param": nm, "est": tf[k], "se_dyadic": np.sqrt(Vf[k, k]), "se_iid": np.sqrt(Hf[k, k])})
     for name, idx, val in [
@@ -261,9 +225,12 @@ for tc in CLASSES:
         ("no_white_adv_in_mean", [0, 1], [0, 0]),
         ("elo_slope_in_mean", [2, 3], [1, 0]),
     ]:
-        ws, df, wp = wald(tf, Vf, np.eye(4)[idx], np.array(val, dtype=float))
-        wi, _, pi = wald(tf, Hf, np.eye(4)[idx], np.array(val, dtype=float))
-        test_rows.append({"speed": tc, "model": "frac_logit", "test": name, "df": df, "wald_dyadic": ws, "p_dyadic": wp, "wald_iid": wi, "p_wald_iid": pi})
+        t0f = np.array([0, 0, 1, 0], dtype=float)
+        t0f[idx] = val
+        _, ll0f, *_ = lk.fit(ll_frac, t0f, np.setdiff1d(np.arange(4), idx), af, wf, bf)
+        ws, _, wp = wald(tf, Vf, np.eye(4)[idx], np.array(val, dtype=float))
+        test_rows.append({"speed": tc, "model": "frac_logit", "test": name, **lk.adjusted_lrt(2 * (llf - ll0f), lk.lr_weights(Hf, Vf, idx)), "wald_dyadic": ws, "p_wald_dyadic": wp})
+    del mf, af
 
     # 模型隱含的量，在分差 0 處隨平均等級分的變化
     for r in np.arange(1000, 2301, 50):
@@ -289,16 +256,16 @@ for tc in CLASSES:
             if ms.height < 2000:
                 continue
             Ls = np.log(ms["E"].to_numpy() / (1 - ms["E"].to_numpy()))
-            tc_, _, Vc, *_ = fit(ll_frac, [0, 0, 1, 0], np.array([0, 2]), (np.zeros(ms.height), Ls, ms["score"].to_numpy()), ms["w"].to_numpy(), ms["b"].to_numpy())
+            tc_, _, Vc, *_ = lk.fit(ll_frac, [0, 0, 1, 0], np.array([0, 2]), (np.zeros(ms.height), Ls, ms["score"].to_numpy()), ms["w"].to_numpy(), ms["b"].to_numpy())
             cox_rows.append({"speed": tc, "stratum_type": k, "stratum": str(v), "n": ms.height, "intercept": tc_[0], "intercept_se": np.sqrt(Vc[0, 0]), "slope": tc_[2], "slope_se": np.sqrt(Vc[1, 1])})
 
     # 時間切分的預測評估：1-6 月估計，7-12 月評估
     tr = d.filter(pl.col("speed") == tc, pl.col("est"), pl.col("train")).sample(N_FIT, seed=2)
     te = d.filter(pl.col("speed") == tc, ~pl.col("train"))
     a = [tr[c].to_numpy().astype(np.float64) for c in ["xr", "xd", "y"]]
-    th_tr, *_ = fit(ll_ord, T0, IDX, a, tr["w"].to_numpy(), tr["b"].to_numpy())
+    th_tr, *_ = lk.fit(ll_ord, T0, IDX, a, tr["w"].to_numpy(), tr["b"].to_numpy())
     t0 = np.array(T0, dtype=float)
-    th_base, *_ = fit(ll_ord, t0, np.array([0, 3, 5]), a, tr["w"].to_numpy(), tr["b"].to_numpy())
+    th_base, *_ = lk.fit(ll_ord, t0, np.array([0, 3, 5]), a, tr["w"].to_numpy(), tr["b"].to_numpy())
     # Elo 形式的三類機率：P(和) = nu * 4E(1-E)，勝負各減去一半，得分的期望恰為 E；nu 由訓練期估計
     Etr, ytr = tr["E"].to_numpy(), tr["y"].to_numpy()
     q = 4 * Etr * (1 - Etr)
@@ -332,19 +299,19 @@ for tc in CLASSES:
             for metric in ["log_loss", "rps", "score_sq_err"]:
                 x = loss[nm][metric][msk]
                 dlt = x - loss["elo_draw_split"][metric][msk]
-                se = np.sqrt(dyad_meat((dlt - dlt.mean())[:, None], wg, bg)[0, 0]) / len(dlt)
+                se = np.sqrt(lk.dyad_meat((dlt - dlt.mean())[:, None], wg, bg)[0, 0]) / len(dlt)
                 pred_rows.append({"speed": tc, "exp_group": grp, "model": nm, "metric": metric, "n": int(msk.sum()), "mean": x.mean(), "diff_vs_elo": dlt.mean(), "diff_se_dyadic": se, "nu_train": nu})
     print(tc, "done")
 
 coef = pl.DataFrame(coef_rows)
 coef.write_csv("outputs/tables/calibration_coef.csv")
 tests = pl.DataFrame(test_rows, infer_schema_length=None)
-# Holm 法對全部 dyadic Wald 檢定控制族錯誤率
-order = np.argsort(tests["p_dyadic"].to_numpy())
-pm = tests["p_dyadic"].to_numpy()[order] * (len(order) - np.arange(len(order)))
+# Holm 法對全部修正的概似比檢定控制族錯誤率
+order = np.argsort(tests["p"].to_numpy())
+pm = tests["p"].to_numpy()[order] * (len(order) - np.arange(len(order)))
 adj = np.empty(len(order))
 adj[order] = np.minimum(np.maximum.accumulate(pm), 1)
-tests = tests.with_columns(p_dyadic_holm=adj)
+tests = tests.with_columns(p_holm=adj)
 tests.write_csv("outputs/tables/calibration_tests.csv")
 implied = pl.DataFrame(implied_rows)
 implied.write_csv("outputs/tables/calibration_implied.csv")

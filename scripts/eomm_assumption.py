@@ -1,6 +1,6 @@
 # EOMM（arXiv 1702.06820）的關鍵假設：給定本局結果，對手（分差）不再影響自己是否離開。
 # 在 2014 年 arena 的隨機配對下，於 EOMM 的流失模型（最近 10 局的勝和負、與前一局的間隔、近期局數、本局結果）
-# 加入 q = |e - 0.5| 與「結果 × q」，以 Wald 檢定 H0：q 與交互作用的係數皆為 0；並估 EOMM 的理論判準
+# 加入 q = |e - 0.5| 與「結果 × q」，以修正的概似比檢定 H0：q 與交互作用的係數皆為 0；並估 EOMM 的理論判準
 # Δ = c(勝) + c(負) - 2c(和)。主分析限兩局以上的配對批次（設計上的隨機），一局一批作補充。
 
 import resource
@@ -13,6 +13,7 @@ import pyfixest as pf
 from scipy.stats import chi2
 
 sys.path.insert(0, "scripts")
+import likelihood as lk
 from arena_batches import player_sample
 from calibrated import probs
 from clogit import fit
@@ -140,11 +141,16 @@ def logit_fit(y, X, w):
     return b
 
 
+def logit_ll(y, X, b):
+    eta = X @ b
+    return float(np.sum(y * eta - np.logaddexp(0, eta)))
+
+
 def logit_cluster(y, X, g):
     b = logit_fit(y, X, np.ones(len(y)))
     p = 1 / (1 + np.exp(-X @ b))
     Hinv = np.linalg.inv((X * (p * (1 - p))[:, None]).T @ X)
-    return b, cluster_cov(X, y - p, Hinv, g)
+    return b, cluster_cov(X, y - p, Hinv, g), Hinv, logit_ll(y, X, b)
 
 
 def ols_cluster(y, X, g):
@@ -153,27 +159,30 @@ def ols_cluster(y, X, g):
     return b, cluster_cov(X, y - X @ b, XtXi, g)
 
 
-coef_rows, wald_rows, c_rows, curve_rows = [], [], [], []
+coef_rows, test_rows, c_rows, curve_rows = [], [], [], []
 for layer in ["multi", "single"]:
     for r in RESP:
         s = d.filter(pl.col("layer") == layer, pl.col(r).is_not_null())
         groups = s["player"].to_numpy()
         for mname, cols in models.items():
             X = design(s, cols)
-            b, V = logit_cluster(s[r].to_numpy(), X, groups)
-            del X
+            yv = s[r].to_numpy()
+            b, V, Hinv, ll1 = logit_cluster(yv, X, groups)
             names = ["const"] + cols
             for j, nm in enumerate(names):
                 if nm in QT + ET + RES + FORM + ["const"]:
                     coef_rows.append(dict(layer=layer, response=r, model=mname, term=nm, coef=b[j], se_cluster_player=np.sqrt(V[j, j]), n=s.height))
+            # 概似比檢定以玩家聚類的 sandwich 修正虛無分布；Wald 統計量並列作對照
             for test_name, terms in [("q_and_interactions", QT), ("e_and_interactions", ET), ("form", FORM)]:
                 if all(t in cols for t in terms):
-                    R = np.zeros((len(terms), len(names)))
-                    for i, t in enumerate(terms):
-                        R[i, names.index(t)] = 1
-                    rb = R @ b
-                    stat = float(rb @ np.linalg.solve(R @ V @ R.T, rb))
-                    wald_rows.append(dict(layer=layer, response=r, model=mname, estimator="logit", test=test_name, df=len(terms), stat=stat, p=float(chi2.sf(stat, len(terms))), n=s.height))
+                    ix = [names.index(t) for t in terms]
+                    Xr = np.delete(X, ix, axis=1)
+                    ll0 = logit_ll(yv, Xr, logit_fit(yv, Xr, np.ones(len(yv))))
+                    del Xr
+                    rb = b[ix]
+                    stat = float(rb @ np.linalg.solve(V[np.ix_(ix, ix)], rb))
+                    test_rows.append(dict(layer=layer, response=r, model=mname, estimator="logit", test=test_name, **lk.adjusted_lrt(2 * (ll1 - ll0), lk.lr_weights(Hinv, V, ix)), wald=stat, p_wald=float(chi2.sf(stat, len(terms))), n=s.height))
+            del X
             # c(o)：把本局結果設為 o、其他變數取觀察值的平均預測離開機率；Δ 與各 c 的標準誤以 delta method 由玩家聚類的共變數求得
             cs_, gs_ = {}, {}
             for o in ["win", "draw", "loss"]:
@@ -201,34 +210,42 @@ for layer in ["multi", "single"]:
             # 速度類別與錦標賽剩餘時間在同一批內不變，條件概似中無法識別
             cols = [c for c in cols if c not in ["bullet", "classical", "log_remaining"]]
             fr = fit(s[r].to_numpy(), s.select(cols).to_numpy(), s["bid"].to_numpy(), s["tournament_id"].to_numpy(), cols)
+            cr = [c for c in cols if c not in QT]
+            f0 = fit(s[r].to_numpy(), s.select(cr).to_numpy(), s["bid"].to_numpy(), s["tournament_id"].to_numpy(), cr)
             ix = [cols.index(t) for t in QT]
             bq = fr["coef"][ix]
-            Vq = fr["cov"][np.ix_(ix, ix)]
-            stat = float(bq @ np.linalg.solve(Vq, bq))
-            wald_rows.append(dict(layer=layer, response=r, model="eomm_q", estimator="clogit_batch_cluster_tournament", test="q_and_interactions", df=3, stat=stat, p=float(chi2.sf(stat, 3)), n=fr["n_used"]))
+            stat = float(bq @ np.linalg.solve(fr["cov"][np.ix_(ix, ix)], bq))
+            test_rows.append(dict(layer=layer, response=r, model="eomm_q", estimator="clogit_batch_cluster_tournament", test="q_and_interactions", **lk.adjusted_lrt(2 * (fr["ll"] - f0["ll"]), lk.lr_weights(fr["cov_naive"], fr["cov"], ix)), wald=stat, p_wald=float(chi2.sf(stat, 3)), n=fr["n_used"]))
             for j, t in zip(ix, QT):
                 coef_rows.append(dict(layer=layer, response=r, model="eomm_q_clogit", term=t, coef=fr["coef"][j], se_cluster_player=np.nan, se_cluster_tournament=np.sqrt(fr["cov"][j, j]), n=fr["n_used"]))
         else:
             ctrl = [c for c in cols if c not in ["bullet", "classical"]]
-            fe = pf.feglm(f"{r} ~ {' + '.join(ctrl)} | tour_win5", s.select(r, *ctrl, pl.col("tour_win5").cast(pl.Categorical).to_physical(), "player").to_pandas(), family="logit", vcov={"CRV1": "player"}, lean=True, store_data=False, copy_data=False)
+            pdf = s.select(r, *ctrl, pl.col("tour_win5").cast(pl.Categorical).to_physical(), "player").to_pandas()
+            fe = pf.feglm(f"{r} ~ {' + '.join(ctrl)} | tour_win5", pdf, family="logit", vcov={"CRV1": "player"})
+            fe0 = pf.feglm(f"{r} ~ {' + '.join(c for c in ctrl if c not in QT)} | tour_win5", pdf, family="logit", vcov="iid", lean=True, store_data=False, copy_data=False)
+            del pdf
             t = fe.tidy()
+            ix = [list(t.index).index(x) for x in QT]
             bq = t.loc[QT, "Estimate"].to_numpy()
-            Vq = fe._vcov[np.ix_([list(t.index).index(x) for x in QT], [list(t.index).index(x) for x in QT])]
-            stat = float(bq @ np.linalg.solve(Vq, bq))
-            wald_rows.append(dict(layer=layer, response=r, model="eomm_q", estimator="fe_logit_tour5m_cluster_player", test="q_and_interactions", df=3, stat=stat, p=float(chi2.sf(stat, 3)), n=fe._N))
+            Vc = fe._vcov.copy()
+            stat = float(bq @ np.linalg.solve(Vc[np.ix_(ix, ix)], bq))
+            # binary logit 的 deviance 即 -2 倍對數概似，兩模型的固定效應相同，相減即概似比統計量
+            Hi_fe = fe.vcov("iid")._vcov
+            test_rows.append(dict(layer=layer, response=r, model="eomm_q", estimator="fe_logit_tour5m_cluster_player", test="q_and_interactions", **lk.adjusted_lrt(fe0.deviance - fe.deviance, lk.lr_weights(Hi_fe, Vc, ix)), wald=stat, p_wald=float(chi2.sf(stat, 3)), n=fe._N, n_restricted=fe0._N))
+            fe.vcov({"CRV1": "player"})
             for x in QT:
                 coef_rows.append(dict(layer=layer, response=r, model="eomm_q_fe", term=x, coef=t.loc[x, "Estimate"], se_cluster_player=t.loc[x, "Std. Error"], n=fe._N))
 
 coef = pl.DataFrame(coef_rows)
-wald = pl.DataFrame(wald_rows)
+tests = pl.DataFrame(test_rows)
 ctab = pl.DataFrame(c_rows)
 curve = pl.DataFrame(curve_rows)
 with pl.Config(tbl_rows=-1, tbl_cols=-1, tbl_width_chars=250):
-    print(wald)
+    print(tests)
     print(ctab.filter(pl.col("quantity") == "delta"))
     print(coef.filter(pl.col("term").is_in(QT + ET + FORM)))
 coef.write_csv("outputs/tables/eomm_assumption_coef.csv")
-wald.write_csv("outputs/tables/eomm_assumption_wald.csv")
+tests.write_csv("outputs/tables/eomm_assumption_tests.csv")
 ctab.write_csv("outputs/tables/eomm_assumption_c.csv")
 curve.write_csv("outputs/tables/eomm_assumption_curve.csv")
 

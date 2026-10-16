@@ -2,6 +2,9 @@
 # 同一模型分別估計大廳（玩家自選對手）與 arena（系統隨機配對）的玩家日，比較分差的係數。
 # 估計量：Heliyon 的雙向固定效應 logit（主要）、雙向固定效應線性機率模型；以玩家為條件的 conditional logit 在抽樣玩家上對照 incidental parameters 的偏誤。
 
+import gc
+import sys
+
 import jax
 
 jax.config.update("jax_enable_x64", True)
@@ -12,6 +15,9 @@ import numpy as np
 import polars as pl
 import pyfixest as pf
 from scipy import stats
+
+sys.path.insert(0, "scripts")
+import likelihood as lk
 
 B = 100
 N_SUB = 20_000
@@ -247,11 +253,14 @@ def stacked(dl, da, xcols, family):
     st = st.with_columns([(pl.col(x) * pl.col("arena")).alias(f"{x}__arena") for x in xcols])
     terms = xcols + [f"{x}__arena" for x in xcols]
     pdf = st.select("player", "ps", "ds", "churn", *terms).to_pandas()
+    del st
     fml = "churn ~ " + " + ".join(terms) + " | ps + ds"
+    # 只用係數與 CRV1 共變異，不保留資料與設計矩陣，否則兩樣本疊起來的模型超過記憶體上限
+    lean = dict(lean=True, store_data=False, copy_data=False)
     if family == "logit":
-        m = pf.feglm(fml, data=pdf, family="logit", vcov={"CRV1": "player"}, demeaner_backend="rust")
+        m = pf.feglm(fml, data=pdf, family="logit", vcov={"CRV1": "player"}, demeaner_backend="rust", **lean)
     else:
-        m = pf.feols(fml, data=pdf, vcov={"CRV1": "player"}, demeaner_backend="rust")
+        m = pf.feols(fml, data=pdf, vcov={"CRV1": "player"}, demeaner_backend="rust", **lean)
     names = list(m.coef().index)
     return m.coef().to_numpy(), m._vcov, names
 
@@ -331,7 +340,8 @@ for spec in ["raw", "ecal", "raw_score", "raw_total", "ecal_total", "q_total", "
     for a, d in samples.items():
         coefs += fit_all(d, spec, {"sample": SAMPLE_NAME[a], "cut": "utc", "day_pure": True, "subset": "all"})[0]
 
-# 各變數的係數是否隨遊戲階段而異：固定效應 logit 的玩家 cluster 共變異下，五個階段係數相等的 Wald 檢定（4 個限制）
+# 各變數的係數是否隨遊戲階段而異：五個階段係數相等（4 個限制）的概似比檢定，受限模型以共同係數取代五個交互作用項，
+# 虛無分布以玩家 cluster 的 sandwich 修正；Wald 統計量並列作對照
 stage_tests = []
 for spec in ["raw_stage", "ecal_stage"]:
     for a, d in samples.items():
@@ -339,12 +349,17 @@ for spec in ["raw_stage", "ecal_stage"]:
         coefs += rows
         m = models["logit_fe"]
         names = list(m.coef().index)
+        Vc = m._vcov.copy()
+        Hi = m.vcov("iid")._vcov
         for x in (EXP_RAW if spec == "raw_stage" else EXP_ECAL):
             ii = [names.index(f"{x}_x_{g}") for g in STAGES]
             R = np.diff(np.eye(len(names))[ii], axis=0)
             dlt = R @ m.coef().to_numpy()
-            w = float(dlt @ np.linalg.solve(R @ m._vcov @ R.T, dlt))
-            stage_tests.append({"spec": spec, "sample": SAMPLE_NAME[a], "variable": x, "chi2": w, "df": 4, "p": stats.chi2.sf(w, 4)})
+            w = float(dlt @ np.linalg.solve(R @ Vc @ R.T, dlt))
+            m0 = fe_fit(d, [c for c in SPECS[spec] if c not in [f"{x}_x_{g}" for g in STAGES]] + [x], "logit")
+            # binary logit 的 deviance 即 -2 倍對數概似；兩模型的固定效應相同
+            r = lk.adjusted_lrt(m0.deviance - m.deviance, lk.lr_weights_linear(Hi, Vc, R))
+            stage_tests.append({"spec": spec, "sample": SAMPLE_NAME[a], "variable": x, **r, "wald": w, "p_wald": stats.chi2.sf(w, 4), "n_full": m._N, "n_restricted": m0._N})
 stage_tests = pl.DataFrame(stage_tests)
 print(stage_tests)
 stage_tests.write_csv("outputs/tables/fixed_effects_churn_stage_tests.csv")
@@ -395,14 +410,33 @@ for spec in ["raw", "ecal"]:
         dm = d.with_columns([pl.col(x).mean().over("player").alias(f"{x}_bar") for x in xs])
         pdf = dm.select("player", "day", "churn", *xs, *[f"{x}_bar" for x in xs]).with_columns(pl.col("day").cast(pl.String)).to_pandas()
         fml = "churn ~ " + " + ".join(xs + [f"{x}_bar" for x in xs]) + " | day"
-        for est, m in [("lpm_mundlak", pf.feols(fml, data=pdf, vcov={"CRV1": "player"})), ("logit_mundlak", pf.feglm(fml, data=pdf, family="logit", vcov={"CRV1": "player"}))]:
+        # 線性機率模型只是原文設定的對照，維持 Wald；logit 以修正的概似比檢定作決策，受限模型去掉玩家平均項。
+        # 模型依序建立、用完即釋放：兩個模型同時保留資料會超過記憶體上限
+        for est in ["lpm_mundlak", "logit_mundlak"]:
+            if est == "lpm_mundlak":
+                m = pf.feols(fml, data=pdf, vcov={"CRV1": "player"})
+            else:
+                m = pf.feglm(fml, data=pdf, family="logit", vcov={"CRV1": "player"})
             names = list(m.coef().index)
             ii = [names.index(f"{x}_bar") for x in xs]
             bb = m.coef().to_numpy()[ii]
-            VV = m._vcov[np.ix_(ii, ii)]
-            w = float(bb @ np.linalg.solve(VV, bb))
-            haus.append({"spec": spec, "sample": SAMPLE_NAME[a], "test": est, "chi2": w, "df": len(xs), "p": stats.chi2.sf(w, len(xs))})
-haus = pl.DataFrame(haus)
+            Vc = m._vcov.copy()
+            w = float(bb @ np.linalg.solve(Vc[np.ix_(ii, ii)], bb))
+            row = {"spec": spec, "sample": SAMPLE_NAME[a], "test": est, "df": len(xs), "wald": w, "p_wald": stats.chi2.sf(w, len(xs))}
+            if est == "logit_mundlak":
+                Hi = m.vcov("iid")._vcov
+                dev1, n1 = m.deviance, m._N
+                del m
+                m0 = pf.feglm("churn ~ " + " + ".join(xs) + " | day", data=pdf, family="logit", vcov="iid", lean=True, store_data=False, copy_data=False)
+                row |= lk.adjusted_lrt(m0.deviance - dev1, lk.lr_weights(Hi, Vc, ii))
+                row |= {"n_full": n1, "n_restricted": m0._N}
+                del m0
+            else:
+                del m
+            haus.append(row)
+            gc.collect()
+        del pdf, dm
+haus = pl.DataFrame(haus, infer_schema_length=None)
 print(haus)
 haus.write_csv("outputs/tables/fixed_effects_churn_hausman.csv")
 

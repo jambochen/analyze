@@ -30,7 +30,7 @@ def _bucket_ll(beta, X, y, mask, m, mmax):
 
 
 def fit(y, X, groups, clusters, names):
-    """回傳 dict：coef、cov（以 clusters 聚類的 sandwich）、cov_naive、names、groups_used、n_used。
+    """回傳 dict：coef、cov（以 clusters 聚類的 sandwich）、cov_naive、ll、names、groups_used、n_used。
     事件全為 0 或全為 1 的組對條件概似沒有貢獻，先剔除。"""
     y = np.asarray(y, float)
     X = np.asarray(X, float)
@@ -87,4 +87,4 @@ def fit(y, X, groups, clusters, names):
     C = S.shape[0]
     Hinv = np.linalg.inv(-H)
     cov = Hinv @ (S.T @ S) @ Hinv * C / (C - 1)
-    return dict(coef=np.asarray(beta), cov=cov, cov_naive=Hinv, names=list(names), groups_used=len(n), n_used=len(y))
+    return dict(coef=np.asarray(beta), cov=cov, cov_naive=Hinv, ll=float(ll(beta)), names=list(names), groups_used=len(n), n_used=len(y))

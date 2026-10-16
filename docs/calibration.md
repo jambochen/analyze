@@ -52,13 +52,13 @@ $x = (\bar r - 1500)/100$，$F$ 為 logistic。$\eta$ 是白方的潛在優勢�
 
 各速度類別在老手對局中抽 1,000,000 局的簡單隨機樣本估計（固定亂數種子）。全量數百萬局可以估，但每個受限模型都要重估，抽樣是為了把記憶體與時間壓在共用機器的限制內；百萬局下抽樣誤差遠小於模型間的差異。
 
-檢定（`calibration_tests.csv` 中 `model = ordinal`、`binary_pair`）：
+檢定（`calibration_tests.csv` 中 `model = ordinal`、`partial_po`）：
 
 - 白方優勢不隨等級變化：$a_1 = a_2 = 0$
 - 和局帶寬不隨等級變化：$c_1 = c_2 = 0$
 - 分差斜率不隨等級變化：$b_1 = 0$
 - 以上全部：5 個限制
-- proportional odds：兩個累積事件（勝；不輸）各自以相同共變數做 logit，以兩組分數一起計算的穩健共變異，檢驗分差與分差乘等級分的係數兩組相同（Brant 型檢定）
+- proportional odds：對立模型為 partial proportional odds，在「勝」的門檻上讓分差與分差乘等級分的斜率另有位移，檢驗兩個位移皆為 0
 - `naive_elo_slope`：把 $b_0$ 固定為 $100 \ln 10/400$。此檢定只作對照，不作為 $E$ 是否校準的判準：有和局時，期望得分在分差 0 處的斜率為 $b_0 f(w)$（$f$ 為 logistic 密度），小於 $b_0/4$；要與 Elo 的期望得分斜率相符，$b_0$ 必須大於 $\ln 10/400$。所以即使 $E$ 完全校準，這個限制也會被拒絕。$E$ 是否校準由 fractional logit 回答
 
 模型隱含的量（分差 0 處的和局機率、白方期望得分、以等級分點數表示的白方優勢、期望得分斜率對 Elo 斜率之比）隨平均等級分的變化見 `calibration_implied.csv`。
@@ -67,7 +67,7 @@ $x = (\bar r - 1500)/100$，$F$ 為 logistic。$\eta$ 是白方的潛在優勢�
 
 同一玩家的多局不獨立，且玩家同時以白方與黑方出現，依白方帳號與黑方帳號分別 cluster 的 two-way 做法會漏掉同一玩家執白與執黑對局之間的相關。改用 dyadic cluster 的 sandwich 共變異：任兩局只要有一位共同玩家，兩局分數的乘積就計入 meat。實作為 $\sum_p S_p S_p^\top - \sum_{\{i,j\}} S_{ij} S_{ij}^\top$，$S_p$ 為玩家 $p$ 參與的全部對局的分數和，後項以無序對手組合為群，扣掉同一組對手的對局被重複計的一次。
 
-決策一律用 dyadic 穩健的 Wald 檢定，並以 Holm 法對表中全部 Wald 檢定控制族錯誤率（`p_dyadic_holm`）。表中另列把各局當獨立的概似比或 Wald 統計量作對照；穩健 Wald 統計量普遍明顯小於獨立假設下的值，可見玩家內的相關不可忽略。
+決策一律用概似比檢定，虛無分布以 dyadic 的 sandwich 修正為加權卡方（`scripts/likelihood.py`，`docs/methods.md`「檢定與區間」）；fractional logit 是 quasi-likelihood，同樣適用。以 Holm 法對表中全部檢定控制族錯誤率（`p_holm`）。表中另列把各局當獨立的卡方 p 值（`p_naive`）與 dyadic 穩健的 Wald 統計量作對照；修正的權重普遍大於 1，獨立假設下的 p 值過小，可見玩家內的相關不可忽略。修正後的檢定在 Bullet 上略為寬鬆（`docs/expected-score-baselines.md`），本表接近顯著邊緣的只有 Bullet 白方優勢隨等級變化一項
 
 ### 預測評估
 
@@ -124,7 +124,7 @@ Bullet 與 Blitz 的分差斜率不隨平均等級分變化；Classical 有小�
 - **斜率小於 1 的來源未分解**。濾波器過度反應（等級分逐局波動）、缺少 RD、Glicko-2 參數與重算的順序問題都可能貢獻；需 Glicko-2 重放取得 RD 後，加做 Glicko-2 形式期望得分的校準比較
 - **新手期是代理**。累計局數從 2013-01 起算，不是帳號年齡；門檻 30 局是暫定，斜率在更高的局數才完全穩定。主定義已改為重放的 RD（`docs/novice-period.md`），30 局保留為敏感度分析
 - **lobby 含指定邀戰**。邀戰的雙方可能互相認識、實力資訊多於等級分，校準可能不同；API 的 `source` 併入後，應把 `friend` 分開重估
-- **dyadic sandwich 的 meat 不保證半正定**，本資料中各估計的變異數皆為正，未遇到問題；Holm 校正的家族為表中全部 Wald 檢定，`naive_elo_slope` 雖列入但不作判準
+- **dyadic sandwich 的 meat 不保證半正定**，本資料中各估計的變異數皆為正，未遇到問題；Holm 校正的家族為表中全部檢定，`naive_elo_slope` 雖列入但不作判準
 - **模型的平均等級分形式**只用到二次項，Classical 高等級處的和局曲線外推上升很快，2200 分以上資料少，該處的隱含值不可靠
 - **Elo 形式的和局分配 $\nu \cdot 4E(1-E)$ 是本研究的選擇**。換成其他保持期望得分為 $E$ 的分配，log loss 會略變，但期望得分的平方誤差不受影響，「有序模型優於 Elo 形式」的結論由後者即可成立
 - 等級分低於 800 時 Lichess 以 800 計算，此類對局極少，未另外處理
