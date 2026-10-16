@@ -3,52 +3,24 @@
 # 其餘情形避免與上一局對手重複；兩種規則分開檢驗。
 # 樣本為 2014 年全年與 2015 年 1 至 3 月（改制在 4 月 20 日）的 arena 對局。
 
+import sys
+
 import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
+
+sys.path.insert(0, "scripts")
+from arena_batches import games, prev_games
 
 UTC = "UTC"
 B = 2000
 rng = np.random.default_rng(0)
 
-g = (
-    pl.scan_parquet("data/processed/lichess_games.parquet")
-    .filter(
-        pl.col("tournament_id").is_not_null(),
-        pl.col("start") >= pl.datetime(2014, 1, 1, time_zone=UTC),
-        pl.col("start") < pl.datetime(2015, 4, 1, time_zone=UTC),
-    )
-    .select("game_id", "start", "tournament_id", "white", "black", "white_elo", "black_elo")
-    .collect()
-    .with_columns(
-        period=pl.when(pl.col("start").dt.year() == 2014).then(pl.lit("2014")).otherwise(pl.lit("2015Q1")),
-        w=pl.col("white").hash(),
-        b=pl.col("black").hash(),
-    )
-    .sort("tournament_id", "start", "game_id")
-)
+period = pl.when(pl.col("start").dt.year() == 2014).then(pl.lit("2014")).otherwise(pl.lit("2015Q1"))
+g, batch, bad = games(pl.datetime(2014, 1, 1, time_zone=UTC), pl.datetime(2015, 4, 1, time_zone=UTC))
+g = g.with_columns(period=period)
+batch = batch.with_columns(period=period)
 print(g.null_count())
-
-batch = (
-    g.group_by("tournament_id", "start", maintain_order=True)
-    .agg(
-        "period",
-        n_games=pl.len(),
-        n_players=pl.concat_list("w", "b").list.explode().n_unique(),
-    )
-    .with_columns(pl.col("period").list.first())
-    .with_columns(
-        first=pl.int_range(pl.len()).over("tournament_id") == 0,
-        gap=pl.col("start").diff().over("tournament_id").dt.total_seconds(),
-    )
-    .with_columns(
-        # 空閒人數為 2g 或 2g+1（奇數時剩一人不配）。g >= 7 必超過 12 人；g = 6 可能是 12 或 13 人，歸入 12 人以下並在分層表中單列
-        rule=pl.when(pl.col("first") | (pl.col("n_games") >= 7)).then(pl.lit("random")).otherwise(pl.lit("smart")),
-        size=pl.when(pl.col("n_games") >= 7).then(pl.lit("7+")).when(pl.col("n_games") >= 4).then(pl.lit("4-6")).otherwise(pl.col("n_games").cast(pl.String)),
-    )
-    .with_row_index("bid")
-)
-g = g.join(batch.select("tournament_id", "start", "bid", "rule", "size", "n_games"), on=["tournament_id", "start"]).sort("bid", "game_id")
 
 sizes = (
     batch.group_by("period", "rule", "first", n_games=pl.col("n_games").clip(1, 10))
@@ -58,8 +30,7 @@ sizes = (
 print(sizes)
 sizes.write_csv("outputs/tables/arena_random_pairing_batch_size.csv")
 
-# 同一秒內同一玩家出現在兩局，不是任何配對規則產生得了的，視為伺服器異常，整場錦標賽排除
-bad = batch.filter(pl.col("n_players") < 2 * pl.col("n_games"))["tournament_id"].unique().implode()
+# 含伺服器異常批次的錦標賽整場排除
 sample = (
     g.group_by("period", excluded=pl.col("tournament_id").is_in(bad))
     .agg(tournaments=pl.col("tournament_id").n_unique(), batches=pl.col("bid").n_unique(), games=pl.len())
@@ -157,11 +128,7 @@ perm.write_csv("outputs/tables/arena_random_pairing_permutation.csv")
 
 # 上一局剛對過的兩人同時空閒時，12 人以下的規則不讓他們重配（剩兩人時寧可不配，除非整場只剩兩位活躍玩家）；
 # 純隨機規則則以 1/(2g-1) 的機率重配。這是檢驗批次重建與原始碼是否相符的直接指標
-long = (
-    pl.concat([g.select("game_id", "start", "bid", "tournament_id", p="w"), g.select("game_id", "start", "bid", "tournament_id", p="b")])
-    .sort("tournament_id", "p", "start", "game_id")
-    .with_columns(prev=pl.col("game_id").shift().over("tournament_id", "p"))
-)
+long = prev_games(g)
 rematch_game = long.group_by("game_id").agg(rematch=(pl.col("prev").n_unique() == 1) & pl.col("prev").is_not_null().all())
 eligible = (
     long.filter(pl.col("prev").is_not_null())
