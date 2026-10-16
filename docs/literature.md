@@ -88,7 +88,7 @@
 - **重算所用的規則**：`modules/round/src/main/PerfsUpdater.scala`（commit `bfad573339`「tweak rating recalculator」）。Bullet、Blitz、Classical 只由標準棋對局更新，變體對局不影響；無限時（Unlimited）對局併入 Classical 計分。Glicko-2 的實作為 `org.goochjs.glicko2` 程式庫
 - **通信棋獨立計分**：commit `804567893e`「support correspondence games in ratings and histories」，2014 年 12 月
 - **灌分帳號不更新**：commit `e75a9d8608`「don't update boosters ratings」，2015 年 2 月
-- **provisional 門檻提高**：commit `6fc785b387`「raise provisional glicko2 deviation threshold」，2015 年 6 月
+- **provisional 標示**：2014 年底的原始碼（`a798929cd3`，含頁面模板）沒有以 RD 標示新手的規則。`Glicko.provisional` 由 commit `363d62d603`「remember if game player perf was provisional」加入，門檻 RD ≥ 100，2015 年 6 月 1 日；隔日 commit `6fc785b387`「raise provisional glicko2 deviation threshold」提高為 RD ≥ 110（`modules/rating/src/main/Glicko.scala`）
 - **研究期間之後**：commit `4673e347e8`「very slightly re-inject rating points (+1% for winner)」，2015 年 7 月
 
 月檔的等級分與 RatingDiff 並非線上當時存入的全站值：整段期間（含 2013 年）本局等級分加 RatingDiff 大多等於同一玩家同一時間類別下一局的等級分（`scripts/explore/rating_consistency.py`），可見月檔的數值已改寫為各速度類別的值，即 `RatingFest` 重算的結果：2014 年 7 月底以前的數值來自這次重算，之後為線上即時計算。不相符的部分，候選原因有：2014 年 12 月以前無限時對局與 Classical 共用等級分，但月檔時間制為 `-`、檢查中歸入通信棋；重算時的並行處理使順序顛倒；作弊帳號的對局取消計分。重放的驗證見 `docs/glicko-replay.md`「不相符的來源」。
