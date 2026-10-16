@@ -25,7 +25,7 @@ Lichess 的等級分系統、配對規則（原始碼公開）與每局的對局
 本題比較三個基準：
 
 - **有序 logistic**：分差、平均等級分、先手，即 `docs/calibration.md` 的主模型
-- **Glicko 形式**：依 rating deviation 把分差往 0 收縮，rating deviation 取自重放（`docs/glicko-replay.md`）；用對手的 RD 或雙方合成的 RD 待確認
+- **Glicko 形式**：依 rating deviation 把分差往 0 收縮，rating deviation 取自重放（`docs/glicko-replay.md`）；收縮用雙方 RD 的合成，即 Glickman 對一局結果的預測式
 - **加入 rating deviation 的有序 logistic**：讓分差的斜率隨雙方的 rating deviation 變化
 
 有序 logistic 與 Glicko 形式都是第三者的特例，各以概似比檢定與第三者比較，檢定以玩家間的相依修正；預測另以樣本外的對數分數評估。三者都只用 2014 年估計與評估，不碰 2015 年。

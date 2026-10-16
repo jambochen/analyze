@@ -107,9 +107,9 @@
 
 ## 檢定與離散分析
 
-以下出處尚未在本專案查證，引用前須核對。
+除另有標示者外，以下出處未在本專案逐一查證。
 
-- **Glicko 對一局結果的預測式**（Glickman，Applied Statistics 48(3)，1999，Parameter estimation in large dynamic paired comparison experiments）。以雙方 RD 的合成把分差往 0 收縮。三個基準的 Glicko 形式所依據
+- **Glicko 對一局結果的預測式**（Glickman，The Glicko system，已查證，已讀全文，含其範例的重算）。「Expected outcome of a game」一節以 $g(\sqrt{RD_i^2 + RD_j^2})$ 把分差往 0 收縮；更新公式中的期望得分則只含對手的 RD。Glicko-2 的說明（The Glicko-2 system）給出 $\mu = (r-1500)/173.7178$、$\phi = RD/173.7178$ 的換算。三個基準的 Glicko 形式所依據。http://www.glicko.net/glicko/glicko.pdf 、http://www.glicko.net/glicko/glicko2.pdf
 - **相依資料下的概似比與 score 檢定**：Rotnitzky、Jewell（Biometrika 77(3)，1990）給出工作概似下概似比統計量的加權卡方分布；Boos（The American Statistician 46(4)，1992）的 generalized score test
 - **非巢狀模型的比較**：Cox（Proceedings of the Fourth Berkeley Symposium，1961）的 tests of separate families；Vuong（Econometrica 57(2)，1989）的概似比檢定
 - **類別資料分析**：Agresti，Categorical Data Analysis。Cochran–Mantel–Haenszel 檢定、Mantel–Haenszel 估計量、Breslow–Day 檢定、adjacent-categories logit、partial proportional odds、loglinear 模型、Cochran–Armitage 趨勢檢定

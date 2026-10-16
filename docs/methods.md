@@ -118,7 +118,8 @@
   - 加入 rating deviation 的有序 logistic：線性預測式為 $\beta_1 d + \beta_4 g(\sigma) d + \beta_2 \bar r + \beta_3 d \bar r$，分差的斜率隨雙方的 rating deviation 變化
 - **巢狀關係**：有序 logistic 是第三者在 $\beta_4 = 0$ 的特例；Glicko 形式是第三者在 $\beta_1 = \beta_2 = \beta_3 = 0$、$\beta_4 = q$ 的特例。三者都以第三者為共同的完整模型，各以概似比檢定比較，不需要非巢狀的檢定
 - **比較**：上述概似比檢定以 dyadic 相依修正；另以 2014 年下半年的樣本外對數分數（log loss）與 ranked probability score 評估預測，差值的標準誤用 dyadic sandwich
-- **待確認**：lila 的 Glicko-2 更新只用對手的 RD，Glickman 對一局結果的預測式用雙方 RD 的合成；兩者何者對應「系統給的期望勝率」，以及式中 RD 的尺度，須對照 lila 原始碼與 Glickman 的原文
+- **為什麼用雙方合成的 RD**：lila 更新等級分時用的期望得分只含對手的 RD（`scripts/glicko.py` 的 `new_rating` 逐行移植自 lila），那是各自更新等級分用的量：白方用黑方的 RD、黑方用白方的 RD，兩方的期望得分相加不等於 1，不是一局的機率。Glickman 在《The Glicko system》中給出一局結果的預測式，以雙方 RD 的合成收縮，兩方相加為 1。本題的基準是一局的勝、和、負機率，所以用合成的 RD；Lichess 不對玩家顯示勝率，報告說明兩者的差別即可
+- **RD 的尺度**：重放輸出的 RD 為 Glicko-1 的顯示尺度（`glicko_replay.parquet` 的 `white_rd`、`black_rd`）。Glicko-2 內部的 $\phi = RD/173.7178$，而 $173.7178 = 400/\ln 10 = 1/q$，兩種寫法的期望得分相同，式中直接用 RD 與 $q$
 - **主從**：三者都進入後續分析；主基準在估計 crossover 模型之前決定，最遲寫進前瞻驗證的登記文件
 - **套件**：statsmodels（`OrderedModel`）、scipy
 

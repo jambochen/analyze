@@ -34,7 +34,7 @@
 | 對照 | 樣本外對數分數與 ranked probability score，差值的標準誤用 dyadic sandwich；Bradley–Terry–Davidson 模型 |
 | 退路 | sandwich Wald 檢定 |
 
-- **前置**：查清 Glicko 形式用對手的 RD 或雙方合成的 RD
+- **Glicko 形式的收縮**：用雙方 RD 的合成（`docs/methods.md`「期望勝率的三個基準」）
 - **決策點**：主基準。在估計 crossover 模型之前決定，寫進登記文件
 - **輸出**：各基準的勝、和、負機率；Elo 形式哪裡偏
 
@@ -155,7 +155,6 @@ Glicko 的等級分是事後平均，濾波器設定正確時不會在剛輸之�
 | 結論 | 由哪個方法得出 | 影響的方法 |
 |---|---|---|
 | 配對確為隨機 | 配對批次的重建 | crossover 模型、Lee 界限、附錄 |
-| Glicko 形式的 RD 口徑 | 查證 lila 與 Glickman | 三個基準的完整模型 |
 | 主基準 | 三個基準 | 幾乎所有方法：表現的基準、勝和負機率、連敗的虛無模型 |
 | 重放的 RD 可用 | Glicko-2 重放 | 新手期、三個基準、等級分是否失準 |
 | carryover 是否不為 0、是否線性 | crossover 模型 | 依狀態調整的勝率、停止規則看「輸」或「爆冷輸」 |
@@ -214,7 +213,6 @@ flowchart TD
     wave[arena 配對批次的重建]
     replaym[Glicko-2 重放]
     novm[新手期]
-    rdcheck[查證 Glicko 形式的 RD 口徑]
     basem[期望勝率的三個基準]
     churnm[連續對局與流失的定義]
     xom[arena 的 crossover 模型]
@@ -251,7 +249,6 @@ flowchart TD
     crep --> novm
     crep --> basem
     novm --> basem
-    rdcheck --> basem
     crand --> xom
     cbase --> xom
     csens --> selm
@@ -294,26 +291,25 @@ flowchart TD
 
 ### 待辦（依序）
 
-1. **查證**：Glicko 形式的 RD 口徑（lila 原始碼與 Glickman 1999）；`docs/literature.md`「檢定與離散分析」中未查證的出處
-2. **修正的概似比檢定的共用 module**：dyadic meat、加權卡方的尾機率，以模擬資料核對檢定水準
-3. **期望勝率的三個基準**：只用 2014 年；決定主基準並寫定
-4. **已完成分析改用修正的概似比檢定重跑**：`scripts/calibration.py`、`scripts/eomm_assumption.py`、`scripts/fixed_effects_churn.py`；delta method 的區間不變；結論有變時更新對應文件與「已得出的結論」
-5. **arena 的 crossover 模型**：平衡檢驗、總效果、前一至三局的 carryover、劑量反應、輸棋本身的效果；有序 CMH、Mantel–Haenszel 與 Bradley–Terry–Davidson 的對照
-6. **續下模型**：本場內是否再開一局；單調性的檢查
-7. **界限**：Lee 界限，與 Manski 界限、inverse probability weighting、有參數的敏感度分析並報
-8. **等級分是否失準**：依 RD 與上一局結果分層的校準；改變 τ 重放
-9. **局序與表現**：pattern-mixture 曲線；有明顯轉折才做變點
-10. **依狀態調整的勝率**：有序 logistic、GAM、LightGBM
-11. **停止規則**：最適規則與簡單規則；偏移持續時加 CUSUM
-12. **附屬**：連敗的檢驗、效果的異質性、rematch 的實測
-13. **前瞻驗證的登記文件**，之後才動用 2015 年 1 月 1 日至 4 月 19 日的 arena
-14. **demo**
-15. **附錄**：API 的對局結束時間取得後，以競爭風險 hazard 描述續下，並分解匹配品質效果中的對局長度機械效果
-16. **有餘裕時**：AoE2 的外部效度
+1. **修正的概似比檢定的共用 module**：dyadic meat、加權卡方的尾機率，以模擬資料核對檢定水準
+2. **期望勝率的三個基準**：只用 2014 年。最大概似估計、樣本外對數分數與 ranked probability score 不需要上一項，可與它並行；三者之間的概似比檢定等上一項通過檢定水準的核對後才做，之後決定主基準並寫定
+3. **已完成分析改用修正的概似比檢定重跑**：`scripts/calibration.py`、`scripts/eomm_assumption.py`、`scripts/fixed_effects_churn.py`；delta method 的區間不變；結論有變時更新對應文件與「已得出的結論」
+4. **arena 的 crossover 模型**：平衡檢驗、總效果、前一至三局的 carryover、劑量反應、輸棋本身的效果；有序 CMH、Mantel–Haenszel 與 Bradley–Terry–Davidson 的對照
+5. **續下模型**：本場內是否再開一局；單調性的檢查
+6. **界限**：Lee 界限，與 Manski 界限、inverse probability weighting、有參數的敏感度分析並報
+7. **等級分是否失準**：依 RD 與上一局結果分層的校準；改變 τ 重放
+8. **局序與表現**：pattern-mixture 曲線；有明顯轉折才做變點
+9. **依狀態調整的勝率**：有序 logistic、GAM、LightGBM
+10. **停止規則**：最適規則與簡單規則；偏移持續時加 CUSUM
+11. **附屬**：連敗的檢驗、效果的異質性、rematch 的實測
+12. **前瞻驗證的登記文件**，之後才動用 2015 年 1 月 1 日至 4 月 19 日的 arena
+13. **demo**
+14. **附錄**：API 的對局結束時間取得後，以競爭風險 hazard 描述續下，並分解匹配品質效果中的對局長度機械效果
+15. **有餘裕時**：AoE2 的外部效度
 
 ## 執行上的判斷
 
-- **先做會左右最多方法的結論**：主基準影響幾乎所有方法；它又依賴 RD 口徑的查證與修正的概似比檢定，所以這三件排在最前面
+- **先做會左右最多方法的結論**：主基準影響幾乎所有方法；它的比較依賴修正的概似比檢定，所以兩者排在最前面，可並行（見待辦）
 - **carryover 是樞紐**：依狀態調整的勝率與停止規則都依賴它的大小與形狀
 - **選擇偏誤是評分時會被重點檢視的一環**：inverse probability weighting 的假設會把 tilt 一併假設掉，所以界限為主、IPW 為對照
 - **輸棋本身的效果多一個假設**：上一局對手只經由結果影響下一局。附錄的 EOMM 檢驗發現對手經由結果以外的途徑影響離開，這個假設同樣可能不成立，所以總效果為主、比值為解讀
