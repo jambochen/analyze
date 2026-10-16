@@ -87,6 +87,13 @@ games = (
     .sort("start", "game_id")
 )
 shutil.rmtree(tmp)
+# 帳號名稱只作串接鍵。分組與串接改用整數代碼：以帳號名的字串分組是先前記憶體不足的主因。
+# 白黑共用同一套代碼，依帳號名排序編號
+enum = pl.Enum(pl.concat([games["white"], games["black"]]).unique().sort())
+games = games.with_columns(
+    white_id=pl.col("white").cast(enum).to_physical().cast(pl.UInt32),
+    black_id=pl.col("black").cast(enum).to_physical().cast(pl.UInt32),
+)
 
 games.write_parquet("data/processed/lichess_games.parquet")
 print(games.height)

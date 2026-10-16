@@ -10,14 +10,12 @@ import numpy as np
 import polars as pl
 
 MN = np.iinfo(np.int32).min
-games = glicko.player_codes(
-    glicko.inputs(
-        pl.scan_parquet("data/processed/lichess_games.parquet")
-        .filter(pl.col("start") < pl.datetime(2013, 4, 1, time_zone="UTC"))
-        .select("start", "white", "black", "result", "white_elo", "black_elo", "white_rating_diff", "black_rating_diff", "base_seconds", "increment_seconds")
-    )
+games = glicko.inputs(
+    pl.scan_parquet("data/processed/lichess_games.parquet")
+    .filter(pl.col("start") < pl.datetime(2013, 4, 1, time_zone="UTC"))
+    .select("start", "white_id", "black_id", "result", "white_elo", "black_elo", "white_rating_diff", "black_rating_diff", "base_seconds", "increment_seconds")
 ).collect()
-args = [games[c].to_numpy() for c in ["w_id", "b_id", "perf", "score", "rated"]]
+args = [games[c].to_numpy() for c in ["white_id", "black_id", "perf", "score", "rated"]]
 # 重算期間未更新的對局，表頭不是重算結果，不作錨點
 wa = games["white_elo"].fill_null(MN).to_numpy() * 1
 ba = games["black_elo"].fill_null(MN).to_numpy() * 1

@@ -154,8 +154,8 @@ rematch.write_csv("outputs/tables/arena_random_pairing_rematch.csv")
 # 列舉順序來自打亂後的名單，因此實際配法是在不含重配的配法中均勻抽出。以此為精確的虛無分布，與不加限制的版本並列
 m2 = (
     g.filter(pl.col("rule") == "smart", pl.col("n_games") == 2)
-    .join(long.select("game_id", w="p", pw="prev"), on=["game_id", "w"])
-    .join(long.select("game_id", b="p", pb="prev"), on=["game_id", "b"])
+    .join(long.select("game_id", w="player", pw="prev"), on=["game_id", "w"])
+    .join(long.select("game_id", b="player", pb="prev"), on=["game_id", "b"])
     .sort("bid", "game_id")
 )
 r4 = np.column_stack([m2["white_elo"].to_numpy(), m2["black_elo"].to_numpy()]).astype(float).reshape(-1, 4)

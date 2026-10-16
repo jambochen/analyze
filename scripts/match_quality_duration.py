@@ -31,7 +31,7 @@ d = (
         leave_8h=pl.col("leave_8h").cast(pl.Float64),
         tc=pl.col("speed").cast(pl.Categorical).to_physical(),
         time_control=pl.col("est_duration"),
-        pid=pl.col("player").cast(pl.Categorical).to_physical(),
+        pid=pl.col("player"),
     )
 )
 # 對局層級只取白方那一列；q 與 color=False 的 e 對雙方對稱

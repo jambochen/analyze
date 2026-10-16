@@ -4,7 +4,10 @@
 # 兩層都控制期望匹配品質 q_bar（定義見 arena_batches.player_sample）：隨機配對保證的是 q 在給定 q_bar 下與玩家無關，
 # 不是 q 本身與玩家無關。
 
+import multiprocessing as mp
+import os
 import sys
+from concurrent.futures import ProcessPoolExecutor
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -16,7 +19,6 @@ from arena_batches import e_grid, multi_null, player_sample
 from clogit import fit
 
 B = 2000
-rng = np.random.default_rng(0)
 RESP = ["tour_left", "leave_session", "leave_8h", "leave_session_half", "leave_session_double"]
 MAIN = ["tour_left", "leave_session", "leave_8h"]
 PRE = ["elo_c", "elo_c2", "log_games_in_tour", "novice"]
@@ -69,7 +71,7 @@ q_bar = m["q_bar"].to_numpy()
 e_bar = m["e_bar"].to_numpy()
 
 
-def repair(null):
+def repair(null, rng):
     opp = np.empty(nrow, int)
     o = rand_rows[np.argsort(rand_bi + rng.random(len(rand_rows)))]
     opp[o[0::2]] = o[1::2]
@@ -121,13 +123,28 @@ def stats(e):
     return {"q": slopes(q - q_bar), "e": slopes(e - e_bar), "q_raw": slopes(q)}
 
 
+NULLS = ["main", "unrestricted_before_1130"]
+
+
+def draw(job):
+    # 每次重新配對有自己的種子：平行時結果不隨工作分配到哪個行程而變
+    k, i = job
+    return stats(E[tci, ui, ui[repair(NULLS[k], np.random.default_rng([k, i]))]])
+
+
+def all_cores():
+    # clogit 在 import 時把行程限制在 8 核，fork 出的工作行程會繼承
+    os.sched_setaffinity(0, range(os.cpu_count()))
+
+
 act = stats(e_act)
 ri_rows = []
 null_keep = {}
-for null in ["main", "unrestricted_before_1130"]:
-    draws = []
-    for i in range(B):
-        draws.append(stats(E[tci, ui, ui[repair(null)]]))
+# 單次重新配對是單執行緒的 numpy 運算，以 fork 的多行程分攤
+with ProcessPoolExecutor(os.cpu_count() - 2, mp_context=mp.get_context("fork"), initializer=all_cores) as ex:
+    draws_by_null = {nl: list(ex.map(draw, [(k, i) for i in range(B)], chunksize=25)) for k, nl in enumerate(NULLS)}
+for null in NULLS:
+    draws = draws_by_null[null]
     for var in act:
         for key, a in act[var].items():
             nd = np.array([dr[var][key] for dr in draws])
@@ -177,12 +194,12 @@ with pl.Config(tbl_rows=-1, tbl_cols=-1, tbl_width_chars=250):
 clog.write_csv("outputs/tables/match_quality_leave_clogit.csv")
 
 # 一局一批：錦標賽 × 5 分鐘的固定效應吸收錦標賽的組成與賽程，q 的變異來自同一時段內誰恰好同時下完。玩家聚類標準誤。
-# 只留需要的欄位、字串鍵轉成整數代碼：整份資料框轉 pandas 後在 feglm 內複製，會超過記憶體上限
+# 只留需要的欄位、字串鍵轉成整數代碼（玩家本來就是代碼）：整份資料框轉 pandas 後在 feglm 內複製，會超過記憶體上限
 s1 = (
     d.filter(pl.col("layer") == "single", pl.col("q_bar").is_not_null())
     .select(
         *RESP, "q", "e", "q_bar", "e_bar", "win", "draw", "white", "elo_c", "elo_c2", "log_games_in_tour", "log_remaining", "novice", "early_half", "after_1130",
-        *[pl.col(c).cast(pl.Categorical).to_physical() for c in ["tour_win1", "tour_win5", "tour_win15", "player"]],
+        *[pl.col(c).cast(pl.Categorical).to_physical() for c in ["tour_win1", "tour_win5", "tour_win15"]], "player",
     )
     .to_pandas()
 )

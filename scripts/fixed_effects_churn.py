@@ -41,7 +41,6 @@ SPECS = {
 }
 
 pdays = pl.read_parquet("data/processed/player_days.parquet").with_columns(
-    pl.col("player").cast(pl.String),
     # 分差以 100 等級分為單位；期望得分以百分點為單位，與勝率同尺度。對手較強時 gap 為正、ecal 較低
     gap_mean=pl.col("gap_mean") / 100,
     gap_sd=pl.col("gap_sd") / 100,
@@ -82,7 +81,7 @@ def heliyon_sample(d):
 
 
 def cl_data(d, xcols):
-    # d 已依玩家排序，字串的 dense rank 與排序一致，同一玩家的列連續且編號遞增
+    # d 已依玩家排序，dense rank 與排序一致，同一玩家的列連續且編號遞增
     seg = (d["player"].rank("dense").cast(pl.Int64) - 1).to_numpy()
     G = int(seg.max()) + 1
     y = d["churn"].to_numpy()
@@ -243,7 +242,7 @@ def stacked(dl, da, xcols, family):
     # 兩樣本疊起來的完全交互作用模型：玩家與日期的固定效應依樣本分開，係數為「大廳」與「arena 減大廳」。
     # 概似可分離，點估計與分開估計相同；同一玩家在兩樣本的 score 進同一個 cluster，差距的標準誤因此含兩估計值的共變
     st = pl.concat([dl.with_columns(arena=pl.lit(0.0)), da.with_columns(arena=pl.lit(1.0))], how="diagonal").with_columns(
-        ps=pl.col("player") + "_" + pl.col("arena").cast(pl.String), ds=pl.col("day").cast(pl.String) + "_" + pl.col("arena").cast(pl.String)
+        ps=pl.col("player").cast(pl.String) + "_" + pl.col("arena").cast(pl.String), ds=pl.col("day").cast(pl.String) + "_" + pl.col("arena").cast(pl.String)
     )
     st = st.with_columns([(pl.col(x) * pl.col("arena")).alias(f"{x}__arena") for x in xcols])
     terms = xcols + [f"{x}__arena" for x in xcols]
@@ -425,7 +424,7 @@ for rep in range(B):
     cnt = pl.DataFrame({"player": union, "copies": rng.multinomial(len(union), np.full(len(union), 1 / len(union)))}).filter(pl.col("copies") > 0)
     # 重複抽到的玩家各為一個新玩家（各自的固定效應與 cluster），以複本編號區分
     cnt = cnt.with_columns(copy=pl.int_ranges(pl.col("copies"))).explode("copy")
-    db = {a: d.join(cnt.select("player", "copy"), on="player").with_columns(player=pl.col("player") + "#" + pl.col("copy").cast(pl.String)).drop("copy") for a, d in sub.items()}
+    db = {a: d.join(cnt.select("player", "copy"), on="player").with_columns(player=pl.col("player").cast(pl.String) + "#" + pl.col("copy").cast(pl.String)).drop("copy") for a, d in sub.items()}
     for r in diff_rows(db[False], db[True], "raw", "logit", "boot"):
         boot.append({**r, "rep": rep})
     print("boot", rep, flush=True)

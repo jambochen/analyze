@@ -33,20 +33,20 @@ d = player_sample().with_columns(
 # 2014 年的對局，近 30 天的局數都完整可見；最近 10 局則只在 2013 年 1 月起累計不到 10 局時以「無」補足，
 # 這時「無」混合了真正的新帳號與左截斷，與 player_game_no 的口徑相同
 raw = pl.scan_parquet("data/processed/lichess_games.parquet").filter(
-    pl.col("base_seconds").is_not_null(), pl.col("white") != pl.col("black"), pl.col("start") < pl.datetime(2015, 1, 1, time_zone="UTC")
+    pl.col("base_seconds").is_not_null(), pl.col("white_id") != pl.col("black_id"), pl.col("start") < pl.datetime(2015, 1, 1, time_zone="UTC")
 )
 score_white = pl.col("result").replace_strict({"1-0": 1.0, "0-1": 0.0, "1/2-1/2": 0.5}, default=None)
 cols = ["game_id", "start", "speed"]
 long = pl.concat([
-    raw.select(*cols, player=pl.col("white"), color=pl.lit("white"), elo=pl.col("white_elo"), opp_elo=pl.col("black_elo"), score=score_white),
-    raw.select(*cols, player=pl.col("black"), color=pl.lit("black"), elo=pl.col("black_elo"), opp_elo=pl.col("white_elo"), score=1 - score_white),
+    raw.select(*cols, player=pl.col("white_id"), color=pl.lit("white"), elo=pl.col("white_elo"), opp_elo=pl.col("black_elo"), score=score_white),
+    raw.select(*cols, player=pl.col("black_id"), color=pl.lit("black"), elo=pl.col("black_elo"), opp_elo=pl.col("white_elo"), score=1 - score_white),
 ])
 players = d["player"].unique().implode()
 keys = d.select("game_id", "player")
 hist = []
 for b in range(NB):
     h = (
-        long.filter(pl.col("player").hash(1) % NB == b, pl.col("player").is_in(players))
+        long.filter(pl.col("player") % NB == b, pl.col("player").is_in(players))
         .collect()
         .sort("player", "start", "game_id")
     )
@@ -157,7 +157,7 @@ coef_rows, wald_rows, c_rows, curve_rows = [], [], [], []
 for layer in ["multi", "single"]:
     for r in RESP:
         s = d.filter(pl.col("layer") == layer, pl.col(r).is_not_null())
-        groups = s["player"].cast(pl.Categorical).to_physical().to_numpy()
+        groups = s["player"].to_numpy()
         for mname, cols in models.items():
             X = design(s, cols)
             b, V = logit_cluster(s[r].to_numpy(), X, groups)
@@ -210,7 +210,7 @@ for layer in ["multi", "single"]:
                 coef_rows.append(dict(layer=layer, response=r, model="eomm_q_clogit", term=t, coef=fr["coef"][j], se_cluster_player=np.nan, se_cluster_tournament=np.sqrt(fr["cov"][j, j]), n=fr["n_used"]))
         else:
             ctrl = [c for c in cols if c not in ["bullet", "classical"]]
-            fe = pf.feglm(f"{r} ~ {' + '.join(ctrl)} | tour_win5", s.select(r, *ctrl, *[pl.col(c).cast(pl.Categorical).to_physical() for c in ["tour_win5", "player"]]).to_pandas(), family="logit", vcov={"CRV1": "player"}, lean=True, store_data=False, copy_data=False)
+            fe = pf.feglm(f"{r} ~ {' + '.join(ctrl)} | tour_win5", s.select(r, *ctrl, pl.col("tour_win5").cast(pl.Categorical).to_physical(), "player").to_pandas(), family="logit", vcov={"CRV1": "player"}, lean=True, store_data=False, copy_data=False)
             t = fe.tidy()
             bq = t.loc[QT, "Estimate"].to_numpy()
             Vq = fe._vcov[np.ix_([list(t.index).index(x) for x in QT], [list(t.index).index(x) for x in QT])]
@@ -241,7 +241,8 @@ for r in ["leave_8h", "tour_left"]:
     X = design(s, cols)
     Xo = {o: design(s, cols, result=o) for o in ["win", "draw", "loss"]}
     y = s[r].to_numpy()
-    pc = s["player"].cast(pl.Categorical).to_physical().to_numpy()
+    # bootstrap 以代碼為 bincount 的索引，須為連續代碼
+    pc = (s["player"].rank("dense") - 1).to_numpy()
     npl = pc.max() + 1
     for i in range(50):
         w = np.bincount(rng.integers(0, npl, npl), minlength=npl)[pc].astype(float)
@@ -260,7 +261,7 @@ ovb_rows = []
 for layer in ["multi", "single"]:
     for r in RESP:
         s = d.filter(pl.col("layer") == layer, pl.col(r).is_not_null())
-        groups = s["player"].cast(pl.Categorical).to_physical().to_numpy()
+        groups = s["player"].to_numpy()
         cols = models["eomm_q"]
         X = design(s, cols)
         y = s[r].to_numpy()

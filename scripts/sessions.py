@@ -33,11 +33,11 @@ sample = raw.select(
     games=pl.len(),
     correspondence=(pl.col("speed") == "Correspondence").sum(),
     no_clock_classical=(no_clock & (pl.col("speed") == "Classical")).sum(),
-    self_games=((pl.col("white") == pl.col("black")) & ~no_clock).sum(),
+    self_games=((pl.col("white_id") == pl.col("black_id")) & ~no_clock).sum(),
 ).collect()
 
 # 無鐘的對局一局可跨數日，開局時間不代表玩家當下在線；同帳號自己對自己的局無法拆成兩名玩家
-games = raw.filter(~no_clock, pl.col("white") != pl.col("black"))
+games = raw.filter(~no_clock, pl.col("white_id") != pl.col("black_id"))
 
 # 全站在 10 分鐘以上沒有任何新局，視為伺服器停擺：此時的「沒有下一局」不是玩家的選擇
 outages = (
@@ -52,7 +52,7 @@ outages.write_csv("outputs/tables/sessions_outages.csv")
 tours = (
     games.filter(pl.col("tournament_id").is_not_null())
     .group_by("tournament_id")
-    .agg(tour_first=pl.col("start").min(), tour_last=pl.col("start").max(), tour_games=pl.len(), tour_players=pl.concat_list("white", "black").explode().n_unique())
+    .agg(tour_first=pl.col("start").min(), tour_last=pl.col("start").max(), tour_games=pl.len(), tour_players=pl.concat_list("white_id", "black_id").explode().n_unique())
     .collect()
     .with_columns(tour_span_minutes=(pl.col("tour_last") - pl.col("tour_first")).dt.total_seconds() / 60)
 )
@@ -67,17 +67,17 @@ tours = (
 cols = ["game_id", "start", "speed", "time_control", "base_seconds", "increment_seconds", "tournament_id"]
 score_white = pl.col("result").replace_strict({"1-0": 1.0, "0-1": 0.0, "1/2-1/2": 0.5}, default=None)
 long = pl.concat([
-    games.select(*cols, player=pl.col("white"), opponent=pl.col("black"), color=pl.lit("white"),
+    games.select(*cols, player=pl.col("white_id"), opponent=pl.col("black_id"), color=pl.lit("white"),
                  elo=pl.col("white_elo"), opp_elo=pl.col("black_elo"), score=score_white),
-    games.select(*cols, player=pl.col("black"), opponent=pl.col("white"), color=pl.lit("black"),
+    games.select(*cols, player=pl.col("black_id"), opponent=pl.col("white_id"), color=pl.lit("black"),
                  elo=pl.col("black_elo"), opp_elo=pl.col("white_elo"), score=1 - score_white),
 ])
 
-# 依玩家名稱的 hash 分桶：每位玩家的完整序列落在同一桶，視窗運算的分組數隨之縮小
+# 依玩家代碼分桶：每位玩家的完整序列落在同一桶，視窗運算的分組數隨之縮小
 hist = {}
 for b in range(NB):
     d = (
-        long.filter(pl.col("player").hash(1) % NB == b)
+        long.filter(pl.col("player") % NB == b)
         .collect(engine="streaming")
         .sort("player", "start", "game_id")
         .with_columns(

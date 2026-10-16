@@ -1,7 +1,7 @@
 # 玩家日彙整：Heliyon 2024 的分析單位。每列為（玩家、日、切點、對局類型）。
 # 對局類型 arena 與 lobby（一般對局）分開計算當日變數；day_pure 標記當日只下了該類型。
 # 流失取當日（不分類型）最後一局的 churn_14d，因為「之後 14 天沒有對局」是對玩家整天而言。
-# 依玩家 hash 分桶彙整：視窗運算與 group_by 的分組數是記憶體瓶頸，玩家序列不跨桶。
+# 依玩家代碼分桶彙整：視窗運算與 group_by 的分組數是記憶體瓶頸，玩家序列不跨桶。
 
 import sys
 
@@ -35,7 +35,7 @@ print("shift hours", SHIFT)
 out = []
 for b in range(NB):
     g = (
-        base.filter(pl.col("player").hash(1) % NB == b)
+        base.filter(pl.col("player") % NB == b)
         .select(COLS)
         .collect()
         .sort("player", "start")
@@ -85,7 +85,7 @@ for b in range(NB):
         out.append(a)
     print(b, sum(x.height for x in out))
 
-pd_ = pl.concat(out).with_columns(pl.col("player").cast(pl.Categorical))
+pd_ = pl.concat(out)
 print(pd_.describe())
 pd_.write_parquet("data/processed/player_days.parquet")
 

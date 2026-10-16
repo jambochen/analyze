@@ -23,7 +23,7 @@ CHUNK = 250_000
 # 有序模型與 proportional odds 檢驗在每個速度類別抽 N_FIT 局的簡單隨機樣本上估計
 N_FIT = 1_000_000
 
-# 只讀需要的欄位，帳號名稱先雜湊成整數以節省記憶體。2014 年 12 月以前的無鐘對局計入
+# 只讀需要的欄位。2014 年 12 月以前的無鐘對局計入
 # Classical 的等級分，但沒有時限，與有鐘的對局不是同一種對局，與通信棋一同排除
 g = (
     pl.scan_parquet("data/processed/lichess_games.parquet")
@@ -32,13 +32,13 @@ g = (
         "start", "speed", "white_elo", "black_elo",
         arena=pl.col("tournament_id").is_not_null(),
         y=pl.col("result").replace_strict({"0-1": 0, "1/2-1/2": 1, "1-0": 2}, default=None, return_dtype=pl.Int8),
-        w=pl.col("white").hash(),
-        b=pl.col("black").hash(),
+        w=pl.col("white_id"),
+        b=pl.col("black_id"),
     )
     .with_row_index("i")
     .collect(engine="streaming")
 )
-# 雜湊再壓成連續的整數代碼，後面 bincount 以代碼為群
+# 帳號代碼在子樣本中不連續，壓成連續代碼，後面 bincount 以代碼為群
 code = pl.concat([g["w"], g["b"]]).rank("dense").cast(pl.UInt32) - 1
 g = g.with_columns(w=code[: g.height], b=code[g.height :])
 P = int(code.max()) + 1

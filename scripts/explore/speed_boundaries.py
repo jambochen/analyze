@@ -12,7 +12,7 @@ g = (
         pl.col("start").is_between(pl.datetime(2015, 4, 10, time_zone="UTC"), pl.datetime(2015, 5, 5, time_zone="UTC"))
         | pl.col("start").is_between(pl.datetime(2014, 11, 15, time_zone="UTC"), pl.datetime(2015, 1, 15, time_zone="UTC"))
     )
-    .select("start", "white", "black", "white_elo", "black_elo", "white_rating_diff", "black_rating_diff", "base_seconds", "increment_seconds")
+    .select("start", "white_id", "black_id", "white_elo", "black_elo", "white_rating_diff", "black_rating_diff", "base_seconds", "increment_seconds")
     .with_columns(
         e30=pl.col("base_seconds") + 30 * pl.col("increment_seconds"),
         e40=pl.col("base_seconds") + 40 * pl.col("increment_seconds"),
@@ -25,8 +25,8 @@ g = (
     )
 )
 p = pl.concat([
-    g.select("start", "c30", "c40", player="white", elo="white_elo", diff="white_rating_diff"),
-    g.select("start", "c30", "c40", player="black", elo="black_elo", diff="black_rating_diff"),
+    g.select("start", "c30", "c40", player="white_id", elo="white_elo", diff="white_rating_diff"),
+    g.select("start", "c30", "c40", player="black_id", elo="black_elo", diff="black_rating_diff"),
 ]).collect().sort("player", "start")
 
 # 每位玩家在各個非歧義類別上一局的「局後」等級分，往後填到每一列

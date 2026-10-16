@@ -29,12 +29,12 @@ EXP = ["0", "1-4", "5-9", "10-29", "30-99", "100-299", "300+"]
 CH = 2_000_000
 
 src = pl.scan_parquet("data/processed/lichess_games.parquet").select(
-    "game_id", "start", "white", "black", "result", "white_elo", "black_elo",
+    "game_id", "start", "white_id", "black_id", "result", "white_elo", "black_elo",
     "white_rating_diff", "black_rating_diff", "base_seconds", "increment_seconds",
 )
-ids = glicko.player_codes(src.select("white", "black")).select("w_id", "b_id").collect(engine="streaming")
-w_id = ids["w_id"].to_numpy()
-b_id = ids["b_id"].to_numpy()
+ids = src.select("white_id", "black_id").collect(engine="streaming")
+w_id = ids["white_id"].to_numpy()
+b_id = ids["black_id"].to_numpy()
 del ids
 
 ts = lambda t: pl.lit(t).str.to_datetime(time_zone="UTC")
@@ -76,7 +76,7 @@ perf_variants = {
     "correspondence_from_2014-12-02_00h": {"t_corr": "2014-12-02 00:00:00"},
 }
 perfs = [perf] + [glicko.inputs(src, **kw).select("perf").collect(engine="streaming")["perf"].to_numpy() for kw in list(perf_variants.values())[1:]]
-rated_all = src.select((pl.col("result") != "*") & (pl.col("white") != pl.col("black"))).collect(engine="streaming").to_series().to_numpy()
+rated_all = src.select((pl.col("result") != "*") & (pl.col("white_id") != pl.col("black_id"))).collect(engine="streaming").to_series().to_numpy()
 # 分出勝負卻雙方 RatingDiff 皆為 0 的對局；兩個新帳號 1500 對 1500 時不可能為 0，
 # 可能是未更新卻記了 0，但也包含分差懸殊、變動不到 1 分的真實更新
 rated_nozero = rated & ~((score != 0.5) & (wdiff == 0) & (bdiff == 0))

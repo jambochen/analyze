@@ -350,6 +350,7 @@ flowchart TD
 
 - **方法限制在分析者修過的範圍**：logistic 迴歸、permutation test、存活分析、階層貝氏、Monte Carlo。randomization inference 以 permutation test 陳述；conditional logit 與固定效應 logit 以「每組有自己截距的 logistic 迴歸」陳述。difference-in-differences、中介分析的正式框架、Glicko-2 重放只作附錄或技術細節
 - **主問題待定**：等下列「待辦」中的模擬、階層模型與存活框架試做完成後再決定。候選與比較見 `docs/directions.md`
+- **帳號以整數代碼分組與串接**：`lichess_games.parquet` 的 `white_id`、`black_id` 與 `player_games.parquet` 的 `player`、`opponent` 是同一套代碼。以帳號字串分組是先前記憶體不足的主因；帳號名稱只在與 API 資料串接時使用
 - **一次只跑一個分析**：一個分析能用滿硬體時依序執行，以 `systemd-run --user --scope -p MemoryMax=20G -p MemorySwapMax=0` 加上執行緒數的環境變數限制。熱點先向量化，再考慮 numba，最後才寫 Rust（rayon、faer、fearless_simd、native 編譯；保留 Python 參考實作）
 
 ### 已完成
@@ -372,13 +373,12 @@ flowchart TD
 ### 待辦（依序）
 
 1. **模擬驗證**：已知真值的配對資料，參數取自真實資料，加入同時影響離開與選對手的未觀測玩家狀態。變動真實效果（0 與真實資料的估計值）、自選對手的強度（無、中、強）、樣本大小；每種設定重複 500 到 1,000 次。評估一般 logistic 迴歸在自選對手下的偏誤、conditional logit 與 permutation test 的型一誤差、檢定力與覆蓋率，並重現不扣 $\bar q$ 時 permutation test 失準。靜態設計，各次重複獨立。以 numpy 向量化與 jax `vmap` 為主，迴圈用 numba（已宣告於 `pyproject.toml`）
-2. **帳號改為整數 ID**：在 `lichess_games.parquet` 與 `player_games.parquet` 一次性加入整數帳號 ID，後續分組與串接一律用它。先前資料處理的記憶體不足多源於以帳號字串分組
-3. **bootstrap 驗證拆成獨立腳本**：`fixed_effects_churn.py` 的 bootstrap 只用於確認 sandwich 標準誤，拆出後主分析重跑不必重做
-4. **階層貝氏 logistic**：玩家隨機截距並加入玩家平均（Mundlak 項），以 nutpie 的 jax 後端抽樣（CPU 與 GPU 實測後擇快）。判準任一不成立即維持固定效應：$\hat R < 1.01$ 且有效樣本數足夠；可在抽樣玩家上估計但精度不明顯變差；與 conditional logit 方向一致、大小相近
-5. **存活框架**：到下一局的時間、期末右設限。從開局起算的 Kaplan–Meier 現在可做；以對局結束起算的 hazard 模型待 arena 的對局時間取得後進行，用以扣除懸殊對局較短的機械效果
-6. **新手期代理的驗證**：以 `data/raw/lichess-users/` 的帳號建立時間驗證累計局數代理。已關閉的帳號缺建立時間，缺失非隨機，須作類別或敏感度分析
-7. **大廳對局的配對來源取得後**：排除指定邀戰，重跑使用大廳對局的分析（校準、流失定義、Heliyon 比較）
-8. **主問題的決定**：待上列 1、4、5 完成後討論
+2. **bootstrap 驗證拆成獨立腳本**：`fixed_effects_churn.py` 的 bootstrap 只用於確認 sandwich 標準誤，拆出後主分析重跑不必重做
+3. **階層貝氏 logistic**：玩家隨機截距並加入玩家平均（Mundlak 項），以 nutpie 的 jax 後端抽樣（CPU 與 GPU 實測後擇快）。判準任一不成立即維持固定效應：$\hat R < 1.01$ 且有效樣本數足夠；可在抽樣玩家上估計但精度不明顯變差；與 conditional logit 方向一致、大小相近
+4. **存活框架**：到下一局的時間、期末右設限。從開局起算的 Kaplan–Meier 現在可做；以對局結束起算的 hazard 模型待 arena 的對局時間取得後進行，用以扣除懸殊對局較短的機械效果
+5. **新手期代理的驗證**：以 `data/raw/lichess-users/` 的帳號建立時間驗證累計局數代理。已關閉的帳號缺建立時間，缺失非隨機，須作類別或敏感度分析
+6. **大廳對局的配對來源取得後**：排除指定邀戰，重跑使用大廳對局的分析（校準、流失定義、Heliyon 比較）
+7. **主問題的決定**：待上列 1、3、4 完成後討論
 
 ## 執行上的判斷
 

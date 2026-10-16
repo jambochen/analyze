@@ -110,13 +110,13 @@
 
 ## player_games.parquet
 
-每列為一個玩家局，範圍為 2014-01-01 00:00 UTC 至 2015-06-30 22:00 UTC，不含無鐘對局與自己對自己的局。筆數與玩家數見 `sessions_sample.csv` 的 `n`、`players`。檔案依玩家名稱的 hash 分 16 桶寫入，桶內依玩家、開局時間排序；需要全域時間順序者須自行排序。
+每列為一個玩家局，範圍為 2014-01-01 00:00 UTC 至 2015-06-30 22:00 UTC，不含無鐘對局與自己對自己的局。筆數與玩家數見 `sessions_sample.csv` 的 `n`、`players`。檔案依玩家代碼除以 16 的餘數分桶寫入，桶內依玩家、開局時間排序；需要全域時間順序者須自行排序。
 
 | 欄位 | 型別 | 說明 |
 |---|---|---|
 | `game_id` | str | 對局 ID，每局兩列 |
-| `player` | str | 帳號名稱，只作串接鍵，報告與輸出不呈現 |
-| `opponent` | str | 對手帳號名稱，只作串接鍵 |
+| `player` | uint32 | 帳號代碼，即 `lichess_games.parquet` 的 `white_id`、`black_id`；帳號名稱須經該檔對回 |
+| `opponent` | uint32 | 對手的帳號代碼 |
 | `color` | str | `white` 或 `black` |
 | `start` | datetime (UTC) | 開局時間，到秒 |
 | `speed` | str | Bullet、Blitz、Classical：對局當時等級分所屬的速度類別（`docs/speed-class.md`），`elo`、`opp_elo` 即此類別的等級分 |

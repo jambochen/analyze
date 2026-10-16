@@ -15,9 +15,8 @@ def games(lo, hi):
     g = (
         pl.scan_parquet("data/processed/lichess_games.parquet")
         .filter(pl.col("tournament_id").is_not_null(), pl.col("start") >= lo, pl.col("start") < hi)
-        .select("game_id", "start", "tournament_id", "white", "black", "white_elo", "black_elo")
+        .select("game_id", "start", "tournament_id", "white_elo", "black_elo", w="white_id", b="black_id")
         .collect()
-        .with_columns(w=pl.col("white").hash(), b=pl.col("black").hash())
         .sort("tournament_id", "start", "game_id")
     )
     batch = (
@@ -43,9 +42,9 @@ def games(lo, hi):
 def prev_games(g):
     """每位玩家在同一場錦標賽中上一局的 game_id（prev）。兩人的 prev 相同即為上一局剛對過。"""
     return (
-        pl.concat([g.select("game_id", "start", "bid", "tournament_id", p="w"), g.select("game_id", "start", "bid", "tournament_id", p="b")])
-        .sort("tournament_id", "p", "start", "game_id")
-        .with_columns(prev=pl.col("game_id").shift().over("tournament_id", "p"))
+        pl.concat([g.select("game_id", "start", "bid", "tournament_id", player="w"), g.select("game_id", "start", "bid", "tournament_id", player="b")])
+        .sort("tournament_id", "player", "start", "game_id")
+        .with_columns(prev=pl.col("game_id").shift().over("tournament_id", "player"))
     )
 
 
@@ -54,7 +53,7 @@ def _sample():
     g, batch, bad = games(pl.datetime(2013, 12, 31, time_zone=UTC), pl.datetime(2015, 1, 1, time_zone=UTC))
     g = g.filter(~pl.col("tournament_id").is_in(bad))
     batch = batch.filter(~pl.col("tournament_id").is_in(bad))
-    prev = prev_games(g).select("game_id", "p", "prev")
+    prev = prev_games(g).select("game_id", "player", "prev")
     pg = (
         pl.scan_parquet("data/processed/player_games.parquet")
         .filter(pl.col("arena"), pl.col("start") >= pl.datetime(2014, 1, 1, time_zone=UTC), pl.col("start") < pl.datetime(2015, 1, 1, time_zone=UTC))
@@ -64,9 +63,8 @@ def _sample():
             "tour_left", "tour_first", "tour_last", "return_seconds", "return_censored", "to_outage",
         )
         .collect()
-        .with_columns(p=pl.col("player").hash())
         .join(batch.select("tournament_id", "start", "bid", "rule", "size", "n_games", "first"), on=["tournament_id", "start"])
-        .join(prev, on=["game_id", "p"])
+        .join(prev, on=["game_id", "player"])
         .sort("player", "start", "game_id")
         .with_columns(games_in_tour=pl.int_range(pl.len()).over("player", "tournament_id"))
     )
@@ -183,7 +181,7 @@ def expected_window(d, E, elos, chunk=100_000):
     ws = w[order]
     ui = np.searchsorted(elos, d["elo"].to_numpy())[order]
     tci = np.searchsorted(TCS, d["speed"].to_numpy())[order]
-    pid = d["p"].to_numpy()[order]
+    pid = d["player"].to_numpy()[order]
     _, start, cnt = np.unique(ws, return_index=True, return_counts=True)
     wi = np.searchsorted(np.unique(ws), ws)
     se = np.zeros(len(ws))
@@ -228,7 +226,7 @@ def player_sample():
     e_w, q_w = expected_window(d, E, elos)
     d = d.with_columns(e_bar_w=e_w, q_bar_w=q_w)
     return (
-        d.join(m.select("game_id", "p", e_bar_m=pl.Series(e_m), q_bar_m=pl.Series(q_m)), on=["game_id", "p"], how="left")
+        d.join(m.select("game_id", "player", e_bar_m=pl.Series(e_m), q_bar_m=pl.Series(q_m)), on=["game_id", "player"], how="left")
         .with_columns(
             e_bar=pl.when(pl.col("layer") == "multi").then("e_bar_m").otherwise("e_bar_w"),
             q_bar=pl.when(pl.col("layer") == "multi").then("q_bar_m").otherwise("q_bar_w"),

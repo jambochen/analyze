@@ -189,20 +189,8 @@ def inputs(games, **speed_rule):
         # RatingDiff 缺失表示系統沒有更新這局（作弊或灌分帳號、未滿兩步等）
         rated=pl.col("white_rating_diff").is_not_null()
         & pl.col("black_rating_diff").is_not_null()
-        & (pl.col("white") != pl.col("black"))
+        & (pl.col("white_id") != pl.col("black_id"))
         & (pl.col("result") != "*"),
-    )
-
-
-def player_codes(games):
-    import polars as pl
-
-    # 白黑兩欄須共用同一套代碼；以全部帳號名建 Enum，比把兩欄串起來轉 categorical 省記憶體
-    names = pl.concat([games.select(n="white"), games.select(n="black")]).unique().collect(engine="streaming")["n"].sort()
-    enum = pl.Enum(names)
-    return games.with_columns(
-        w_id=pl.col("white").cast(enum).to_physical().cast(pl.UInt32),
-        b_id=pl.col("black").cast(enum).to_physical().cast(pl.UInt32),
     )
 
 

@@ -10,8 +10,8 @@ g = pl.scan_parquet("data/processed/lichess_games.parquet").filter(
 )
 p = (
     pl.concat([
-        g.select("month", "start", "game_id", "time_class", player="white", elo="white_elo", diff="white_rating_diff"),
-        g.select("month", "start", "game_id", "time_class", player="black", elo="black_elo", diff="black_rating_diff"),
+        g.select("month", "start", "game_id", "time_class", player="white_id", elo="white_elo", diff="white_rating_diff"),
+        g.select("month", "start", "game_id", "time_class", player="black_id", elo="black_elo", diff="black_rating_diff"),
     ])
     .collect()
     .sort("player", "time_class", "start", "game_id")
