@@ -35,8 +35,8 @@
 | 退路 | sandwich Wald 檢定 |
 
 - **Glicko 形式的收縮**：用雙方 RD 的合成（`docs/methods.md`「期望勝率的三個基準」）
-- **決策點**：主基準。在估計 crossover 模型之前決定，寫進登記文件
-- **輸出**：各基準的勝、和、負機率；Elo 形式哪裡偏
+- **決策點**：主基準。在估計 crossover 模型之前決定，寫進登記文件；候選為加入 RD 的有序 logistic
+- **輸出**：各基準的勝、和、負機率；Elo 形式哪裡偏（`docs/expected-score-baselines.md`）
 
 ### 剛輸之後，期望勝率是否又錯一層
 
@@ -196,6 +196,8 @@ Glicko 的等級分是事後平均，濾波器設定正確時不會在剛輸之�
 | Heliyon 模型的比較 | 可複製且多數方向可解讀；arena 的分差係數大於大廳，差距的信賴區間不含 0。但大廳的估計對控制自身等級分敏感，控制後直接效果變號，玩家固定效應處理不了等級分起落的混淆；每位玩家的觀察日數少，固定效應 logit 的 incidental parameters 偏誤明顯，效果大小以 conditional logit 為準 | 「觀察資料加固定效應」在自選對手的情境下不可靠，這是本研究對電競文獻的方法論結論之一；14 天流失的玩家日模型與逐局的隨機配對分析，反應變數、單位與樣本都不同，不能互相驗證 | `docs/fixed-effects-churn.md` |
 | 重放重現表頭 | 成立，但須以表頭校正：資料始於 2013 年，此前的 rated 對局不在資料中，從 1500 起的純重放大多不相符；改為每局與表頭取交集、不相容時以表頭重設後，Bullet、Blitz、Classical 絕大多數相符。RD 與 volatility 完全照 lila 的規則重放，以重放的 RD 預測表頭的 RatingDiff 幾乎完全相同 | 重放的 RD 可用於 Glicko-2 形式的期望得分與 provisional 定義的新手期；不相符集中於左截斷帳號的前段、2014 年 pool 試行期的 Bullet 與 Blitz、線上期間的 Classical 與通信棋，這些範圍內的 RD 須謹慎使用 | `docs/glicko-replay.md` |
 | 速度類別的修正 | 結論不變：月檔的時間類別是匯出時事後標記的，2015 年 4 月下旬以前部分有加秒的大廳對局被標到慢一級的類別；arena 對局不受影響。各分析改依重放判定的速度類別（`speed`）重跑，主要結論皆未改變 | 後續分析一律依 `speed` 分組；`time_class` 只留作對照 | `docs/speed-class.md` |
+| 修正的概似比檢定的檢定水準 | 有效玩家數到數千時接近名目水準；有效玩家數少時仍偏寬鬆。Blitz、Classical 的真實樣本落在接近名目水準的範圍，Bullet 略為寬鬆 | 修正的概似比檢定作為主要做法；Bullet 上接近顯著邊緣的結果須保留，必要時改用小樣本修正的 sandwich | `docs/expected-score-baselines.md` |
+| 期望勝率的三個基準 | 有序 logistic 與 Glicko 形式對加入 RD 的有序 logistic 都被拒絕；加入 RD 的模型在全部、新手、老手三組的樣本外表現都最好；RD 的收縮比 Glicko 的式子更強 | 主基準的候選為加入 RD 的有序 logistic，待確認；新手對局留在主樣本，由基準吸收 | `docs/expected-score-baselines.md` |
 
 這些結論帶出的待查事項：
 
@@ -291,21 +293,20 @@ flowchart TD
 
 ### 待辦（依序）
 
-1. **修正的概似比檢定的共用 module**：dyadic meat、加權卡方的尾機率，以模擬資料核對檢定水準
-2. **期望勝率的三個基準**：只用 2014 年。最大概似估計、樣本外對數分數與 ranked probability score 不需要上一項，可與它並行；三者之間的概似比檢定等上一項通過檢定水準的核對後才做，之後決定主基準並寫定
-3. **已完成分析改用修正的概似比檢定重跑**：`scripts/calibration.py`、`scripts/eomm_assumption.py`、`scripts/fixed_effects_churn.py`；delta method 的區間不變；結論有變時更新對應文件與「已得出的結論」
-4. **arena 的 crossover 模型**：平衡檢驗、總效果、前一至三局的 carryover、劑量反應、輸棋本身的效果；有序 CMH、Mantel–Haenszel 與 Bradley–Terry–Davidson 的對照
-5. **續下模型**：本場內是否再開一局；單調性的檢查
-6. **界限**：Lee 界限，與 Manski 界限、inverse probability weighting、有參數的敏感度分析並報
-7. **等級分是否失準**：依 RD 與上一局結果分層的校準；改變 τ 重放
-8. **局序與表現**：pattern-mixture 曲線；有明顯轉折才做變點
-9. **依狀態調整的勝率**：有序 logistic、GAM、LightGBM
-10. **停止規則**：最適規則與簡單規則；偏移持續時加 CUSUM
-11. **附屬**：連敗的檢驗、效果的異質性、rematch 的實測
-12. **前瞻驗證的登記文件**，之後才動用 2015 年 1 月 1 日至 4 月 19 日的 arena
-13. **demo**
-14. **附錄**：API 的對局結束時間取得後，以競爭風險 hazard 描述續下，並分解匹配品質效果中的對局長度機械效果
-15. **有餘裕時**：AoE2 的外部效度
+1. **確認主基準**：候選為加入 RD 的有序 logistic（`docs/expected-score-baselines.md`），寫定後才估 crossover 模型
+2. **已完成分析改用修正的概似比檢定重跑**：`scripts/calibration.py`、`scripts/eomm_assumption.py`、`scripts/fixed_effects_churn.py`；delta method 的區間不變；結論有變時更新對應文件與「已得出的結論」
+3. **arena 的 crossover 模型**：平衡檢驗、總效果、前一至三局的 carryover、劑量反應、輸棋本身的效果；有序 CMH、Mantel–Haenszel 與 Bradley–Terry–Davidson 的對照
+4. **續下模型**：本場內是否再開一局；單調性的檢查
+5. **界限**：Lee 界限，與 Manski 界限、inverse probability weighting、有參數的敏感度分析並報
+6. **等級分是否失準**：依 RD 與上一局結果分層的校準；改變 τ 重放
+7. **局序與表現**：pattern-mixture 曲線；有明顯轉折才做變點
+8. **依狀態調整的勝率**：有序 logistic、GAM、LightGBM
+9. **停止規則**：最適規則與簡單規則；偏移持續時加 CUSUM
+10. **附屬**：連敗的檢驗、效果的異質性、rematch 的實測
+11. **前瞻驗證的登記文件**，之後才動用 2015 年 1 月 1 日至 4 月 19 日的 arena
+12. **demo**
+13. **附錄**：API 的對局結束時間取得後，以競爭風險 hazard 描述續下，並分解匹配品質效果中的對局長度機械效果
+14. **有餘裕時**：AoE2 的外部效度
 
 ## 執行上的判斷
 

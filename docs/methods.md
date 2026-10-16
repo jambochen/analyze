@@ -114,14 +114,15 @@
 - **反應變數**：白方視角的勝、和、負，有序類別
 - **模型**：
   - 有序 logistic：即「期望得分的校準」的主模型
-  - Glicko 形式：分差乘上 $g(\sigma)$ 往 0 收縮，$g(\sigma) = 1/\sqrt{1 + 3 q^2 \sigma^2 / \pi^2}$，$q = \ln 10/400$，$\sigma = \sqrt{RD_W^2 + RD_B^2}$，即 Glickman 對一局結果的預測式；斜率固定為 $q$，切點自由估計，以表示和局帶寬與先手優勢
+  - Glicko 形式：分差乘上 $g(\sigma)$ 往 0 收縮，$g(\sigma) = 1/\sqrt{1 + 3 q^2 \sigma^2 / \pi^2}$，$q = \ln 10/400$，$\sigma = \sqrt{RD_W^2 + RD_B^2}$，即 Glickman 對一局結果的預測式。Glicko 只給期望得分，不給和局機率，所以寫成有序 logistic：線性預測式為 $\beta_4 g(\sigma) d$，切點自由估計，以表示和局帶寬與先手優勢。$\beta_4$ 自由估計而不固定為 $q$：有和局時，累積 logit 的斜率要大於 $q$ 才與期望得分的斜率相符（`docs/calibration.md`），固定為 $q$ 會把和局造成的尺度差異誤當成 Glicko 的錯。Glicko 特有的內容是收縮的形狀 $g(\sigma)$，由這個寫法保留
   - 加入 rating deviation 的有序 logistic：線性預測式為 $\beta_1 d + \beta_4 g(\sigma) d + \beta_2 \bar r + \beta_3 d \bar r$，分差的斜率隨雙方的 rating deviation 變化
-- **巢狀關係**：有序 logistic 是第三者在 $\beta_4 = 0$ 的特例；Glicko 形式是第三者在 $\beta_1 = \beta_2 = \beta_3 = 0$、$\beta_4 = q$ 的特例。三者都以第三者為共同的完整模型，各以概似比檢定比較，不需要非巢狀的檢定
+- **巢狀關係**：有序 logistic 是第三者在 $\beta_4 = 0$ 的特例；Glicko 形式是第三者在 $\beta_1 = \beta_2 = \beta_3 = 0$ 的特例（實作中為分差、等級分與和局帶寬的等級分項共六個參數為 0）。三者都以第三者為共同的完整模型，各以概似比檢定比較，不需要非巢狀的檢定
 - **比較**：上述概似比檢定以 dyadic 相依修正；另以 2014 年下半年的樣本外對數分數（log loss）與 ranked probability score 評估預測，差值的標準誤用 dyadic sandwich
 - **為什麼用雙方合成的 RD**：lila 更新等級分時用的期望得分只含對手的 RD（`scripts/glicko.py` 的 `new_rating` 逐行移植自 lila），那是各自更新等級分用的量：白方用黑方的 RD、黑方用白方的 RD，兩方的期望得分相加不等於 1，不是一局的機率。Glickman 在《The Glicko system》中給出一局結果的預測式，以雙方 RD 的合成收縮，兩方相加為 1。本題的基準是一局的勝、和、負機率，所以用合成的 RD；Lichess 不對玩家顯示勝率，報告說明兩者的差別即可
 - **RD 的尺度**：重放輸出的 RD 為 Glicko-1 的顯示尺度（`glicko_replay.parquet` 的 `white_rd`、`black_rd`）。Glicko-2 內部的 $\phi = RD/173.7178$，而 $173.7178 = 400/\ln 10 = 1/q$，兩種寫法的期望得分相同，式中直接用 RD 與 $q$
+- **期望得分本身的校準**：Elo 與 Glicko 的期望得分各以 Cox 校準截距與斜率檢查，依新手與否分層，這一步直接檢驗 Glicko 原式，不經有序模型
 - **主從**：三者都進入後續分析；主基準在估計 crossover 模型之前決定，最遲寫進前瞻驗證的登記文件
-- **套件**：statsmodels（`OrderedModel`）、scipy
+- **腳本**：`scripts/expected_score_baselines.py`；概似比檢定的修正在共用的 `scripts/likelihood.py`，其檢定水準以 `scripts/adjusted_lrt_size.py` 的模擬核對
 
 ### arena 的 crossover 模型
 
@@ -257,6 +258,7 @@
 | 環節 | 基礎方法 | 診斷 | 不通過時升級到 |
 |---|---|---|---|
 | 標準誤 | dyadic sandwich | 與玩家 block bootstrap 的比值落在 0.8 至 1.25 | 兩者並報，推論取較保守者 |
+| 修正的概似比檢定 | 加權卡方的虛無分布 | 有效玩家數落在模擬中接近名目水準的範圍，或統計量遠離顯著邊緣 | 小樣本修正的 sandwich（如 Mancl–DeRouen）重算權重 |
 | 基準的比較 | 以 dyadic 相依修正的概似比檢定，三者皆巢狀於加入 rating deviation 的模型 | partial proportional odds 的概似比檢定不拒絕，或拒絕但切點間的斜率差換算成等級分可忽略 | 以 partial proportional odds 為完整模型重做 |
 | 主問題的效果 | 有序 logistic 加 permutation test，以批次分層、不加玩家項 | 平衡檢驗不拒絕；殘差、leverage 與 influence 診斷 | 加入玩家項的模型核對；以玩家為單位的 bootstrap，報告影響大的玩家群 |
 | 續下的選擇 | 只用有下一局的樣本 | 續下模型中上一局對手強弱項的概似比檢定不拒絕 | Lee 界限為主，Manski 界限與 inverse probability weighting 為對照 |
@@ -283,6 +285,8 @@
 
 - **優先序**：概似比檢定優先，做不到時用 score 檢定，最後才用 Wald 檢定。概似比檢定不受參數化影響；Wald 檢定在 logistic 類模型的效果大或層稀疏時有 Hauck–Donner 效應。score 檢定只需配適虛無模型，層化的 Cochran–Mantel–Haenszel 檢定即屬此類
 - **相依資料**：同一玩家的多局與同一局的兩位玩家都使觀察值相依，一般的概似比與 score 統計量的虛無分布不再是卡方。概似比統計量不變，虛無分布改為 $\sum_j \lambda_j \chi^2_1$，$\lambda_j$ 為受檢參數那一塊 $I^{-1}V$ 的特徵值，$I$ 為負 Hessian，$V$ 為 dyadic 的 meat（Rotnitzky、Jewell 1990）；score 檢定改用 sandwich 形式的變異數（Boos 1992）。兩者都做不到時才用 sandwich 的 Wald 檢定
+- **尾機率的計算**：df 為 1 時有精確解；df 較大時用 Imhof 的反轉公式，第一個週期之後以 Fourier 型積分處理振盪；尾機率小到數值積分不可靠時，改報 $P(\lambda_{\max}\chi^2_{df} > x)$，每個 $\lambda_j \le \lambda_{\max}$，所以這是嚴格的上界
+- **檢定水準**：模擬核對顯示，有效玩家數（各玩家局數占比平方和的倒數）到數千時修正後的檢定接近名目水準，有效玩家數少時仍偏寬鬆，因為群數少時 sandwich 低估變異數（`docs/expected-score-baselines.md`）。真實樣本中 Bullet 的有效玩家數較少，接近顯著邊緣的結果須保留
 - **信賴區間**：delta method 可用；以 permutation test 推論者，區間由反轉檢定或 bootstrap 求得
 
 ## 離散分析的做法

@@ -20,6 +20,7 @@
 | `sessions.md` | 續下、離開、回訪如何定義？門檻怎麼決定？`player_games.parquet` 有哪些欄位？ |
 | `speed-class.md` | 月檔的時間類別與等級分所屬的速度類別有何不同？修正後結論是否改變？ |
 | `glicko-replay.md` | 重放 Glicko-2 能否重現表頭的等級分？重放的 rating deviation 能否採用？速度類別的規則何時生效？ |
+| `expected-score-baselines.md` | 三個期望勝率的基準哪個好？修正的概似比檢定在相依資料下的檢定水準如何？ |
 | `novice-period.md` | 新手期如何界定？Lichess 的 provisional 門檻從何而來？與累計局數的代理差多少？校準偏差在門檻處是否消失？ |
 | `match-quality-leave.md` | 隨機配對下，匹配品質是否影響續下與離開？效果的機制是什麼？（附錄） |
 | `eomm-assumption.md` | EOMM 的關鍵假設（給定結果，對手不影響離開）是否成立？等實力配對是否最好？（附錄） |
