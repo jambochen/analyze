@@ -12,7 +12,7 @@ from calibrated import probs
 
 NB = 16
 UTC = "UTC"
-COLS = ["player", "color", "start", "time_class", "arena", "elo", "opp_elo", "score", "result", "player_game_no", "churn_14d"]
+COLS = ["player", "color", "start", "speed", "arena", "elo", "opp_elo", "score", "result", "player_game_no", "churn_14d"]
 
 base = pl.scan_parquet("data/processed/player_games.parquet").filter(
     pl.col("start") >= pl.datetime(2014, 1, 1, time_zone=UTC),
@@ -75,8 +75,8 @@ for b in range(NB):
             draw_rate=(pl.col("result") == "draw").mean() * 100,
             game_no=pl.col("player_game_no").last(),
             first_game_no=pl.col("player_game_no").first(),
-            bullet=(pl.col("time_class") == "Bullet").mean(),
-            classical=(pl.col("time_class") == "Classical").mean(),
+            bullet=(pl.col("speed") == "Bullet").mean(),
+            classical=(pl.col("speed") == "Classical").mean(),
         )
         a = a.join(dayinfo, on=["player", "day"]).with_columns(
             cut=pl.lit(cut),

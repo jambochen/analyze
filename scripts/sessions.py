@@ -27,14 +27,17 @@ MID = (EDGES[1:] + EDGES[:-1]) / 2
 tmp = tempfile.mkdtemp()
 
 raw = pl.scan_parquet("data/processed/lichess_games.parquet")
+# 無鐘對局在 2014 年 12 月以前計入 Classical 的等級分，但與通信棋一樣沒有時限
+no_clock = pl.col("base_seconds").is_null()
 sample = raw.select(
     games=pl.len(),
-    correspondence=(pl.col("time_class") == "Correspondence").sum(),
-    self_games=((pl.col("white") == pl.col("black")) & (pl.col("time_class") != "Correspondence")).sum(),
+    correspondence=(pl.col("speed") == "Correspondence").sum(),
+    no_clock_classical=(no_clock & (pl.col("speed") == "Classical")).sum(),
+    self_games=((pl.col("white") == pl.col("black")) & ~no_clock).sum(),
 ).collect()
 
-# 通信棋一局跨數日，開局時間不代表玩家當下在線；同帳號自己對自己的局無法拆成兩名玩家
-games = raw.filter(pl.col("time_class") != "Correspondence", pl.col("white") != pl.col("black"))
+# 無鐘的對局一局可跨數日，開局時間不代表玩家當下在線；同帳號自己對自己的局無法拆成兩名玩家
+games = raw.filter(~no_clock, pl.col("white") != pl.col("black"))
 
 # 全站在 10 分鐘以上沒有任何新局，視為伺服器停擺：此時的「沒有下一局」不是玩家的選擇
 outages = (
@@ -61,7 +64,7 @@ tours = (
     .write_csv("outputs/tables/sessions_tournament_span.csv")
 )
 
-cols = ["game_id", "start", "time_class", "time_control", "base_seconds", "increment_seconds", "tournament_id"]
+cols = ["game_id", "start", "speed", "time_control", "base_seconds", "increment_seconds", "tournament_id"]
 score_white = pl.col("result").replace_strict({"1-0": 1.0, "0-1": 0.0, "1/2-1/2": 0.5}, default=None)
 long = pl.concat([
     games.select(*cols, player=pl.col("white"), opponent=pl.col("black"), color=pl.lit("white"),
@@ -78,11 +81,11 @@ for b in range(NB):
         .collect(engine="streaming")
         .sort("player", "start", "game_id")
         .with_columns(
-            # 以每方 40 步、時鐘用盡估計一局的名目長度；Lichess 以 base + 40 × increment 劃分時間類別
+            # 以每方 40 步、時鐘用盡估計一局的名目長度
             est_duration=2 * (pl.col("base_seconds") + 40 * pl.col("increment_seconds")),
             prev_gap=(pl.col("start") - pl.col("start").shift(1)).over("player").dt.total_seconds(),
             next_gap=(pl.col("start").shift(-1) - pl.col("start")).over("player").dt.total_seconds(),
-            next_class=pl.col("time_class").shift(-1).over("player"),
+            next_class=pl.col("speed").shift(-1).over("player"),
             player_game_no=pl.int_range(1, pl.len() + 1).over("player"),
             next_in_tour=pl.col("start").shift(-1).over("player", "tournament_id").is_not_null(),
         )
@@ -96,7 +99,7 @@ for b in range(NB):
     f = d.filter(pl.col("start") >= BEGIN, pl.col("start") < FIT_END, pl.col("next_gap") <= 30 * 86400)
     for tc in CLASSES:
         for arena in [False, True]:
-            x = f.filter(pl.col("time_class") == tc, pl.col("tournament_id").is_not_null() == arena)
+            x = f.filter(pl.col("speed") == tc, pl.col("tournament_id").is_not_null() == arena)
             # 同秒開局的間隔記為 1 秒，才能取對數
             g = np.log10(np.maximum(x["next_gap"].to_numpy(), 1))
             r = np.log10(np.maximum(x["next_gap"].to_numpy(), 1) / x["est_duration"].to_numpy())
@@ -144,7 +147,7 @@ for tc in CLASSES:
                 lo_range = (mid > mid[peak]) & (mid < (np.log10(86400) if var == "gap" else mid[peak] + 2.5))
                 valley = mid[lo_range][np.argmin(sm[lo_range])]
                 fits.append({
-                    "time_class": tc, "source": source, "variable": var, "fit_upper_seconds": upper if var == "gap" else None,
+                    "speed": tc, "source": source, "variable": var, "fit_upper_seconds": upper if var == "gap" else None,
                     "n": int(h.sum()), "mu1": mu[0], "sd1": sd[0], "w1": w[0], "mu2": mu[1], "sd2": sd[1], "w2": w[1],
                     "crossing_log10": cross, "crossing": 10**cross, "valley_log10": valley, "valley": 10**valley,
                 })
@@ -152,22 +155,22 @@ fits = pl.DataFrame(fits)
 fits.write_csv("outputs/tables/sessions_threshold_fit.csv")
 print(fits)
 
-# 主門檻：各時間類別合併 arena 與大廳、擬合範圍最寬的混合分布分界，取整到分鐘
+# 主門檻：各速度類別合併 arena 與大廳、擬合範圍最寬的混合分布分界，取整到分鐘
 main = fits.filter(pl.col("source") == "pooled", pl.col("variable") == "gap", pl.col("fit_upper_seconds") == 30 * 86400)
-T = {r["time_class"]: round(r["crossing"] / 60) * 60 for r in main.iter_rows(named=True)}
+T = {r["speed"]: round(r["crossing"] / 60) * 60 for r in main.iter_rows(named=True)}
 ratio_main = fits.filter(pl.col("source") == "pooled", pl.col("variable") == "ratio")
-K = {r["time_class"]: round(r["crossing"] * 4) / 4 for r in ratio_main.iter_rows(named=True)}
-pl.DataFrame({"time_class": CLASSES, "threshold_seconds": [T[c] for c in CLASSES], "ratio_threshold": [K[c] for c in CLASSES]}).write_csv("outputs/tables/sessions_threshold.csv")
+K = {r["speed"]: round(r["crossing"] * 4) / 4 for r in ratio_main.iter_rows(named=True)}
+pl.DataFrame({"speed": CLASSES, "threshold_seconds": [T[c] for c in CLASSES], "ratio_threshold": [K[c] for c in CLASSES]}).write_csv("outputs/tables/sessions_threshold.csv")
 print(T, K)
 
-# 敏感度比較的規則：門檻一律依前一局的時間類別，因為開局間隔包含前一局本身的長度
+# 敏感度比較的規則：門檻一律依前一局的速度類別，因為開局間隔包含前一局本身的長度
 RULES = {
-    "main": pl.col("time_class").replace_strict(T, return_dtype=pl.Float64),
-    "main_half": pl.col("time_class").replace_strict(T, return_dtype=pl.Float64) / 2,
-    "main_double": pl.col("time_class").replace_strict(T, return_dtype=pl.Float64) * 2,
+    "main": pl.col("speed").replace_strict(T, return_dtype=pl.Float64),
+    "main_half": pl.col("speed").replace_strict(T, return_dtype=pl.Float64) / 2,
+    "main_double": pl.col("speed").replace_strict(T, return_dtype=pl.Float64) * 2,
     # arXiv 2503.21713 未給 Classical 的門檻，以主門檻代入
-    "literature": pl.col("time_class").replace_strict({"Bullet": 300.0, "Blitz": 420.0, "Classical": float(T["Classical"])}),
-    "ratio": pl.col("time_class").replace_strict(K, return_dtype=pl.Float64) * pl.col("est_duration"),
+    "literature": pl.col("speed").replace_strict({"Bullet": 300.0, "Blitz": 420.0, "Classical": float(T["Classical"])}),
+    "ratio": pl.col("speed").replace_strict(K, return_dtype=pl.Float64) * pl.col("est_duration"),
 }
 GRID_MIN = [1, 2, 3, 5, 7, 10, 15, 20, 30, 45, 60, 90, 120]
 GRID_RATIO = [1.0, 1.25, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0]
@@ -181,10 +184,10 @@ for b in range(NB):
     )
     s = d.filter(pl.col("start") >= BEGIN, pl.col("start") < SENS_END)
     for m in GRID_MIN:
-        grid.append(s.group_by("time_class", "arena", "result").agg(
+        grid.append(s.group_by("speed", "arena", "result").agg(
             rule=pl.lit("fixed"), threshold=pl.lit(float(m)), n=pl.len(), cont=(pl.col("next_gap") <= m * 60).sum()))
     for k in GRID_RATIO:
-        grid.append(s.group_by("time_class", "arena", "result").agg(
+        grid.append(s.group_by("speed", "arena", "result").agg(
             rule=pl.lit("ratio"), threshold=pl.lit(k), n=pl.len(), cont=(pl.col("next_gap") <= k * pl.col("est_duration")).sum()))
     for name, thr in RULES.items():
         # 局序須從 2013 年起累計，2014 年初的連續對局才不會被切斷
@@ -194,10 +197,10 @@ for b in range(NB):
         ).with_columns(
             game_seq=pl.col("idx") - pl.when(pl.col("new")).then(pl.col("idx")).forward_fill().over("player") + 1,
         ).filter(pl.col("start") >= BEGIN, pl.col("start") < SENS_END)
-        seq.append(x.group_by("time_class", "arena", game_seq=pl.col("game_seq").clip(upper_bound=20)).agg(
+        seq.append(x.group_by("speed", "arena", game_seq=pl.col("game_seq").clip(upper_bound=20)).agg(
             rule=pl.lit(name), n=pl.len(), cont=pl.col("cont").sum()))
-        cross_class.append(x.filter(pl.col("cont")).group_by("time_class").agg(
-            rule=pl.lit(name), n=pl.len(), switch=(pl.col("next_class") != pl.col("time_class")).sum()))
+        cross_class.append(x.filter(pl.col("cont")).group_by("speed").agg(
+            rule=pl.lit(name), n=pl.len(), switch=(pl.col("next_class") != pl.col("speed")).sum()))
 
     thr = RULES["main"]
     d = (
@@ -230,7 +233,7 @@ for b in range(NB):
         )
         .filter(pl.col("start") >= BEGIN, pl.col("start") < END)
         .select(
-            "game_id", "player", "opponent", "color", "start", "time_class", "time_control", "base_seconds", "increment_seconds",
+            "game_id", "player", "opponent", "color", "start", "speed", "time_control", "base_seconds", "increment_seconds",
             "est_duration", "tournament_id", "arena", "elo", "opp_elo", "score", "result",
             "player_game_no", "session_no", "game_seq", "session_games", "session_threshold", "prev_gap",
             "continue_session", "leave_8h", "churn_14d", "tour_last_game", "tour_left", "tour_first", "tour_last",
@@ -239,14 +242,14 @@ for b in range(NB):
     )
     # 摘要在每桶內先聚合成和與個數：在合併後的 5,000 萬列上做 group_by 會超出記憶體上限
     agg = {"n": pl.len(), **{f"{o}_n": pl.col(o).count() for o in OUTCOMES}, **{f"{o}_sum": pl.col(o).sum() for o in OUTCOMES}}
-    rates.append(d.group_by("time_class", "arena").agg(result=pl.lit("all"), **agg))
-    rates.append(d.filter(pl.col("result").is_not_null()).group_by("time_class", "arena", "result").agg(**agg))
+    rates.append(d.group_by("speed", "arena").agg(result=pl.lit("all"), **agg))
+    rates.append(d.filter(pl.col("result").is_not_null()).group_by("speed", "arena", "result").agg(**agg))
     months.append(d.group_by(month=pl.col("start").dt.strftime("%Y-%m"), arena=pl.col("arena")).agg(**agg))
     for m in [0.5, 1.0, 2.0, 3.0]:
         tour_margin.append(d.filter(
             pl.col("arena"), pl.col("tour_last") < END - dt.timedelta(hours=2),
             (pl.col("tour_last") - pl.col("start")).dt.total_seconds() >= m * pl.col("est_duration"),
-        ).group_by("time_class", "result").agg(margin=pl.lit(m), n=pl.len(), left=pl.col("tour_last_game").sum()))
+        ).group_by("speed", "result").agg(margin=pl.lit(m), n=pl.len(), left=pl.col("tour_last_game").sum()))
     window.append(d.select(
         **{f"{o}_n": pl.col(o).count() for o in OUTCOMES},
         **{f"{o}_last_start": pl.col("start").filter(pl.col(o).is_not_null()).max() for o in OUTCOMES},
@@ -269,19 +272,19 @@ for b in range(NB):
 writer.close()
 shutil.rmtree(tmp)
 
-grid = pl.concat(grid).group_by("rule", "threshold", "time_class", "arena", "result").agg(pl.col("n", "cont").sum()).with_columns(rate=pl.col("cont") / pl.col("n")).sort("rule", "threshold", "time_class", "arena", "result")
+grid = pl.concat(grid).group_by("rule", "threshold", "speed", "arena", "result").agg(pl.col("n", "cont").sum()).with_columns(rate=pl.col("cont") / pl.col("n")).sort("rule", "threshold", "speed", "arena", "result")
 grid.write_csv("outputs/tables/sessions_sensitivity.csv")
-seq = pl.concat(seq).group_by("rule", "time_class", "arena", "game_seq").agg(pl.col("n", "cont").sum()).with_columns(rate=pl.col("cont") / pl.col("n")).sort("rule", "time_class", "arena", "game_seq")
+seq = pl.concat(seq).group_by("rule", "speed", "arena", "game_seq").agg(pl.col("n", "cont").sum()).with_columns(rate=pl.col("cont") / pl.col("n")).sort("rule", "speed", "arena", "game_seq")
 seq.write_csv("outputs/tables/sessions_sensitivity_seq.csv")
-cross_class = pl.concat(cross_class).group_by("rule", "time_class").agg(pl.col("n", "switch").sum()).with_columns(share=pl.col("switch") / pl.col("n")).sort("rule", "time_class")
+cross_class = pl.concat(cross_class).group_by("rule", "speed").agg(pl.col("n", "switch").sum()).with_columns(share=pl.col("switch") / pl.col("n")).sort("rule", "speed")
 cross_class.write_csv("outputs/tables/sessions_cross_class.csv")
 print(cross_class)
 
 rate_cols = [pl.col(f"{o}_sum") / pl.col(f"{o}_n") for o in OUTCOMES]
 rate_names = {f"{o}_sum": o for o in OUTCOMES}
 rates = (
-    pl.concat(rates).group_by("time_class", "arena", "result").agg(pl.exclude("time_class", "arena", "result").sum())
-    .with_columns(rate_cols).rename(rate_names).sort("time_class", "arena", "result")
+    pl.concat(rates).group_by("speed", "arena", "result").agg(pl.exclude("speed", "arena", "result").sum())
+    .with_columns(rate_cols).rename(rate_names).sort("speed", "arena", "result")
 )
 rates.write_csv("outputs/tables/sessions_rates.csv")
 print(rates)
@@ -291,8 +294,8 @@ print(rates)
     .write_csv("outputs/tables/sessions_rates_month.csv")
 )
 (
-    pl.concat(tour_margin).group_by("margin", "time_class", "result").agg(pl.col("n", "left").sum())
-    .with_columns(rate=pl.col("left") / pl.col("n")).sort("margin", "time_class", "result")
+    pl.concat(tour_margin).group_by("margin", "speed", "result").agg(pl.col("n", "left").sum())
+    .with_columns(rate=pl.col("left") / pl.col("n")).sort("margin", "speed", "result")
     .write_csv("outputs/tables/sessions_tour_margin.csv")
 )
 # 各桶的玩家互不重疊，玩家數可直接相加
@@ -310,7 +313,7 @@ for j, tc in enumerate(CLASSES):
         h = (hist[tc, False, var] + hist[tc, True, var]).astype(float)
         dens = h / h.sum() / 0.02
         ax.plot(mid, dens, color="black", lw=1, label="observed")
-        r = fits.filter(pl.col("time_class") == tc, pl.col("source") == "pooled", pl.col("variable") == var, pl.col("fit_upper_seconds").is_null() | (pl.col("fit_upper_seconds") == 30 * 86400)).row(0, named=True)
+        r = fits.filter(pl.col("speed") == tc, pl.col("source") == "pooled", pl.col("variable") == var, pl.col("fit_upper_seconds").is_null() | (pl.col("fit_upper_seconds") == 30 * 86400)).row(0, named=True)
         for k, c in [("1", "tab:blue"), ("2", "tab:orange")]:
             ax.plot(mid, r[f"w{k}"] * np.exp(-0.5 * ((mid - r[f"mu{k}"]) / r[f"sd{k}"]) ** 2) / (r[f"sd{k}"] * np.sqrt(2 * np.pi)), color=c, lw=1, ls="--", label=f"component {k}")
         ax.axvline(r["crossing_log10"], color="tab:red", lw=1, label="mixture boundary")
@@ -332,12 +335,12 @@ fig.tight_layout()
 fig.savefig("outputs/figures/sessions_gap.png", dpi=150)
 
 fig, axes = plt.subplots(1, 3, figsize=(13, 4), sharey=True)
-g = grid.filter(pl.col("rule") == "fixed").group_by("threshold", "time_class", "arena", "result").agg(pl.col("n", "cont").sum()).with_columns(rate=pl.col("cont") / pl.col("n"))
+g = grid.filter(pl.col("rule") == "fixed").group_by("threshold", "speed", "arena", "result").agg(pl.col("n", "cont").sum()).with_columns(rate=pl.col("cont") / pl.col("n"))
 for j, tc in enumerate(CLASSES):
     ax = axes[j]
     for res, c in [("loss", "tab:red"), ("draw", "tab:gray"), ("win", "tab:blue")]:
         for arena, ls in [(False, "-"), (True, "--")]:
-            x = g.filter(pl.col("time_class") == tc, pl.col("result") == res, pl.col("arena") == arena).sort("threshold")
+            x = g.filter(pl.col("speed") == tc, pl.col("result") == res, pl.col("arena") == arena).sort("threshold")
             ax.plot(x["threshold"], x["rate"], color=c, ls=ls, marker=".", label=f"{res}, {'arena' if arena else 'lobby'}")
     ax.axvline(T[tc] / 60, color="black", lw=1, label="main threshold")
     ax.set_xscale("log")
@@ -355,7 +358,7 @@ for i, arena in enumerate([False, True]):
     for j, tc in enumerate(CLASSES):
         ax = axes[i, j]
         for name in RULES:
-            x = sq.filter(pl.col("rule") == name, pl.col("time_class") == tc, pl.col("arena") == arena).sort("game_seq")
+            x = sq.filter(pl.col("rule") == name, pl.col("speed") == tc, pl.col("arena") == arena).sort("game_seq")
             ax.plot(x["game_seq"], x["rate"], marker=".", label=name)
         ax.set_title(f"{tc}, {'arena' if arena else 'lobby'}")
         ax.set_xlabel("position in session")

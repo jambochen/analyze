@@ -152,6 +152,7 @@ def replay(white, black, perf, score, rated, white_anchor, black_anchor, tau=TAU
 # scripts/explore/speed_boundaries.py 從表頭等級分鏈推定
 BULLET, BLITZ, CLASSICAL, CORRESPONDENCE = 0, 1, 2, 3
 N_PERF = 4
+PERF_NAMES = ["Bullet", "Blitz", "Classical", "Correspondence"]
 # scalachess 1fc3f0d44a 把 estimateTotalTime 的每步加秒倍數由 30 改為 40
 T_EST40 = "2015-04-25 07:00:00"
 # lila 804567893e 使通信棋獨立計分；此前無限時對局與 Classical 共用等級分
@@ -160,13 +161,15 @@ T_CORR = "2014-12-01 09:46:00"
 T_UNL = "2014-12-30 15:52:00"
 
 
-def inputs(games, t_est40=T_EST40, t_corr=T_CORR, unlimited_classical_until_unl=False):
+def speed(t_est40=T_EST40, t_corr=T_CORR, unlimited_classical_until_unl=False):
+    # 對局當時等級分所屬的速度類別（PERF_NAMES 的索引）。月檔 Event 的時間類別是匯出時
+    # 一律以每步加秒乘 40 事後標的，2015-04-25 以前與當時計分所用的類別不同
     import polars as pl
 
     ts = lambda t: pl.lit(t).str.to_datetime(time_zone="UTC")
     est = pl.col("base_seconds") + pl.when(pl.col("start") < ts(t_est40)).then(30).otherwise(40) * pl.col("increment_seconds")
     t_classical_end = T_UNL if unlimited_classical_until_unl else t_corr
-    perf = (
+    return (
         pl.when(est.is_null() & (pl.col("start") < ts(t_classical_end))).then(CLASSICAL)
         .when(est.is_null()).then(CORRESPONDENCE)
         .when(est < 180).then(BULLET)
@@ -174,8 +177,13 @@ def inputs(games, t_est40=T_EST40, t_corr=T_CORR, unlimited_classical_until_unl=
         .otherwise(CLASSICAL)
         .cast(pl.UInt8)
     )
+
+
+def inputs(games, **speed_rule):
+    import polars as pl
+
     return games.with_columns(
-        perf=perf,
+        perf=speed(**speed_rule),
         # 未完成（*）的局不更新，得分值無作用
         score=pl.when(pl.col("result") == "1-0").then(1.0).when(pl.col("result") == "0-1").then(0.0).otherwise(0.5),
         # RatingDiff 缺失表示系統沒有更新這局（作弊或灌分帳號、未滿兩步等）

@@ -29,7 +29,7 @@ d = (
         leave_session=(~pl.col("continue_session")).cast(pl.Float64),
         tour_left=pl.col("tour_left").cast(pl.Float64),
         leave_8h=pl.col("leave_8h").cast(pl.Float64),
-        tc=pl.col("time_class").cast(pl.Categorical).to_physical(),
+        tc=pl.col("speed").cast(pl.Categorical).to_physical(),
         time_control=pl.col("est_duration"),
         pid=pl.col("player").cast(pl.Categorical).to_physical(),
     )
@@ -50,9 +50,9 @@ dur.write_csv("outputs/tables/match_quality_duration.csv")
 
 binned = (
     games.with_columns(q_bin=(pl.col("q") * 10).floor().clip(0, 4) / 10)
-    .group_by("time_class", "q_bin")
+    .group_by("speed", "q_bin")
     .agg(n=pl.len(), no_start=pl.col("no_start").mean(), median_duration_ratio=pl.col("duration_ratio").filter(pl.col("no_start") == 0).median())
-    .sort("time_class", "q_bin")
+    .sort("speed", "q_bin")
 )
 print(binned)
 binned.write_csv("outputs/tables/match_quality_duration_binned.csv")
@@ -71,7 +71,7 @@ med.write_csv("outputs/tables/match_quality_duration_leave.csv")
 
 fig, axes = plt.subplots(1, 2, figsize=(9, 3.3))
 for tcn, c in [("Bullet", "C0"), ("Blitz", "C1")]:
-    x = binned.filter(pl.col("time_class") == tcn)
+    x = binned.filter(pl.col("speed") == tcn)
     axes[0].plot(x["q_bin"] + 0.05, x["median_duration_ratio"], "o-", color=c, label=tcn)
     axes[1].plot(x["q_bin"] + 0.05, x["no_start"], "o-", color=c, label=tcn)
 axes[0].set_xlabel("match quality q = |e - 0.5|, binned")

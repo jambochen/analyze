@@ -26,7 +26,7 @@
 
 2014 年 7 月底至 2015 年 6 月 `PerfsUpdater.scala` 的其他變更（三棋種、antichess、atomic、horde、pool 移除、開局錦標賽）都只涉及變體棋或 pool，不影響標準棋的速度類別。2014 年 6 月至 10 月的 pool 對局，表頭存的是 pool 等級分而非速度類別的等級分（`PerfPicker.main` 對 pool 對局回傳 pool 的 perf），但速度類別仍照常更新；資料中無法辨認哪些是 pool 對局。
 
-月檔的 `Event` 欄的時間類別是以每步加秒乘 40 的公式事後標的，與 2015 年 4 月以前實際計分所用的類別不同（例如 300+5 在當時計入 Blitz）。重放的速度類別一律依上表由 `base_seconds`、`increment_seconds` 與建立時間重新判定，不用資料中的 `time_class`。
+月檔的 `Event` 欄的時間類別是以每步加秒乘 40 的公式事後標的，與 2015 年 4 月以前實際計分所用的類別不同（例如 300+5 在當時計入 Blitz）。重放的速度類別一律依上表由 `base_seconds`、`increment_seconds` 與建立時間重新判定，不用資料中的 `time_class`。判定規則即 `glicko.speed()`，`lichess_games.parquet` 的 `speed` 欄與其後的分析都用同一個函式（`docs/speed-class.md`）。
 
 ### 規則變更的實際上線時間
 

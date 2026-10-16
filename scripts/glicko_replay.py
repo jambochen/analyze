@@ -21,7 +21,7 @@ MN = np.iinfo(np.int32).min
 # RatingFest 的結束時間：此前表頭是重算結果，此後為線上即時計算。只影響未更新對局的
 # 表頭能否作為比對與校正的依據
 T_FEST = "2014-07-31 00:00:00"
-PERF_NAMES = ["Bullet", "Blitz", "Classical", "Correspondence"]
+PERF_NAMES = glicko.PERF_NAMES
 ERA_NAMES = ["recomputed (to 2014-07)", "online (2014-08 to 2014-11)", "online (2014-12 to 2015-06)"]
 NM = 31
 month_labels = [f"{2012 + (m + 11) // 12}-{(m + 11) % 12 + 1:02d}" for m in range(NM)]

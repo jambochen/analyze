@@ -24,19 +24,19 @@ WINDOWS = {"n_8h": 8 * 3600, "n_1d": 86400, "n_7d": 7 * 86400, "n_30d": 30 * 864
 d = player_sample().with_columns(
     elo_c2=pl.col("elo_c") ** 2,
     leave_session=~pl.col("continue_session"),
-    bullet=(pl.col("time_class") == "Bullet").cast(pl.Float64),
-    classical=(pl.col("time_class") == "Classical").cast(pl.Float64),
+    bullet=(pl.col("speed") == "Bullet").cast(pl.Float64),
+    classical=(pl.col("speed") == "Classical").cast(pl.Float64),
 ).with_columns(pl.col(RESP).cast(pl.Float64)).filter(pl.col("layer") != "first_single", pl.col("q_bar").is_not_null())
 
 # 歷史特徵須含一般對局與 2013 年的對局（player_games 從 2014 年起），故由對局檔重建每位玩家的完整序列。
-# 序列的定義同 sessions.py：不含通信棋與自己對自己的局，三個時間類別合併。2013 年 1 月以前的對局史不在資料中：
+# 序列的定義同 sessions.py：不含無鐘對局（含通信棋）與自己對自己的局，三個速度類別合併。2013 年 1 月以前的對局史不在資料中：
 # 2014 年的對局，近 30 天的局數都完整可見；最近 10 局則只在 2013 年 1 月起累計不到 10 局時以「無」補足，
 # 這時「無」混合了真正的新帳號與左截斷，與 player_game_no 的口徑相同
 raw = pl.scan_parquet("data/processed/lichess_games.parquet").filter(
-    pl.col("time_class") != "Correspondence", pl.col("white") != pl.col("black"), pl.col("start") < pl.datetime(2015, 1, 1, time_zone="UTC")
+    pl.col("base_seconds").is_not_null(), pl.col("white") != pl.col("black"), pl.col("start") < pl.datetime(2015, 1, 1, time_zone="UTC")
 )
 score_white = pl.col("result").replace_strict({"1-0": 1.0, "0-1": 0.0, "1/2-1/2": 0.5}, default=None)
-cols = ["game_id", "start", "time_class"]
+cols = ["game_id", "start", "speed"]
 long = pl.concat([
     raw.select(*cols, player=pl.col("white"), color=pl.lit("white"), elo=pl.col("white_elo"), opp_elo=pl.col("black_elo"), score=score_white),
     raw.select(*cols, player=pl.col("black"), color=pl.lit("black"), elo=pl.col("black_elo"), opp_elo=pl.col("white_elo"), score=1 - score_white),
@@ -64,7 +64,7 @@ for b in range(NB):
         **{nm: pl.Series(v) for nm, v in extra.items()},
         **{f"lag{k}": pl.col("score").shift(k).over("pid") for k in range(1, 11)},
     )
-    hist.append(h.join(keys, on=["game_id", "player"], how="semi").drop("pid", "e_cal", "p_win", "p_draw", "p_loss", "elo", "opp_elo", "score", "color", "time_class", "start", "resid"))
+    hist.append(h.join(keys, on=["game_id", "player"], how="semi").drop("pid", "e_cal", "p_win", "p_draw", "p_loss", "elo", "opp_elo", "score", "color", "speed", "start", "resid"))
 hist = pl.concat(hist)
 d = d.join(hist, on=["game_id", "player"])
 print(d.height, hist.height, resource.getrusage(resource.RUSAGE_SELF).ru_maxrss // 1000, "MB", flush=True)
@@ -198,7 +198,7 @@ for layer in ["multi", "single"]:
         # 把 q 的比較限制在同一次配對或同一時段之內，不依賴自身等級分的函數形式
         cols = models["eomm_q"]
         if layer == "multi":
-            # 時間類別與錦標賽剩餘時間在同一批內不變，條件概似中無法識別
+            # 速度類別與錦標賽剩餘時間在同一批內不變，條件概似中無法識別
             cols = [c for c in cols if c not in ["bullet", "classical", "log_remaining"]]
             fr = fit(s[r].to_numpy(), s.select(cols).to_numpy(), s["bid"].to_numpy(), s["tournament_id"].to_numpy(), cols)
             ix = [cols.index(t) for t in QT]

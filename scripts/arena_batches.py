@@ -59,7 +59,7 @@ def _sample():
         pl.scan_parquet("data/processed/player_games.parquet")
         .filter(pl.col("arena"), pl.col("start") >= pl.datetime(2014, 1, 1, time_zone=UTC), pl.col("start") < pl.datetime(2015, 1, 1, time_zone=UTC))
         .select(
-            "game_id", "player", "color", "start", "time_class", "tournament_id", "elo", "opp_elo", "score", "result",
+            "game_id", "player", "color", "start", "speed", "tournament_id", "elo", "opp_elo", "score", "result",
             "player_game_no", "prev_gap", "est_duration", "session_threshold", "continue_session", "leave_8h",
             "tour_left", "tour_first", "tour_last", "return_seconds", "return_censored", "to_outage",
         )
@@ -95,14 +95,14 @@ def _sample():
 
 
 def e_grid(elos):
-    """E[時間類別, 自身, 對手]：color=False 的校準期望得分，供重新配對時查表。elos 須已排序。"""
+    """E[速度類別, 自身, 對手]：color=False 的校準期望得分，供重新配對時查表。elos 須已排序。"""
     grid = (
         pl.DataFrame({"elo": elos})
         .join(pl.DataFrame({"opp_elo": elos}), how="cross")
-        .join(pl.DataFrame({"time_class": TCS}), how="cross")
+        .join(pl.DataFrame({"speed": TCS}), how="cross")
         .with_columns(color=pl.lit("white"))
     )
-    grid = probs(grid, color=False).sort("time_class", "elo", "opp_elo")
+    grid = probs(grid, color=False).sort("speed", "elo", "opp_elo")
     return grid["e_cal"].to_numpy().reshape(len(TCS), len(elos), len(elos))
 
 
@@ -142,7 +142,7 @@ def multi_null(m, E, elos):
         smart[g] = (slots, mt, v_main, v_pre)
     return dict(
         bi=bi, nb=bi.max() + 1, starts=starts, smart=smart, rand_rows=np.flatnonzero(rule == "random"),
-        ui=np.searchsorted(elos, m["elo"].to_numpy()), tci=np.searchsorted(TCS, m["time_class"].to_numpy()), E=E,
+        ui=np.searchsorted(elos, m["elo"].to_numpy()), tci=np.searchsorted(TCS, m["speed"].to_numpy()), E=E,
     )
 
 
@@ -182,7 +182,7 @@ def expected_window(d, E, elos, chunk=100_000):
     order = np.argsort(w, kind="stable")
     ws = w[order]
     ui = np.searchsorted(elos, d["elo"].to_numpy())[order]
-    tci = np.searchsorted(TCS, d["time_class"].to_numpy())[order]
+    tci = np.searchsorted(TCS, d["speed"].to_numpy())[order]
     pid = d["p"].to_numpy()[order]
     _, start, cnt = np.unique(ws, return_index=True, return_counts=True)
     wi = np.searchsorted(np.unique(ws), ws)

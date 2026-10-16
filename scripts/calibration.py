@@ -20,15 +20,16 @@ CLASSES = ["Bullet", "Blitz", "Classical"]
 N_EST = 30
 ELO = np.log(10) / 400
 CHUNK = 250_000
-# 有序模型與 proportional odds 檢驗在每個時間類別抽 N_FIT 局的簡單隨機樣本上估計
+# 有序模型與 proportional odds 檢驗在每個速度類別抽 N_FIT 局的簡單隨機樣本上估計
 N_FIT = 1_000_000
 
-# 只讀需要的欄位，帳號名稱先雜湊成整數以節省記憶體
+# 只讀需要的欄位，帳號名稱先雜湊成整數以節省記憶體。2014 年 12 月以前的無鐘對局計入
+# Classical 的等級分，但沒有時限，與有鐘的對局不是同一種對局，與通信棋一同排除
 g = (
     pl.scan_parquet("data/processed/lichess_games.parquet")
-    .filter(pl.col("time_class") != "Correspondence", pl.col("start") < pl.datetime(2015, 1, 1, time_zone=UTC))
+    .filter(pl.col("speed") != "Correspondence", pl.col("base_seconds").is_not_null(), pl.col("start") < pl.datetime(2015, 1, 1, time_zone=UTC))
     .select(
-        "start", "time_class", "white_elo", "black_elo",
+        "start", "speed", "white_elo", "black_elo",
         arena=pl.col("tournament_id").is_not_null(),
         y=pl.col("result").replace_strict({"0-1": 0, "1/2-1/2": 1, "1-0": 2}, default=None, return_dtype=pl.Int8),
         w=pl.col("white").hash(),
@@ -50,9 +51,9 @@ censored = (
     .filter(pl.col("start") < pl.datetime(2013, 2, 1, time_zone=UTC))
     .select("p", c=pl.lit(True))
 )
-# 累計局數含 "*" 與缺等級分的對局，因為它們同樣是玩家的經驗；依時間類別分開算以壓低峰值記憶體
+# 累計局數含 "*" 與缺等級分的對局，因為它們同樣是玩家的經驗；依速度類別分開算以壓低峰值記憶體
 nprev = pl.concat([
-    pl.concat([g.filter(pl.col("time_class") == tc).select("i", "start", p="w"), g.filter(pl.col("time_class") == tc).select("i", "start", p="b")])
+    pl.concat([g.filter(pl.col("speed") == tc).select("i", "start", p="w"), g.filter(pl.col("speed") == tc).select("i", "start", p="b")])
     .sort("i")
     .with_columns(n_prev=pl.int_range(pl.len(), dtype=pl.UInt32).over("p"))
     .filter(pl.col("start") >= pl.datetime(2014, 1, 1, time_zone=UTC))
@@ -92,23 +93,23 @@ d = (
         exp_group=pl.when(pl.col("n_min") < 10).then(pl.lit("<10")).when(pl.col("n_min") < N_EST).then(pl.lit(f"10-{N_EST - 1}")).otherwise(pl.lit(f">={N_EST}")),
     )
     # 字串欄在千萬列上很佔記憶體，分組標籤一律存成 Categorical
-    .with_columns(pl.col("time_class", "source", "period", "band", "exp_bin", "exp_group").cast(pl.Categorical))
-    .select("time_class", "w", "b", "y", "score", "diff", "E", "xr", "xd", "rbar", "n_min", "est", "censored", "source", "period", "train", "band", "exp_bin", "exp_group")
+    .with_columns(pl.col("speed", "source", "period", "band", "exp_bin", "exp_group").cast(pl.Categorical))
+    .select("speed", "w", "b", "y", "score", "diff", "E", "xr", "xd", "rbar", "n_min", "est", "censored", "source", "period", "train", "band", "exp_bin", "exp_group")
     .collect(engine="streaming")
 )
 del g, nprev, censored
 
-sample = d.group_by("time_class", "source", "est", "censored").agg(n=pl.len(), draw_rate=(pl.col("y") == 1).mean()).sort(pl.all())
+sample = d.group_by("speed", "source", "est", "censored").agg(n=pl.len(), draw_rate=(pl.col("y") == 1).mean()).sort(pl.all())
 sample.write_csv("outputs/tables/calibration_sample.csv")
 print(sample)
-print(d.group_by("time_class").agg(n=pl.len(), est=pl.col("est").mean(), censored=pl.col("censored").mean(), censored_novice=(pl.col("censored") & ~pl.col("est")).mean()))
+print(d.group_by("speed").agg(n=pl.len(), est=pl.col("est").mean(), censored=pl.col("censored").mean(), censored_novice=(pl.col("censored") & ~pl.col("est")).mean()))
 
 # 校準曲線：依 E 分組的平均得分減平均 E，分層看
 strata = {"all": pl.lit("all"), "source": pl.col("source"), "band": pl.col("band"), "experience": pl.col("exp_group"), "period": pl.col("period")}
 curve = pl.concat([
     d.filter(pl.col("est") | pl.lit(k == "experience"))
     .with_columns(stratum=v.cast(pl.String), e_bin=(pl.col("E") * 20).floor().clip(0, 19) / 20 + 0.025)
-    .group_by("time_class", "stratum", "e_bin")
+    .group_by("speed", "stratum", "e_bin")
     .agg(
         n=pl.len(),
         e_mean=pl.col("E").mean(),
@@ -121,17 +122,17 @@ curve = pl.concat([
     )
     .with_columns(stratum_type=pl.lit(k))
     for k, v in strata.items()
-]).sort("stratum_type", "time_class", "stratum", "e_bin")
+]).sort("stratum_type", "speed", "stratum", "e_bin")
 curve.write_csv("outputs/tables/calibration_curve.csv")
 
 # 勢均力敵的對局（|d| <= 25）看和局率與白方得分隨平均等級分的變化，不經模型
 level = (
     d.filter(pl.col("est"), pl.col("diff").abs() <= 25)
     .with_columns(r_bin=(pl.col("rbar") / 100).floor() * 100 + 50)
-    .group_by("time_class", "r_bin")
+    .group_by("speed", "r_bin")
     .agg(n=pl.len(), draw_rate=(pl.col("y") == 1).mean(), white_score=pl.col("score").mean(), e_mean=pl.col("E").mean())
     .filter(pl.col("n") >= 500)
-    .sort("time_class", "r_bin")
+    .sort("speed", "r_bin")
 )
 level.write_csv("outputs/tables/calibration_level.csv")
 
@@ -206,13 +207,13 @@ IDX = np.arange(8)
 coef_rows, test_rows, implied_rows, cox_rows, pred_rows = [], [], [], [], []
 fits = {}
 for tc in CLASSES:
-    m = d.filter(pl.col("time_class") == tc, pl.col("est")).sample(N_FIT, seed=1)
+    m = d.filter(pl.col("speed") == tc, pl.col("est")).sample(N_FIT, seed=1)
     w, b = m["w"].to_numpy(), m["b"].to_numpy()
     xr, xd, y = (m[c].to_numpy().astype(np.float64) for c in ["xr", "xd", "y"])
     th, ll1, V, Hi, S, H = fit(ll_ord, T0, IDX, (xr, xd, y), w, b)
     fits[tc] = th
     for k in range(8):
-        coef_rows.append({"time_class": tc, "model": "ordinal", "param": ORD[k], "est": th[k], "se_dyadic": np.sqrt(V[k, k]), "se_iid": np.sqrt(Hi[k, k])})
+        coef_rows.append({"speed": tc, "model": "ordinal", "param": ORD[k], "est": th[k], "se_dyadic": np.sqrt(V[k, k]), "se_iid": np.sqrt(Hi[k, k])})
 
     # 各受限模型：(名稱, 固定的參數, 固定值)。naive_elo_slope 把累積 logit 的斜率固定為 ln10/400，
     # 但有和局時，與 Elo 期望得分斜率相符的累積 logit 斜率大於 ln10/400，此檢定只作對照
@@ -229,7 +230,7 @@ for tc in CLASSES:
         R = np.eye(8)[idx]
         ws, df, wp = wald(th, V, R, np.array(val, dtype=float))
         lr = 2 * (ll1 - ll0)
-        test_rows.append({"time_class": tc, "model": "ordinal", "test": name, "df": df, "wald_dyadic": ws, "p_dyadic": wp, "lr_iid": lr, "p_lr_iid": stats.chi2.sf(lr, df)})
+        test_rows.append({"speed": tc, "model": "ordinal", "test": name, "df": df, "wald_dyadic": ws, "p_dyadic": wp, "lr_iid": lr, "p_lr_iid": stats.chi2.sf(lr, df)})
 
     # proportional odds：兩個累積事件各自做 logit，以同一組共變數，比較分差項是否相同。
     # 兩組分數一起進 dyadic meat，以取得兩組係數的共變異
@@ -243,18 +244,18 @@ for tc in CLASSES:
     R[0, 3], R[0, 8], R[1, 4], R[1, 9] = 1, -1, 1, -1
     ws, df, wp = wald(np.concatenate([tw, tn]), V2, R, np.zeros(2))
     wi, _, pi = wald(np.concatenate([tw, tn]), Hi2, R, np.zeros(2))
-    test_rows.append({"time_class": tc, "model": "binary_pair", "test": "proportional_odds_in_diff", "df": df, "wald_dyadic": ws, "p_dyadic": wp, "wald_iid": wi, "p_wald_iid": pi})
+    test_rows.append({"speed": tc, "model": "binary_pair", "test": "proportional_odds_in_diff", "df": df, "wald_dyadic": ws, "p_dyadic": wp, "wald_iid": wi, "p_wald_iid": pi})
     for k, nm in enumerate(["intercept", "rating", "rating2", "diff", "diff_x_rating"]):
-        coef_rows.append({"time_class": tc, "model": "logit_win", "param": nm, "est": tw[k], "se_dyadic": np.sqrt(V2[k, k]), "se_iid": np.sqrt(Hw[k, k])})
-        coef_rows.append({"time_class": tc, "model": "logit_not_loss", "param": nm, "est": tn[k], "se_dyadic": np.sqrt(V2[5 + k, 5 + k]), "se_iid": np.sqrt(Hn[k, k])})
+        coef_rows.append({"speed": tc, "model": "logit_win", "param": nm, "est": tw[k], "se_dyadic": np.sqrt(V2[k, k]), "se_iid": np.sqrt(Hw[k, k])})
+        coef_rows.append({"speed": tc, "model": "logit_not_loss", "param": nm, "est": tn[k], "se_dyadic": np.sqrt(V2[5 + k, 5 + k]), "se_iid": np.sqrt(Hn[k, k])})
 
     # 得分平均的校準（Cox 校準截距與斜率），E 是否在平均上校準；參數少，用該類別全部的老手對局
-    mf = d.filter(pl.col("time_class") == tc, pl.col("est"))
+    mf = d.filter(pl.col("speed") == tc, pl.col("est"))
     L = np.log(mf["E"].to_numpy() / (1 - mf["E"].to_numpy()))
     tf, llf, Vf, Hf, *_ = fit(ll_frac, [0, 0, 1, 0], np.arange(4), (mf["xr"].to_numpy(), L, mf["score"].to_numpy()), mf["w"].to_numpy(), mf["b"].to_numpy())
     del mf
     for k, nm in enumerate(["intercept", "intercept_x_rating", "slope_logitE", "slope_logitE_x_rating"]):
-        coef_rows.append({"time_class": tc, "model": "frac_logit", "param": nm, "est": tf[k], "se_dyadic": np.sqrt(Vf[k, k]), "se_iid": np.sqrt(Hf[k, k])})
+        coef_rows.append({"speed": tc, "model": "frac_logit", "param": nm, "est": tf[k], "se_dyadic": np.sqrt(Vf[k, k]), "se_iid": np.sqrt(Hf[k, k])})
     for name, idx, val in [
         ("elo_mean_calibrated", [0, 1, 2, 3], [0, 0, 1, 0]),
         ("no_white_adv_in_mean", [0, 1], [0, 0]),
@@ -262,7 +263,7 @@ for tc in CLASSES:
     ]:
         ws, df, wp = wald(tf, Vf, np.eye(4)[idx], np.array(val, dtype=float))
         wi, _, pi = wald(tf, Hf, np.eye(4)[idx], np.array(val, dtype=float))
-        test_rows.append({"time_class": tc, "model": "frac_logit", "test": name, "df": df, "wald_dyadic": ws, "p_dyadic": wp, "wald_iid": wi, "p_wald_iid": pi})
+        test_rows.append({"speed": tc, "model": "frac_logit", "test": name, "df": df, "wald_dyadic": ws, "p_dyadic": wp, "wald_iid": wi, "p_wald_iid": pi})
 
     # 模型隱含的量，在分差 0 處隨平均等級分的變化
     for r in np.arange(1000, 2301, 50):
@@ -273,7 +274,7 @@ for tc in CLASSES:
         F = lambda u: 1 / (1 + np.exp(-u))
         dS = 0.5 * slope / 100 * (F(eta + wd) * (1 - F(eta + wd)) + F(eta - wd) * (1 - F(eta - wd)))
         implied_rows.append({
-            "time_class": tc, "rbar": r,
+            "speed": tc, "rbar": r,
             "p_draw_d0": F(eta + wd) - F(eta - wd),
             "white_score_d0": 0.5 * (F(eta + wd) + F(eta - wd)),
             "white_adv_rating_points": 100 * eta / slope,
@@ -281,7 +282,7 @@ for tc in CLASSES:
         })
 
     # 分層的 Cox 校準：只估截距與斜率，看哪些子樣本偏離 E
-    mt = d.filter(pl.col("time_class") == tc)
+    mt = d.filter(pl.col("speed") == tc)
     for k, col in [("experience", "exp_bin"), ("source", "source"), ("band", "band"), ("period", "period"), ("censored", "censored")]:
         for v in mt[col].unique().sort().to_list():
             ms = mt.filter(pl.col(col) == v, pl.col("est") | pl.lit(k == "experience"))
@@ -289,11 +290,11 @@ for tc in CLASSES:
                 continue
             Ls = np.log(ms["E"].to_numpy() / (1 - ms["E"].to_numpy()))
             tc_, _, Vc, *_ = fit(ll_frac, [0, 0, 1, 0], np.array([0, 2]), (np.zeros(ms.height), Ls, ms["score"].to_numpy()), ms["w"].to_numpy(), ms["b"].to_numpy())
-            cox_rows.append({"time_class": tc, "stratum_type": k, "stratum": str(v), "n": ms.height, "intercept": tc_[0], "intercept_se": np.sqrt(Vc[0, 0]), "slope": tc_[2], "slope_se": np.sqrt(Vc[1, 1])})
+            cox_rows.append({"speed": tc, "stratum_type": k, "stratum": str(v), "n": ms.height, "intercept": tc_[0], "intercept_se": np.sqrt(Vc[0, 0]), "slope": tc_[2], "slope_se": np.sqrt(Vc[1, 1])})
 
     # 時間切分的預測評估：1-6 月估計，7-12 月評估
-    tr = d.filter(pl.col("time_class") == tc, pl.col("est"), pl.col("train")).sample(N_FIT, seed=2)
-    te = d.filter(pl.col("time_class") == tc, ~pl.col("train"))
+    tr = d.filter(pl.col("speed") == tc, pl.col("est"), pl.col("train")).sample(N_FIT, seed=2)
+    te = d.filter(pl.col("speed") == tc, ~pl.col("train"))
     a = [tr[c].to_numpy().astype(np.float64) for c in ["xr", "xd", "y"]]
     th_tr, *_ = fit(ll_ord, T0, IDX, a, tr["w"].to_numpy(), tr["b"].to_numpy())
     t0 = np.array(T0, dtype=float)
@@ -332,7 +333,7 @@ for tc in CLASSES:
                 x = loss[nm][metric][msk]
                 dlt = x - loss["elo_draw_split"][metric][msk]
                 se = np.sqrt(dyad_meat((dlt - dlt.mean())[:, None], wg, bg)[0, 0]) / len(dlt)
-                pred_rows.append({"time_class": tc, "exp_group": grp, "model": nm, "metric": metric, "n": int(msk.sum()), "mean": x.mean(), "diff_vs_elo": dlt.mean(), "diff_se_dyadic": se, "nu_train": nu})
+                pred_rows.append({"speed": tc, "exp_group": grp, "model": nm, "metric": metric, "n": int(msk.sum()), "mean": x.mean(), "diff_vs_elo": dlt.mean(), "diff_se_dyadic": se, "nu_train": nu})
     print(tc, "done")
 
 coef = pl.DataFrame(coef_rows)
@@ -361,7 +362,7 @@ colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
 for k, fname, title in [("source", "calibration_curve_source.png", "source"), ("band", "calibration_curve_rating.png", "mean rating"), ("experience", "calibration_curve_experience.png", "min prior games of the two players")]:
     fig, axes = plt.subplots(1, 3, figsize=(13, 4), sharey=True)
     for ax, tc in zip(axes, CLASSES):
-        c = curve.filter(pl.col("stratum_type") == k, pl.col("time_class") == tc, pl.col("n") >= 200)
+        c = curve.filter(pl.col("stratum_type") == k, pl.col("speed") == tc, pl.col("n") >= 200)
         for j, v in enumerate(c["stratum"].unique().sort().to_list()):
             cc = c.filter(pl.col("stratum") == v)
             ax.errorbar(cc["e_mean"], cc["resid_mean"], yerr=1.96 * cc["resid_se"], label=v, color=colors[j], marker="o", ms=3, lw=1, capsize=2)
@@ -376,8 +377,8 @@ for k, fname, title in [("source", "calibration_curve_source.png", "source"), ("
 
 fig, axes = plt.subplots(2, 3, figsize=(13, 7), sharex=True)
 for j, tc in enumerate(CLASSES):
-    lv = level.filter(pl.col("time_class") == tc)
-    im = implied.filter(pl.col("time_class") == tc)
+    lv = level.filter(pl.col("speed") == tc)
+    im = implied.filter(pl.col("speed") == tc)
     axes[0, j].plot(lv["r_bin"], lv["draw_rate"], "o", ms=4, label="observed, |d| <= 25")
     axes[0, j].plot(im["rbar"], im["p_draw_d0"], "-", label="ordinal model, d = 0")
     axes[1, j].plot(lv["r_bin"], lv["white_score"], "o", ms=4, label="observed, |d| <= 25")
@@ -395,11 +396,11 @@ fig.savefig("outputs/figures/calibration_level.png", dpi=150)
 order_exp = ["0", "1-2", "3-5", "6-10", "11-20", "21-50", "51-100", "101-200", ">200"]
 fig, ax = plt.subplots(figsize=(7, 4))
 for j, tc in enumerate(CLASSES):
-    c = cox.filter(pl.col("time_class") == tc, pl.col("stratum_type") == "experience").with_columns(o=pl.col("stratum").replace_strict({v: i for i, v in enumerate(order_exp)}, return_dtype=pl.Int32)).sort("o")
+    c = cox.filter(pl.col("speed") == tc, pl.col("stratum_type") == "experience").with_columns(o=pl.col("stratum").replace_strict({v: i for i, v in enumerate(order_exp)}, return_dtype=pl.Int32)).sort("o")
     ax.errorbar(c["o"] + (j - 1) * 0.1, c["slope"], yerr=1.96 * c["slope_se"], marker="o", ms=4, capsize=2, label=tc, color=colors[j])
 ax.axhline(1, color="gray", lw=0.8)
 ax.set_xticks(range(len(order_exp)), order_exp)
-ax.set_xlabel("min prior games in the time class (since 2013-01)")
+ax.set_xlabel("min prior games in the speed class (since 2013-01)")
 ax.set_ylabel("calibration slope on logit(E)")
 ax.set_title("Calibration slope by experience (fractional logit, dyadic 95% CI)")
 ax.legend()

@@ -1,4 +1,4 @@
-# 校準後的期望得分：取 calibration.py 估得的有序模型（分時間類別），供各分析共用。
+# 校準後的期望得分：取 calibration.py 估得的有序模型（分速度類別），供各分析共用。
 # 匹配品質與勝和負機率都要用同一個校準模型，複本會漂移，故集中在此。
 #
 # 模型：x_r = (平均等級分 - 1500) / 100，x_d = (白方 - 黑方) / 100
@@ -17,8 +17,8 @@ PARAMS = [
 coef = (
     pl.read_csv("outputs/tables/calibration_coef.csv")
     .filter(pl.col("model") == "ordinal", pl.col("param").is_in(PARAMS))
-    .pivot(on="param", index="time_class", values="est")
-    .select("time_class", *PARAMS)
+    .pivot(on="param", index="speed", values="est")
+    .select("speed", *PARAMS)
 )
 
 
@@ -42,7 +42,7 @@ def probs(df, color=True):
     p_win = pl.when(is_white).then(p_white_win).otherwise(1 - p_white_not_loss)
     p_loss = 1 - p_win - p_draw
     return (
-        df.join(coef.lazy() if isinstance(df, pl.LazyFrame) else coef, on="time_class", how="left")
+        df.join(coef.lazy() if isinstance(df, pl.LazyFrame) else coef, on="speed", how="left")
         .with_columns(p_win=p_win, p_draw=p_draw, p_loss=p_loss)
         .with_columns(e_cal=pl.col("p_win") + pl.col("p_draw") / 2)
         .drop(PARAMS)
