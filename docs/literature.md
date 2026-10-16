@@ -10,6 +10,8 @@
 - **Investigating Experiential Effects in Online Chess using a Hierarchical Bayesian Analysis**（Gee、Seese、Curley、Ward，arXiv 2503.21713，已查證，已讀全文）。以 Lichess 資料檢驗贏輸效應：近幾局的勝率是否影響下一局。連續對局以開局間隔切分，Bullet 與 Blitz 門檻不同；模型為階層貝氏 logistic 迴歸，控制分差並加玩家層隨機效應。結論為沒有全體一致的效應，少數玩家個別有。資料是先選定玩家、再爬取其全部對局；論文稱資料與爬取程式碼放在作者的 GitHub，未查得網址。與附屬問題最接近；本題的差異在於全體玩家而非抽樣、和局不丟棄、處理續下的選擇偏誤、並看留存。https://arxiv.org/abs/2503.21713
 - **Quantifying human performance in chess**（Chowdhary、Iacopini、Battiston，arXiv 2207.07780，已查證，已讀全文）。Lichess 2013 至 2016 年全部對局。以打亂時間順序為虛無模型，發現連勝連敗長於隨機，新手的連勝更長；另發現高手專精少數開局，但連續兩局間比新手更常換開局。虛無模型只保留勝和負總數，忽略等級分的變化：進步中的玩家等級分追不上實力，本來就會連勝。本題以對局前等級分的期望得分為基準，修正的正是這一點。資料取自官方資料庫 database.lichess.org 的月檔，與本研究同一來源。https://arxiv.org/abs/2207.07780
 - **Fast Algorithm for Calculating Probability of Chess Winning Streaks**（arXiv 2503.11669，已查證）。給定每局勝和負機率，計算各種連勝的機率。https://arxiv.org/abs/2503.11669
+- **Surprised by the Hot Hand Fallacy? A Truth in the Law of Small Numbers**（Miller、Sanjurjo，Econometrica 86(6)，2018，已查證）。證明在有限長度的序列中，「連續 k 次之後下一次的成功率」這種常見的量測本身有偏誤：序列越短、連勝長度越長，偏誤越大；修正後推翻了 hot hand 經典研究的結論。附屬問題若以「連輸 k 局之後的表現」為量測，須處理同一種選擇偏誤。https://econometricsociety.org/publications/econometrica/2018/11/01/surprised-hot-hand-fallacy-truth-law-small-numbers
+- **Cognitive performance in competitive environments: Evidence from a natural experiment**（González-Díaz、Palacios-Huerta，Journal of Public Economics 139，2016，已查證）。職業棋賽以抽籤決定誰先執白，先執白者的勝率明顯較高，實力相近時差距更大；作者解讀為比賽中的心理狀態影響認知表現。是「前一局的處境影響下一局表現」在西洋棋上以隨機指派識別的先例。https://researchonline.lse.ac.uk/id/eprint/67144
 - **Kramnik vs Nakamura: A Chess Scandal**（arXiv 2409.06739，已查證）。以線上快棋連勝爭議為例，說明解讀連勝時的檢察官謬誤。https://arxiv.org/abs/2409.06739
 
 ## 匹配與流失
@@ -46,6 +48,16 @@
 - **Churn Prediction in Mobile Social Games: Towards a Complete Assessment Using Survival Ensembles**（arXiv 1710.02264）與 **Games and Big Data: A Scalable Multi-Dimensional Churn Prediction Model**（arXiv 1710.02262），已查證。以 survival ensembles 預測流失，明確處理設限。https://arxiv.org/abs/1710.02264 、https://arxiv.org/abs/1710.02262
 - **Game Data Mining Competition on Churn Prediction and Survival Analysis using Commercial Game Log Data**（arXiv 1802.02301，已查證）。NCSOFT 的流失預測競賽，資料跨越月費制改為免費制的前後。https://arxiv.org/abs/1802.02301
 - **Who Benefits from AI? Self-Selection, Skill Gap, and the Hidden Costs of AI Feedback**（arXiv 2409.18660，已查證）。線上棋平台上，越有動機的玩家越常使用 AI 回饋，造成效果的假象。本資料做不了同一題，但自我選擇造成假象的論證結構與續下的選擇偏誤相同。https://arxiv.org/abs/2409.18660
+
+## 參考點與損失規避
+
+- **A Model of Reference-Dependent Preferences**（Kőszegi、Rabin，Quarterly Journal of Economics 121(4)，2006，已查證）。以近期的理性預期作為參考點，得失相對於預期而定。對應「玩家對實際得分與期望得分的落差反應，而非對輸贏本身反應」的解釋；期望得分即參考點。https://rabin.scholars.harvard.edu/publications/model-reference-dependent-preferences
+- **Is Tiger Woods Loss Averse? Persistent Bias in the Face of Experience, Competition, and High Stakes**（Pope、Schweitzer，American Economic Review 101(1)，2011，已查證）。PGA 巡迴賽 250 萬次推桿，以標準桿為參考點，頂尖選手同樣表現出損失規避。是「有經驗、高競爭下參考點效應仍存在」的實證先例。https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Is-Tiger-Woods-Loss-Averse.pdf
+
+## 選擇偏誤與量測誤差的方法
+
+- **Review of inverse probability weighting for dealing with missing data**（Seaman、White，Statistical Methods in Medical Research 22(3)，2013，已查證）。IPW 修正完整案例分析的偏誤，涵蓋缺失機制模型的選擇、權重截斷、穩定化權重與 augmented IPW。續下的選擇等同於後段局序的「缺失」，以續下模型的倒數加權。https://journals.sagepub.com/doi/10.1177/0962280210395740
+- **Correcting for regression dilution bias: comparison of methods for a single predictor variable**（Frost、Thompson，Journal of the Royal Statistical Society Series A 163(2)，2000，已查證）。解釋變數含量測誤差時迴歸係數往 0 收縮，比較六種修正係數的估計法。對應校準斜率小於 1 的推測來源：對局前等級分是實力的含誤差量測；修正所需的重複量測可由 Glicko-2 重放的 RD 代替。https://ideas.repec.org/a/bla/jorssa/v163y2000i2p173-189.html
 
 ## 等級分系統
 
