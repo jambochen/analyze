@@ -14,33 +14,14 @@
 #let y2014 = scale.find(r => r.year == "2014")
 #let holdout = csv("../outputs/tables/data_overview_holdout.csv", row-type: dictionary).first()
 #let per-player = csv("../outputs/tables/data_overview_per_player.csv", row-type: dictionary).first()
+#let missing = csv("../outputs/tables/data_overview_missing.csv", row-type: dictionary).first()
+#let batch = csv("../outputs/tables/arena_random_pairing_batch_size.csv", row-type: dictionary).filter(r => r.period == "2014")
+#let single-share = batch.filter(r => r.n_games == "1" and r.first == "false").map(r => int(r.games)).sum() / batch.map(r => int(r.games)).sum()
 
 #let fig(name, ..args) = image("../outputs/figures/" + name + ".svg", ..args)
 #let flow = (node-stroke: 0.6pt + slate, node-inset: 0.6em, node-corner-radius: 3pt, spacing: (2.2em, 1.6em), edge-stroke: 0.6pt + slate)
 
 #title-slide()
-== 配對時的期望勝率
-
-#figure(text(size: 17pt, diagram(
-  ..flow,
-  node((0, 0), [排隊]),
-  edge("-|>"),
-  node((1, 0), [依雙方分數\ 估出勝率], name: <est>),
-  edge("-|>"),
-  node((2, 0), [勝率近一半\ 才配對]),
-  edge("-|>"),
-  node((3, 0), [對局]),
-  edge("-|>"),
-  node((4, 0), [輸了], name: <lost>),
-  edge("-|>"),
-  node((5, 0), [停下]),
-  node((1, 1), text(fill: mute)[只看過去的分數], stroke: none),
-  edge(<est>, (1, 1), "-", stroke: (paint: mute, dash: "dotted")),
-  edge(<lost>, <est>, "-|>", bend: -50deg, label: [再開一局：狀態改變，估計未隨之更新？], label-side: right),
-)))
-
-這個估計看不到玩家此刻的狀態。
-
 == 連勝連敗的爭議
 
 #figure(
@@ -63,15 +44,67 @@
   caption: [以投入度為目標的配對研究：EOMM @chen2017eomm、OptMatch @gong2020optmatch、EnMatch @wang2024enmatch],
 )
 
-配對規則與每局的估計勝率皆不公開，兩方皆無可檢驗的資料。
+配對規則與每局的期望勝率皆不公開，玩家與開發商的說法皆無從檢驗。
+
+== 配對時的期望勝率
+
+#let two(a, b) = stack(spacing: 0.35em, a, b)
+#figure(text(size: 15pt, diagram(
+  ..flow,
+  spacing: (1.6em, 1.4em),
+  node((0, 0), [排隊]),
+  edge("-|>"),
+  node((1, 0), two[依雙方等級分][算出期望勝率], name: <est>, stroke: 1.2pt + sq-dark),
+  edge("-|>"),
+  node((2, 0), text(fill: mute, two[勝率近一半][才配對]), name: <match>, stroke: (paint: mute, dash: "dashed")),
+  edge("-|>"),
+  node((3, 0), [對局], name: <play>),
+  edge("-|>"),
+  node((4, 0), [輸了], name: <lost>),
+  edge("-|>"),
+  node((5, 0), [停下], name: <stop>),
+  edge(<lost>, <est>, "-|>", bend: -55deg, label: [再開一局], label-side: right),
+  node((1, 1), text(fill: sq-dark)[研究對象], stroke: none),
+  edge(<est>, (1, 1), "-", stroke: (paint: mute, dash: "dotted")),
+  // 配對目標無論求公平或求留住玩家，都以期望勝率為輸入，故只檢驗輸入
+  node((2, -0.9), text(size: 13pt, fill: mute)[求公平或留住玩家], stroke: none),
+  edge(<match>, (2, -0.9), "-", stroke: (paint: mute, dash: "dotted")),
+  node((3.5, 1.6), two[當下狀態：][剛輸、連輸、已連下幾局], name: <state>),
+  edge(<state>, <play>, "-|>"),
+  edge(<state>, <est>, "-|>", stroke: (paint: mute, dash: "dashed"), label: text(fill: mute)[未納入], label-side: left),
+  node((5, 1), text(fill: sq-dark)[該停嗎？], stroke: none),
+  edge(<stop>, (5, 1), "-", stroke: (paint: mute, dash: "dotted")),
+)))
+
+#define(stack(
+  spacing: 0.6em,
+  [期望勝率在哪些情況下系統性地錯？],
+  [依對局條件：分差、先手、等級分的不確定性],
+  [依玩家狀態：剛輸、連輸、已連下幾局],
+))
+
+== 分析目標
+
+#figure(table(
+  columns: (auto, auto),
+  table.hline(stroke: 1pt + slate),
+  [目標], [內容],
+  table.hline(stroke: 0.5pt + rule),
+  [檢驗], [期望勝率在哪些對局條件與玩家狀態下偏離實際結果],
+  [預測], [依玩家當下狀態修正的勝、和、負機率],
+  [建議], [輸棋之後該不該再開一局],
+  table.hline(stroke: 1pt + slate),
+))
+
+結論另以預留的 2015 年資料檢驗一次。
 
 == 資料來源與規模
 
 #figure(fig("data_overview_timeline", height: 62%))
 
-- Lichess 的計分規則、配對規則與局前分數皆公開。
+- Lichess 的等級分規則、配對規則與局前等級分皆公開。
 - Lichess 官方資料庫的月檔，授權 CC0。
-- 2013 年 1 月至 2015 年 6 月的標準棋 rated 對局，共 #num(scale.map(r => int(r.games)).sum()) 局。
+- 2013 年 1 月至 2015 年 6 月月檔中的標準棋 rated 對局，共 #num(scale.map(r => int(r.games)).sum()) 局。
 
 == 等級分系統
 
@@ -92,7 +125,7 @@
 
 - RD（rating deviation）：等級分的不確定程度，新帳號較大。
 
-各系統皆以局前分數估出期望得分，再以實際結果更新。
+各系統皆以局前等級分估出期望得分，再以實際結果更新。
 
 == 期望得分與賽後更新
 
@@ -113,7 +146,7 @@
 - $K$：每局調整幅度的常數，由系統設定。
 - $g = 1 \/ sqrt(1 + 3 q^2 "RD"_"對手"^2 \/ pi^2)$，$q = ln 10 \/ 400$。
 
-RD 為 0 時 $g = 1$，Glicko 即 Elo。
+RD 為 0 時 $g = 1$，期望得分與 Elo 相同。
 
 == 期望得分曲線與和局
 
@@ -146,23 +179,24 @@ RD 為 0 時 $g = 1$，Glicko 即 Elo。
   fig("data_overview_result_by_gap", width: 100%),
 ))
 
-各分差下皆有和局，期望得分以 0.5 計入。
+各分差下皆有和局，和局的實際得分記 0.5。
 
 == 四種配對方式
 
 #figure(table(
   columns: (auto, auto, auto, auto),
   table.hline(stroke: 1pt + slate),
-  [配對方式], [誰決定對手], [依分數篩選], [期間],
+  [配對方式], [誰決定對手], [依等級分篩選], [期間],
   table.hline(stroke: 0.5pt + rule),
-  [大廳], [玩家自列表選擇], [可設分數範圍], [全年],
+  [大廳], [玩家自列表選擇], [可設等級分範圍], [全年],
   [指定邀戰], [玩家指定], [不適用], [全年],
-  [arena], [系統指派], [不看分數], [全年],
-  [pool], [系統指派], [先看近期戰績，再看分數], [2014 年 6 至 10 月],
+  [arena], [系統指派], [不看等級分], [全年],
+  [pool], [系統指派], [先看近期戰績，再看等級分], [2014 年 6 至 10 月],
   table.hline(stroke: 1pt + slate),
 ))
 
-- 邀戰不進匹配的分析。
+- 等級分依速度類別分開，同一類別內各配對方式共用一個等級分。
+- 邀戰不進配對的分析。
 - pool 的等級分自成一套，不進分析。
 
 系統指派且不看等級分者，僅 arena。
@@ -189,15 +223,16 @@ RD 為 0 時 $g = 1$，Glicko 即 Elo。
   caption: [出處：lila 原始碼 `PairingSystem.scala`],
 )
 
-- 規則沿用至 2015 年 4 月 19 日。
+- 規則沿用至 2015 年 4 月 19 日，期間等級分照常更新。
+- 2014 年 #calc.round(single-share * 100)% 的 arena 對局，配對當下只有兩人空閒。
 
-同一時刻的等待者之間，對手的強弱由隨機決定。
+對手是誰，取決於誰恰好同時下完。
 
 == 自選與指派的分差
 
 #figure(fig("data_overview_rating_gap", height: 70%))
 
-上一局對手的強弱，與玩家當時的狀態無關。
+arena 的分差比自選對手的大廳對局寬。
 
 == 欄位與資訊時點
 
@@ -216,10 +251,12 @@ RD 為 0 時 $g = 1$，Glicko 即 Elo。
     caption[預測與基準], [], [], caption[前兩者為反應變數],
     grid.vline(x: 2, start: 1, stroke: 1pt + slate),
   ),
-  block(stroke: (paint: rule, dash: "dashed"), inset: 0.6em)[表頭未含：rating deviation、`source`，另行補入],
+  block(stroke: (paint: rule, dash: "dashed"), inset: 0.6em)[月檔未含，另行取得：`source` 由 Lichess API 逐局查詢\ rating deviation 依 Glicko-2 規則自資料起點逐局重算],
 ))
 
 - RatingDiff：該局使雙方等級分各加減多少。
+- `WhiteElo`、`BlackElo`：該局所屬速度類別的等級分。
+- 速度類別依時間制重新判定，不用月檔 `Event` 的標籤。
 RatingDiff 是結果的函數，一律不用。
 
 == 分析單位與樣本切分
@@ -243,7 +280,7 @@ RatingDiff 是結果的函數，一律不用。
   node((0, 1), [玩家], stroke: none),
   edge(<g1>, <g2>, "-|>"),
   edge(<g2>, <g3>, "-|>"),
-  edge(<pool>, <g1>, "-|>", label: [每局隨機抽出對手], label-side: right),
+  edge(<pool>, <g1>, "-|>", label: [每局由系統指派對手], label-side: right),
   edge(<pool>, <g2>, "-|>"),
   edge(<pool>, <g3>, "-|>"),
   node((4, 1), [⋯], stroke: none),
@@ -269,8 +306,8 @@ RatingDiff 是結果的函數，一律不用。
 ))
 
 - #num(y2014.players) 位玩家，其中 #num(per-player.arena_players) 位下過 arena。
-- 每人局數的中位數為 #num(float(per-player.q50)) 局。
-- 前 1% 的玩家每人逾 #num(float(per-player.q99)) 局。
+- 每人局數的中位數為 #num(float(per-player.q50)) 局，前 1% 的玩家每人逾 #num(float(per-player.q99)) 局。
+- 缺失：等級分 #num(missing.elo_missing) 局、未下完 #num(missing.unfinished) 局、RatingDiff #num(missing.rating_diff_missing) 局。
 
 同一玩家的對局彼此相依。
 
@@ -281,15 +318,15 @@ RatingDiff 是結果的函數，一律不用。
   table.hline(stroke: 1pt + slate),
   [], [Lichess 2014 arena], [電競排位],
   table.hline(stroke: 0.5pt + rule),
-  [對手來源], [隨機指派], [依實力排隊],
+  [對手來源], [系統指派，不看等級分], [依實力排隊],
   [分差], [寬], [窄],
-  [配對的目標], [無其他目標], [可能以留住玩家為目標],
+  [配對依據], [等待時間、上一個對手], [可能含留住玩家],
   table.hline(stroke: 1pt + slate),
 ))
 
 - 資料僅含下完的對局，不含等候中放棄與取消的配對。
 
-結論僅適用於對手隨機指派的情境。
+結論僅適用於對手不依等級分指派的情境。
 
 #show: appendix
 

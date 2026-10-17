@@ -101,9 +101,15 @@ print(result)
 result.write_csv("outputs/tables/data_overview_result.csv")
 
 # 依分差分組的勝和負比例，與期望得分曲線對照。分差取白方減黑方，50 分一組；
-# 600 分以外的對局少，不畫。只做比例，不擬合任何模型
+# 600 分以外的對局少，不畫。只做比例，不擬合任何模型。pool 試行的 6 至 10 月
+# 表頭是 pool 自己的等級分，尺度不同，比照分差分布排除
 by_gap = (
-    g14.filter(pl.col("result") != "*", pl.col("white_elo").is_not_null(), pl.col("black_elo").is_not_null())
+    g14.filter(
+        pl.col("result") != "*",
+        pl.col("white_elo").is_not_null(),
+        pl.col("black_elo").is_not_null(),
+        ~pl.col("start").dt.month().is_between(6, 10),
+    )
     .with_columns(d=((pl.col("white_elo") - pl.col("black_elo")) / 50).round() * 50)
     .filter(pl.col("d").abs() <= 600)
     .group_by("d", "result")
@@ -143,25 +149,15 @@ m = mp["month"].dt.replace_time_zone(None).to_numpy() + np.timedelta64(15, "D")
 other, arena = mp["other"].to_numpy() / 1e6, mp["arena"].to_numpy() / 1e6
 ax.bar(m, other, width=np.timedelta64(25, "D"), color=ORANGE, label="lobby & challenge")
 ax.bar(m, arena, width=np.timedelta64(25, "D"), bottom=other, color=BLUE, label="arena")
-for lo, hi, lab in [
-    ("2013-01-01", "2014-01-01", "rating history only"),
-    ("2014-01-01", "2015-01-01", "main sample"),
-    ("2015-01-01", "2015-04-20", "holdout"),
-    ("2015-04-20", "2015-07-01", "rating-aware\npairing"),
-]:
-    ax.axvspan(np.datetime64(lo), np.datetime64(hi), color="0.93" if lab != "main sample" else "0.85", zorder=0)
-    ax.text(np.datetime64(lo) + (np.datetime64(hi) - np.datetime64(lo)) / 2, 2.85, lab, ha="center", va="top", fontsize=9, color="0.25")
-ax.axvline(np.datetime64("2015-04-20"), ymax=0.85, color="0.25", lw=1)
-ax.set_ylim(0, 2.9)
 ax.set_ylabel("games per month (millions)")
-ax.legend(loc="center left", frameon=False)
+ax.legend(loc="upper left", frameon=False)
 ax.spines[["top", "right"]].set_visible(False)
 fig.tight_layout()
 fig.savefig("outputs/figures/data_overview_timeline.svg")
 
 fig, ax = plt.subplots(figsize=(6, 3.6))
 bins = np.arange(0, 1001, 20)
-for arena, c, lab in [(False, ORANGE, "lobby & challenge (self-selected)"), (True, BLUE, "arena (random)")]:
+for arena, c, lab in [(False, ORANGE, "lobby & challenge (self-selected)"), (True, BLUE, "arena (system-assigned)")]:
     x = gap.filter(pl.col("arena") == arena)["gap"].to_numpy()
     ax.hist(x, bins=bins, density=True, histtype="step", lw=2, color=c, label=lab)
 ax.set_xlabel("|white rating − black rating|")
@@ -211,7 +207,7 @@ ax.set_ylim(0, 1)
 ax.set_xticks([-400, 0, 400])
 ax.set_yticks([0, 0.5, 1], ["0", "50%", "100%"])
 ax.set_xlabel("white rating − black rating")
-ax.set_title("2014 rated games", fontsize=9, loc="left", color="0.35")
+ax.set_title("2014, excluding the pool trial (Jun–Oct)", fontsize=9, loc="left", color="0.35")
 ax.legend(ncols=3, frameon=False, fontsize=8, loc="upper center", bbox_to_anchor=(0.5, -0.2))
 ax.spines[["top", "right"]].set_visible(False)
 fig.tight_layout()
