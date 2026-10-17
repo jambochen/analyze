@@ -1,6 +1,6 @@
 # 新手期的界定：以重放的 rating deviation 標示 provisional
 
-腳本：`scripts/novice_period.py`。表在 `outputs/tables/novice_period_*.csv`，圖在 `outputs/figures/novice_period_*.png`。本文件只寫定性結論，數值一律見對應的輸出檔。
+腳本：`scripts/novice_period.py`。門檻與欄位定義在 `scripts/novice.py`，依新手分組或控制新手的分析都從那裡取：`novice_rd` 為新手對局（任一方 RD 達門檻），`novice_games` 為玩家自己的累計局數未滿門檻，只作玩家層級的控制變數。表在 `outputs/tables/novice_period_*.csv`，圖在 `outputs/figures/novice_period_*.png`。本文件只寫定性結論，數值一律見對應的輸出檔。
 
 ## 問題
 

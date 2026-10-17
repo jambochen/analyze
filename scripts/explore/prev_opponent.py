@@ -30,9 +30,9 @@ print(d.height, d["has_next"].mean(), d["resid_next"].std())
 rows = []
 for layer in ["multi", "single", "all"]:
     s = d if layer == "all" else d.filter(pl.col("layer") == layer)
-    pdf = s.select("x", "e_bar", "elo_c", "log_games_in_tour", "log_remaining", "novice", "white", "loss", "has_next", "resid_next", "speed", "player").to_pandas()
+    pdf = s.select("x", "e_bar", "elo_c", "log_games_in_tour", "log_remaining", "novice_games", "white", "loss", "has_next", "resid_next", "speed", "player").to_pandas()
     for y in ["loss", "has_next", "resid_next"]:
-        m = pf.feols(f"{y} ~ x + e_bar + elo_c + log_games_in_tour + log_remaining + novice + white | speed", pdf, vcov={"CRV1": "player"})
+        m = pf.feols(f"{y} ~ x + e_bar + elo_c + log_games_in_tour + log_remaining + novice_games + white | speed", pdf, vcov={"CRV1": "player"})
         t = m.tidy()
         rows.append(dict(layer=layer, y=y, coef_per_0_1_e=t.loc["x", "Estimate"], se=t.loc["x", "Std. Error"], n=m._N))
 r = pl.DataFrame(rows)

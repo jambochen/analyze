@@ -19,12 +19,12 @@ import polars as pl
 import xgboost
 
 import likelihood as lk
+import novice
 from arena_batches import player_sample_rd
 
 UTC = "UTC"
 SPEEDS = ["Bullet", "Blitz", "Classical"]
 RESULTS = ["loss", "draw", "win"]
-RD_NOVICE = 110
 
 grp = ["player", "tournament_id"]
 code = pl.col("result").replace_strict({"loss": 0, "draw": 1, "win": 2}, return_dtype=pl.Float64)
@@ -43,7 +43,7 @@ t = (
         y=(pl.col("score") * 2).cast(pl.Int64),
         prev_draw=(pl.col("prev_result") == "draw").cast(pl.Float64),
         prev_win=(pl.col("prev_result") == "win").cast(pl.Float64),
-        novice=pl.max_horizontal("rd", "opp_rd") >= RD_NOVICE,
+        novice_rd=novice.novice_rd("rd", "opp_rd"),
         train=pl.col("start") < pl.datetime(2014, 7, 1, time_zone=UTC),
         # 梯度提升的 early stopping 用上半年的最後一個月，下半年完全不碰
         valid=pl.col("start") >= pl.datetime(2014, 6, 1, time_zone=UTC),
@@ -206,7 +206,7 @@ for spd in SPEEDS:
     loss["mlp"] = losses(ord_p(np.asarray(e_mlp, dtype=np.float64), np.asarray(w_mlp, dtype=np.float64)), ate[3])
     print(spd, "mlp epochs", epoch + 1, "best valid", best, flush=True)
 
-    nov = te["novice"].to_numpy()
+    nov = te["novice_rd"].to_numpy()
     for group, msk in [("all", np.ones(te.height, bool)), ("novice", nov), ("established", ~nov)]:
         for nm in ["baseline", "arena", "prev_result", "dr", "lightgbm", "xgboost", "mlp"]:
             pred_rows += diff_row(spd, nm, "baseline", loss[nm], loss["baseline"], msk, wte, bte, group)
@@ -218,7 +218,7 @@ for spd in SPEEDS:
     e_adj = p[:, 2] + p[:, 1] / 2
     te = te.with_columns(e_adj=pl.Series(e_adj)).with_columns(gap=pl.col("e_adj") - pl.col("e_base"))
     gap_rows.append(
-        te.group_by("prev_result", "novice")
+        te.group_by("prev_result", "novice_rd")
         .agg(n=pl.len(), e_base=pl.col("e_base").mean(), e_adj=pl.col("e_adj").mean(), score=pl.col("score").mean(), gap=pl.col("gap").mean(), gap_elo=(pl.col("gap") / pl.col("score_per_elo")).mean())
         .with_columns(speed=pl.lit(spd), model=pl.lit(final))
     )
@@ -237,7 +237,7 @@ for spd in SPEEDS:
 steps = pl.DataFrame(step_rows)
 coef = pl.DataFrame(coef_rows)
 pred = pl.DataFrame(pred_rows)
-gap = pl.concat(gap_rows, how="diagonal").sort("speed", "novice", "prev_result")
+gap = pl.concat(gap_rows, how="diagonal").sort("speed", "novice_rd", "prev_result")
 curve = pl.concat(curve_parts).sort("speed", "model", "prev_result", "ebin")
 with pl.Config(tbl_rows=-1, tbl_cols=-1, tbl_width_chars=250):
     print(steps)

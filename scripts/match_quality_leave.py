@@ -20,7 +20,7 @@ from clogit import fit
 B = 2000
 RESP = ["tour_left", "leave_session", "leave_8h", "leave_session_half", "leave_session_double"]
 MAIN = ["tour_left", "leave_session", "leave_8h"]
-PRE = ["elo_c", "elo_c2", "log_games_in_tour", "novice"]
+PRE = ["elo_c", "elo_c2", "log_games_in_tour", "novice_games"]
 
 d = (
     player_sample()
@@ -161,13 +161,13 @@ clog.write_csv("outputs/tables/match_quality_leave_clogit.csv")
 s1 = (
     d.filter(pl.col("layer") == "single", pl.col("q_bar").is_not_null())
     .select(
-        *RESP, "q", "e", "q_bar", "e_bar", "win", "draw", "white", "elo_c", "elo_c2", "log_games_in_tour", "log_remaining", "novice", "early_half", "after_1130",
+        *RESP, "q", "e", "q_bar", "e_bar", "win", "draw", "white", "elo_c", "elo_c2", "log_games_in_tour", "log_remaining", "novice_games", "early_half", "after_1130",
         *[pl.col(c).cast(pl.Categorical).to_physical() for c in ["tour_win1", "tour_win5", "tour_win15"]], "player",
     )
     .to_pandas()
 )
 del m
-CTRL = "white + elo_c + elo_c2 + log_games_in_tour + log_remaining + novice"
+CTRL = "white + elo_c + elo_c2 + log_games_in_tour + log_remaining + novice_games"
 fe_rows = []
 
 
@@ -189,7 +189,7 @@ for r in MAIN:
     fe_fit(r, "q", "", "tour_win5", None, "total_no_qbar")
     fe_fit(r, "q + q_bar", "", "tour_win15", None, "total_window_15m")
     fe_fit(r, "q + q_bar", "", "tour_win5", s1["early_half"], "total_early_half")
-    fe_fit(r, "q + q_bar", "", "tour_win5", s1["novice"] == 0, "total_veteran")
+    fe_fit(r, "q + q_bar", "", "tour_win5", s1["novice_games"] == 0, "total_veteran")
     fe_fit(r, "q + q_bar", "", "tour_win5", ~s1["after_1130"], "total_before_1130")
     fe_fit(r, "q + q_bar", "", "tour_win5", s1["after_1130"], "total_after_1130")
 fe_tab = pl.DataFrame(fe_rows)

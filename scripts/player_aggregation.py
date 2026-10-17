@@ -81,7 +81,7 @@ for r in STOP_RULES:
         for grp in ["all", "novice", "established"]:
             x = d.filter(pl.col("speed") == s)
             if grp != "all":
-                x = x.filter(pl.col("novice") == (grp == "novice"))
+                x = x.filter(pl.col("novice_rd") == (grp == "novice"))
             cr = cur.filter(pl.col("rule") == r, pl.col("speed") == s, pl.col("group") == grp).row(0, named=True)
             for wt in ["game", "player"]:
                 o = compare(x["resid"].to_numpy(), x[f"del_{r}"].to_numpy().astype(int), x["player"].to_numpy(), x["opponent"].to_numpy(), wt)

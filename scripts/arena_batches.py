@@ -5,6 +5,7 @@ import numpy as np
 import polars as pl
 from scipy import stats
 
+import novice
 import pairing_null
 from calibrated import probs, rd_baseline
 
@@ -80,7 +81,8 @@ def _sample():
         elo_c=(pl.col("elo") - 1500) / 100,
         log_games_in_tour=pl.col("games_in_tour").log1p(),
         log_remaining=((pl.col("tour_last") - pl.col("start")).dt.total_seconds() / 60).log1p(),
-        novice=(pl.col("player_game_no") < 30).cast(pl.Float64),
+        # 玩家層級的控制變數：自己的累計局數未滿門檻
+        novice_games=(pl.col("player_game_no") < novice.GAMES).cast(pl.Float64),
         after_1130=pl.col("start") >= pl.datetime(2014, 11, 30, time_zone=UTC),
         early_half=(pl.col("start") - pl.col("tour_first")) < (pl.col("tour_last") - pl.col("tour_first")) / 2,
         # 時間窗內遇到全站停擺時，沒有下一局不是玩家的選擇，該反應變數設為缺值
@@ -151,7 +153,7 @@ def player_sample_rd():
 STOP_RULES = ["first_loss", "two_losses"]
 
 
-def stop_rule_sample(day_gap=12 * 3600, rd_novice=110):
+def stop_rule_sample(day_gap=12 * 3600):
     """2014 下半年的 arena 玩家局，加上一天的切分與兩條民間停止規則刪去的局；回傳 (d, del_days)。
 
     一天以全部對局（含大廳）的開局間隔切分：大廳對局不進序列，但玩家在下大廳就不算離開。
@@ -182,7 +184,7 @@ def stop_rule_sample(day_gap=12 * 3600, rd_novice=110):
         .with_columns(
             del_first_loss=(loss.cum_sum().over(pd_) - loss) > 0,
             del_two_losses=((pl.col("streak") >= 2).cast(pl.Int32).cum_sum().over(pd_) - (pl.col("streak") >= 2).cast(pl.Int32)) > 0,
-            novice=pl.max_horizontal("rd", "opp_rd") >= rd_novice,
+            novice_rd=novice.novice_rd("rd", "opp_rd"),
         )
     )
     first = d.group_by(pd_, maintain_order=True).agg(pl.col("resid").first(), pl.col("speed").first(), pl.col("opponent").first())
@@ -239,7 +241,7 @@ def continuation_sample(lags):
             *[pl.col("resid").shift(-k).over(grp).alias(f"resid_next{k}") for k in lags],
             *[pl.col("score_per_elo").shift(-k).over(grp).alias(f"spe_next{k}") for k in lags],
             n_after=pl.len().over(grp) - 1 - pl.int_range(pl.len()).over(grp),
-            novice_rd=((pl.col("rd") >= 110) | (pl.col("opp_rd") >= 110)).cast(pl.Float64),
+            novice_rd=novice.novice_rd("rd", "opp_rd").cast(pl.Float64),
             loss=(pl.col("result") == "loss").cast(pl.Float64),
         )
         # 跨年的錦標賽在 2015 年的局不在樣本中，續下會被誤記為離開

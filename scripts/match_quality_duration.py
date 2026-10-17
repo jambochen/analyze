@@ -59,9 +59,9 @@ binned.write_csv("outputs/tables/match_quality_duration_binned.csv")
 # 加入對局長度後 q 對離開的係數變化。對局長度在 q 之後、本身不是隨機指派的，這只是描述 q 的效果有多少與長度同行，不是中介效果的估計
 med = []
 for r in ["tour_left", "leave_session", "leave_8h"]:
-    df = d.filter(pl.col(r).is_not_null()).select(r, "q", "q_bar", "elo_c", "elo_c2", "log_games_in_tour", "novice", "log_duration", "no_start", "win", "draw", "tc", "pid").to_pandas()
+    df = d.filter(pl.col(r).is_not_null()).select(r, "q", "q_bar", "elo_c", "elo_c2", "log_games_in_tour", "novice_games", "log_duration", "no_start", "win", "draw", "tc", "pid").to_pandas()
     for spec, extra in [("total", ""), ("with_duration", "+ log_duration + no_start"), ("with_result", "+ win + draw"), ("with_result_duration", "+ win + draw + log_duration + no_start")]:
-        res = pf.feglm(f"{r} ~ q + q_bar + elo_c + elo_c2 + novice {extra} | tc", df, family="logit", vcov={"CRV1": "pid"})
+        res = pf.feglm(f"{r} ~ q + q_bar + elo_c + elo_c2 + novice_games {extra} | tc", df, family="logit", vcov={"CRV1": "pid"})
         t = res.tidy()
         med.append(dict(response=r, spec=spec, coef_q=t.loc["q", "Estimate"], se_q=t.loc["q", "Std. Error"], p=t.loc["q", "Pr(>|t|)"], n=res._N))
 med = pl.DataFrame(med)

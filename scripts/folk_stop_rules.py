@@ -23,7 +23,7 @@ d, del_days = stop_rule_sample()
 
 sample = d.group_by("speed").agg(
     n=pl.len(), players=pl.col("player").n_unique(), days=pl.struct(pd_).n_unique(),
-    novice=pl.col("novice").mean(), **{f"deleted_{r}": pl.col(f"del_{r}").sum() for r in RULES},
+    novice_rd=pl.col("novice_rd").mean(), **{f"deleted_{r}": pl.col(f"del_{r}").sum() for r in RULES},
 ).sort("speed")
 print(sample)
 sample.write_csv("outputs/tables/folk_stop_rules_sample.csv")
@@ -35,7 +35,7 @@ pi = np.searchsorted(players.to_numpy(), d["player"].to_numpy())
 cells = []
 resid = d["resid"].to_numpy()
 spd = d["speed"].to_numpy()
-nov = d["novice"].to_numpy()
+nov = d["novice_rd"].to_numpy()
 for r in RULES:
     dl = d[f"del_{r}"].to_numpy()
     for s in SPEEDS:

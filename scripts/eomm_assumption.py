@@ -95,7 +95,7 @@ d = d.with_columns(
 EOMM = LAGS + ["log_prev_gap"] + [f"log_{nm}" for nm in WINDOWS]
 # EOMM 原模型沒有的控制：q 的分布依自身等級分與候選對手的組成而異。隨機配對保證的是給定期望匹配品質 q_bar（或 e_bar）後
 # q 與玩家無關，故 q 的模型一律控制 q_bar，並控制自身等級分與錦標賽的時程
-CTRL = ["elo_c", "elo_c2", "white", "log_games_in_tour", "log_remaining", "novice", "bullet", "classical"]
+CTRL = ["elo_c", "elo_c2", "white", "log_games_in_tour", "log_remaining", "novice_games", "bullet", "classical"]
 RES = ["win", "draw"]
 QT = ["q", "q_win", "q_draw"]
 ET = ["e", "e_win", "e_draw"]

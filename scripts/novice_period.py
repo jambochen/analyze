@@ -13,13 +13,11 @@ import numpy as np
 import polars as pl
 
 import likelihood as lk
+import novice
 
 UTC = "UTC"
 CLASSES = ["Bullet", "Blitz", "Classical"]
-# lila 在 2015-06-01 加入 provisional（RD >= 100），隔日即提高為 110 並沿用至今；2014 年的程式碼沒有這個概念。
-# 主門檻取沿用的 110，100 作敏感度
-RD_MAIN, RD_ALT = 110, 100
-N_EST = 30
+RD_MAIN, RD_ALT, N_EST = novice.RD, novice.RD_ALT, novice.GAMES
 ELO = np.log(10) / 400
 
 g = (

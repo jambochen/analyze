@@ -15,12 +15,12 @@ import numpy as np
 import polars as pl
 
 import likelihood as lk
+import novice
 
 UTC = "UTC"
 CLASSES = ["Bullet", "Blitz", "Classical"]
 Q = np.log(10) / 400
 N_FIT = 1_000_000
-RD_NOVICE = 110
 
 g_ = (
     pl.scan_parquet("data/processed/lichess_games.parquet")
@@ -54,13 +54,13 @@ d = (
         score=pl.col("y") / 2,
         L_elo=Q * pl.col("diff"),
         L_glicko=Q * pl.col("gs") * pl.col("diff"),
-        novice=pl.col("rd_max") >= RD_NOVICE,
+        novice_rd=novice.novice_rd("white_rd", "black_rd"),
         train=pl.col("start") < pl.datetime(2014, 7, 1, time_zone=UTC),
     )
-    .select("speed", "w", "b", "y", "score", "xr", "xd", "gxd", "L_elo", "L_glicko", "rd_max", "novice", "lt_any", "train")
+    .select("speed", "w", "b", "y", "score", "xr", "xd", "gxd", "L_elo", "L_glicko", "rd_max", "novice_rd", "lt_any", "train")
     .collect(engine="streaming")
 )
-print(d.group_by("speed").agg(n=pl.len(), novice=pl.col("novice").mean(), lt_any=pl.col("lt_any").mean()).sort("speed"))
+print(d.group_by("speed").agg(n=pl.len(), novice_rd=pl.col("novice_rd").mean(), lt_any=pl.col("lt_any").mean()).sort("speed"))
 
 
 # 與 calibration.py 的有序模型相同，另加 t8 g(sigma) x_d。t8 = 0 即有序 logistic；
@@ -118,7 +118,7 @@ for tc in CLASSES:
 
     # 平均得分的校準：Elo 與 Glicko 的期望得分本身是否校準（Cox 截距 0、斜率 1），依新手與否分層
     for nm in ["L_elo", "L_glicko"]:
-        for grp, keep in [("all", pl.lit(True)), ("novice", pl.col("novice")), ("established", ~pl.col("novice"))]:
+        for grp, keep in [("all", pl.lit(True)), ("novice", pl.col("novice_rd")), ("established", ~pl.col("novice_rd"))]:
             m = dt.filter(keep)
             th, _, V, *_ = lk.fit(ll_frac, [0.0, 1.0], np.arange(2), (m[nm].to_numpy(), m["score"].to_numpy()), m["w"].to_numpy(), m["b"].to_numpy())
             cox_rows.append({"speed": tc, "expected_score": nm.removeprefix("L_"), "group": grp, "n": m.height, "intercept": th[0], "intercept_se": np.sqrt(V[0, 0]), "slope": th[1], "slope_se": np.sqrt(V[1, 1])})
@@ -137,7 +137,7 @@ for tc in CLASSES:
         C, Co = np.cumsum(p, 1)[:, :2], np.cumsum(O, 1)[:, :2]
         loss[nm] = {"log_loss": -np.log(p[np.arange(len(yte)), yte]), "rps": ((C - Co) ** 2).sum(1) / 2}
     for grp in ["all", "novice", "established"]:
-        msk = np.ones(len(yte), bool) if grp == "all" else (te["novice"] == (grp == "novice")).to_numpy()
+        msk = np.ones(len(yte), bool) if grp == "all" else (te["novice_rd"] == (grp == "novice")).to_numpy()
         wg, bg = te["w"].to_numpy()[msk], te["b"].to_numpy()[msk]
         for nm in MODELS:
             for metric in ["log_loss", "rps"]:
