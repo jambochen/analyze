@@ -31,6 +31,7 @@
 | 文件 | 回答 |
 |---|---|
 | `literature.md` | 這個問題有哪些文獻？Lichess 的等級分與配對規則出自哪個 commit？哪些出處已查證？ |
+| `community-perception.md` | 電競玩家怎麼看匹配系統（連勝連敗、EOMM、MMR）？開發商怎麼回應？出處在哪？ |
 | `other-data.md` | Lichess 以外還有哪些可取得原始資料的對局資料？哪一份適合檢驗外部效度？ |
 
 資料來源、欄位與授權見 `data/raw/lichess/SOURCE.md`。
