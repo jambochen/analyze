@@ -1,7 +1,7 @@
 # 依狀態調整的勝率：主基準加近況的有序 logistic（規格見 docs/methods.md「依狀態調整的勝率」）。
 # 主基準的 eta、w 作 offset，各速度類別在 2014 上半年估計、下半年評估。
 # arena 的整體校正與事先寫定的近況候選項（上一局結果、上一局等級分的變動 dr）依序加入，
-# 下半年的對數分數改善且 dyadic 區間不含 0 才保留。LightGBM 與 XGBoost 只作參照。
+# 下半年的對數分數改善且 dyadic 區間不含 0 才保留。LightGBM、XGBoost 與 MLP 輸入相同，只作參照。
 
 import os
 import sys
@@ -60,19 +60,54 @@ XCOLS = ["prev_draw", "prev_win", "dr"]
 
 # 主基準的 eta、w 為 offset。t0 平移 eta、t1 縮放和局帶寬：主基準在全站對局上估計，
 # arena 的玩家與大廳不同，這兩項吸收 arena 的整體差異
-def ll(t, eta, w, X, y):
-    e = eta + t[0] + X @ t[2:]
-    ww = w * jnp.exp(t[1])
+def ord_ll(e, ww, y):
     u, v = e + ww, e - ww
     ldraw = jax.nn.log_sigmoid(u) + jax.nn.log_sigmoid(-v) + jnp.log(-jnp.expm1(-2 * ww))
     return jnp.where(y == 2, jax.nn.log_sigmoid(v), jnp.where(y == 0, jax.nn.log_sigmoid(-u), ldraw))
 
 
-def probs(t, eta, w, X):
-    e = eta + t[0] + X @ t[2:]
-    ww = w * np.exp(t[1])
+def ord_p(e, ww):
     pw, pn = 1 / (1 + np.exp(-(e - ww))), 1 / (1 + np.exp(-(e + ww)))
     return np.stack([1 - pn, pn - pw, pw], 1)
+
+
+def ll(t, eta, w, X, y):
+    return ord_ll(eta + t[0] + X @ t[2:], w * jnp.exp(t[1]), y)
+
+
+def probs(t, eta, w, X):
+    return ord_p(eta + t[0] + X @ t[2:], w * np.exp(t[1]))
+
+
+# MLP 的輸出層給線性預測式與和局帶寬的對數，經與有序 logistic 相同的累積 logit 得到機率
+def mlp_out(p, X):
+    h = jax.nn.relu(X @ p[0] + p[1])
+    h = jax.nn.relu(h @ p[2] + p[3])
+    o = h @ p[4] + p[5]
+    return o[:, 0], jnp.exp(o[:, 1])
+
+
+def mlp_nll(p, X, y):
+    return -jnp.mean(ord_ll(*mlp_out(p, X), y))
+
+
+@jax.jit
+def mlp_step(p, m, v, k, X, y):
+    g = jax.grad(mlp_nll)(p, X, y)
+    m = [0.9 * a + 0.1 * b for a, b in zip(m, g)]
+    v = [0.999 * a + 0.001 * b**2 for a, b in zip(v, g)]
+    p = [a - 1e-3 * (mm / (1 - 0.9**k)) / (jnp.sqrt(vv / (1 - 0.999**k)) + 1e-8) for a, mm, vv in zip(p, m, v)]
+    return p, m, v
+
+
+mlp_val = jax.jit(mlp_nll)
+
+
+def mlp_x(d):
+    cont = d.select("elo", "opp_elo", "rd", "opp_rd", "eta", "w", "dr", pl.col("games_in_tour").log1p()).to_numpy().astype(np.float32)
+    # 前幾局不存在時歸入第四類，不以 0 或平均填補
+    cat = np.concatenate([np.eye(4, dtype=np.float32)[d[c].fill_null(3).cast(pl.Int64).to_numpy()] for c in ["prev1", "prev2", "prev3"]], 1)
+    return cont, np.c_[d["white"].to_numpy().astype(np.float32), cat]
 
 
 def losses(p, y):
@@ -142,11 +177,40 @@ for spd in SPEEDS:
     )
     loss["xgboost"] = losses(xgb.predict(xgboost.DMatrix(Xt), iteration_range=(0, xgb.best_iteration + 1)), ate[3])
 
+    (cf, kf), (cv, kv), (ct, kt) = mlp_x(fit_), mlp_x(val_), mlp_x(te)
+    mu, sd = cf.mean(0), cf.std(0)
+    Mf, Mv, Mt = (np.c_[(c - mu) / sd, k] for c, k in [(cf, kf), (cv, kv), (ct, kt)])
+    yf, yv = fit_["y"].to_numpy(), val_["y"].to_numpy()
+    rng = np.random.default_rng(0)
+    H = 64
+    p = [
+        rng.normal(0, np.sqrt(2 / Mf.shape[1]), (Mf.shape[1], H)), np.zeros(H),
+        rng.normal(0, np.sqrt(2 / H), (H, H)), np.zeros(H),
+        rng.normal(0, 0.01, (H, 2)), np.array([0.0, np.log(fit_["w"].mean())]),
+    ]
+    p = [jnp.asarray(a, dtype=jnp.float32) for a in p]
+    m, v = [jnp.zeros_like(a) for a in p], [jnp.zeros_like(a) for a in p]
+    best, best_p, wait, k = np.inf, p, 0, 0
+    for epoch in range(200):
+        for idx in np.array_split(rng.permutation(len(yf)), len(yf) // 4096):
+            k += 1
+            p, m, v = mlp_step(p, m, v, k, Mf[idx], yf[idx])
+        lv = float(mlp_val(p, Mv, yv))
+        if lv < best:
+            best, best_p, wait = lv, p, 0
+        else:
+            wait += 1
+            if wait == 10:
+                break
+    e_mlp, w_mlp = mlp_out(best_p, Mt)
+    loss["mlp"] = losses(ord_p(np.asarray(e_mlp, dtype=np.float64), np.asarray(w_mlp, dtype=np.float64)), ate[3])
+    print(spd, "mlp epochs", epoch + 1, "best valid", best, flush=True)
+
     nov = te["novice"].to_numpy()
     for group, msk in [("all", np.ones(te.height, bool)), ("novice", nov), ("established", ~nov)]:
-        for nm in ["baseline", "arena", "prev_result", "dr", "lightgbm", "xgboost"]:
+        for nm in ["baseline", "arena", "prev_result", "dr", "lightgbm", "xgboost", "mlp"]:
             pred_rows += diff_row(spd, nm, "baseline", loss[nm], loss["baseline"], msk, wte, bte, group)
-        for nm in ["lightgbm", "xgboost"]:
+        for nm in ["lightgbm", "xgboost", "mlp"]:
             pred_rows += diff_row(spd, nm, final, loss[nm], loss[final], msk, wte, bte, group)
 
     # 「再開一局，預期比系統的期望低多少」：修正後與主基準的期望得分之差，以主基準的斜率換算成等級分
