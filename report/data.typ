@@ -1,0 +1,279 @@
+#import "theme.typ": *
+#import "@preview/fletcher:0.5.8": diagram, node, edge
+#import "@preview/cetz:0.4.2"
+#import "@preview/cetz-plot:0.1.3": plot
+#import "@preview/oxifmt:1.0.0": strfmt
+
+#show: deck.with(config-info(
+  title: title-font[線上對戰的勝率預估],
+  author: [統計研究所　學期分析報告],
+))
+
+#let num(x) = strfmt("{}", int(x), fmt-thousands-separator: ",")
+#let scale = csv("../outputs/tables/data_overview_scale.csv", row-type: dictionary)
+#let y2014 = scale.find(r => r.year == "2014")
+#let holdout = csv("../outputs/tables/data_overview_holdout.csv", row-type: dictionary).first()
+#let per-player = csv("../outputs/tables/data_overview_per_player.csv", row-type: dictionary).first()
+
+#let fig(name, ..args) = image("../outputs/figures/" + name + ".svg", ..args)
+// composition 圖左右兩格分屬不同頁，以裁切取其一半；figure 內置中會使超寬的圖偏移，故靠左再平移
+#let half(name, side, width) = box(width: width, clip: true, align(left, move(
+  dx: if side == left { 0pt } else { -width },
+  fig(name, width: 2 * width),
+)))
+#let flow = (node-stroke: 0.6pt + slate, node-inset: 0.6em, node-corner-radius: 3pt, spacing: (2.2em, 1.6em), edge-stroke: 0.6pt + slate)
+
+#title-slide()
+== 配對時的期望勝率
+
+#figure(text(size: 17pt, diagram(
+  ..flow,
+  node((0, 0), [排隊]),
+  edge("-|>"),
+  node((1, 0), [依雙方分數\ 估出勝率], name: <est>),
+  edge("-|>"),
+  node((2, 0), [勝率近一半\ 才配對]),
+  edge("-|>"),
+  node((3, 0), [對局]),
+  edge("-|>"),
+  node((4, 0), [輸了], name: <lost>),
+  edge("-|>"),
+  node((5, 0), [停下]),
+  node((1, 1), text(fill: mute)[只看過去的分數], stroke: none),
+  edge(<est>, (1, 1), "-", stroke: (paint: mute, dash: "dotted")),
+  edge(<lost>, <est>, "-|>", bend: -50deg, label: [再開一局：狀態改變，估計未隨之更新？], label-side: right),
+)))
+
+這個估計看不到玩家此刻的狀態。
+
+== 連勝連敗的爭議
+
+#figure(
+  grid(
+    columns: (1fr, 1fr),
+    gutter: 1.2em,
+    align: horizon,
+    {
+      // 截圖已遮去發文者帳號與投票數
+      let shot(name) = block(stroke: 0.5pt + rule, image("screenshots/" + name + ".png", width: 100%))
+      stack(
+        spacing: 0.4em,
+        shot("marvelrivals_rigged"),
+        shot("overwatch2_rigged"),
+        shot("valorant_losers_queue"),
+      )
+    },
+    fig("streak_chance", width: 100%),
+  ),
+  caption: [以投入度為目標的配對研究：EOMM @chen2017eomm、OptMatch @gong2020optmatch、EnMatch @wang2024enmatch],
+)
+
+配對規則與每局的估計勝率皆不公開，兩方皆無可檢驗的資料。
+
+== 研究問題與資料的選擇
+
+#define[期望勝率在哪些情況下系統性地錯？]
+
+#figure(table(
+  columns: (auto, auto, auto),
+  table.hline(stroke: 1pt + slate),
+  [研究問題], [檢查的步驟], [需要的資料],
+  table.hline(stroke: 0.5pt + rule),
+  [各情況下期望勝率是否不偏], [估出勝率], [局前雙方分數與結果],
+  [輸局後期望勝率是否另有偏誤], [輸了之後的下一次估計], [連續對局與配對來源],
+  [停止時點的選擇], [再開一局或停下], [由前兩問的結果推得],
+  table.hline(stroke: 1pt + slate),
+))
+
+Lichess 的計分規則、配對規則與局前分數皆公開。
+
+== 資料來源與規模
+
+#figure(fig("data_overview_timeline", height: 62%))
+
+- Lichess 官方資料庫的月檔，授權 CC0。
+- 2013 年 1 月至 2015 年 6 月的標準棋 rated 對局，共 #num(scale.map(r => int(r.games)).sum()) 局。
+
+== 等級分與期望得分
+
+#figure(grid(
+  columns: (1fr, 1fr),
+  gutter: 1.5em,
+  align: horizon,
+  text(size: 13pt, cetz.canvas({
+    plot.plot(
+      size: (9, 5.5),
+      x-label: none,
+      y-label: [期望得分],
+      x-tick-step: none,
+      x-ticks: ((-400, [−400]), (0, [0]), (400, [400])),
+      y-tick-step: none,
+      y-ticks: ((0, [0]), (0.5, [0.5]), (1, [1])),
+      y-min: 0,
+      y-max: 1,
+      axis-style: "left",
+      {
+        plot.add(domain: (-800, 800), x => 1 / (1 + calc.pow(10, -x / 400)), style: (stroke: 1.5pt + slate))
+      },
+    )
+    cetz.draw.content((4.5, -1.2), [等級分差（自己 − 對手）])
+  })),
+  half("data_overview_composition", right, 100%),
+))
+
+- 局前雙方各有一個等級分，Lichess 採 Glicko-2。
+- 得分：勝 1、和 0.5、負 0。
+- 期望得分：得分的期望值，由雙方等級分差決定。
+
+結果分勝、和、負三類，和局不可捨棄。
+
+== 四種配對方式
+
+#figure(table(
+  columns: (auto, auto, auto, auto),
+  table.hline(stroke: 1pt + slate),
+  [配對方式], [誰決定對手], [依分數篩選], [期間],
+  table.hline(stroke: 0.5pt + rule),
+  [大廳], [玩家自列表選擇], [可設分數範圍], [全年],
+  [指定邀戰], [玩家指定], [不適用], [全年],
+  [arena], [系統指派], [不看分數], [全年],
+  [pool], [系統指派], [先看近期戰績，再看分數], [2014 年 6 至 10 月],
+  table.hline(stroke: 1pt + slate),
+))
+
+- 邀戰不進匹配的分析。
+- pool 的等級分自成一套，不進分析。
+
+系統指派且不看等級分者，僅 arena。
+
+== arena 的配對規則
+
+#figure(
+  text(size: 17pt, diagram(
+    ..flow,
+    node((0, 0), [加入錦標賽]),
+    edge("-|>"),
+    node((1, 0), [等待區], name: <wait>),
+    edge("-|>"),
+    node((2, -0.6), [等待逾 12 人：\ 打亂後兩兩一組], name: <many>),
+    node((2, 0.6), [12 人以下：\ 避開剛對過的對手], name: <few>),
+    edge(<wait>, <few>, "-|>"),
+    node((3, 0), [下棋], name: <play>),
+    edge(<many>, <play>, "-|>"),
+    edge(<few>, <play>, "-|>"),
+    edge(<play>, <wait>, "-|>", bend: 70deg, label: [下完即回到等待區，直到時間結束], label-side: center, label-fill: white),
+    node(enclose: (<many>, <few>), stroke: (paint: sq-dark, dash: "dashed"), inset: 0.8em, corner-radius: 4pt),
+    node((2, -1.3), text(fill: sq-dark)[不看等級分], stroke: none, fill: white),
+  )),
+  caption: [出處：lila 原始碼 `PairingSystem.scala`],
+)
+
+- 規則沿用至 2015 年 4 月 19 日。
+
+同一時刻的等待者之間，對手的強弱由隨機決定。
+
+== 自選與指派的分差
+
+#figure(fig("data_overview_rating_gap", height: 70%))
+
+上一局對手的強弱，與玩家當時的狀態無關。
+
+== 欄位與資訊時點
+
+// 以開打為界分左右，欄位落在哪一側即決定能否用於預測
+#figure(stack(
+  spacing: 1em,
+  grid(
+    columns: (1fr, 1.5em, 1.5em, 1fr),
+    row-gutter: 0.6em,
+    align: (right, center, center, left),
+    grid.cell(colspan: 4, align: center, text(fill: mute, size: 15pt)[開打]),
+    text(fill: slate, weight: 500)[對局前已知], [], [], text(fill: slate, weight: 500)[結果之後],
+    [雙方帳號], [], [], [`Result`、`Termination`],
+    [開局時間、`TimeControl`], [], [], text(fill: mute)[`WhiteRatingDiff`],
+    [`WhiteElo`、`BlackElo`], [], [], text(fill: mute)[`BlackRatingDiff`],
+    caption[預測與基準], [], [], caption[前兩者為反應變數],
+    grid.vline(x: 2, start: 1, stroke: 1pt + slate),
+  ),
+  block(stroke: (paint: rule, dash: "dashed"), inset: 0.6em)[表頭未含：rating deviation、`source`，另行補入],
+))
+
+- RatingDiff：該局使雙方等級分各加減多少。
+- rating deviation：等級分的不確定程度，新帳號較大。
+
+RatingDiff 是結果的函數，一律不用。
+
+== 分析單位與樣本切分
+
+// 段寬依月數比例：12、12、3.6、2.4
+#figure(grid(
+  columns: (12fr, 12fr, 3.6fr, 2.4fr),
+  align: center,
+  row-gutter: 0.3em,
+  text(size: 14pt, fill: slate)[等級分歷史], text(size: 14pt, fill: slate)[主樣本], text(size: 14pt, fill: slate)[前瞻驗證], text(size: 14pt, fill: slate)[改制後],
+  box(width: 100%, height: 0.9em, fill: rule), box(width: 100%, height: 0.9em, fill: sq-dark), box(width: 100%, height: 0.9em, fill: sq-light), box(width: 100%, height: 0.9em, fill: rule),
+  text(size: 12pt, fill: mute)[2013], text(size: 12pt, fill: mute)[2014], text(size: 12pt, fill: mute)[1/1–4/19], text(size: 12pt, fill: mute)[4/20–6/30],
+))
+#figure(text(size: 15pt, diagram(
+  ..flow,
+  spacing: (2.5em, 2em),
+  node((2, 0), [等待區], name: <pool>),
+  node((1, 1), [第 1 局], name: <g1>),
+  node((2, 1), [第 2 局], name: <g2>),
+  node((3, 1), [第 3 局], name: <g3>),
+  node((0, 1), [玩家], stroke: none),
+  edge(<g1>, <g2>, "-|>"),
+  edge(<g2>, <g3>, "-|>"),
+  edge(<pool>, <g1>, "-|>", label: [每局隨機抽出對手], label-side: right),
+  edge(<pool>, <g2>, "-|>"),
+  edge(<pool>, <g3>, "-|>"),
+  node((4, 1), [⋯], stroke: none),
+  edge(<g3>, (4, 1), "-|>"),
+  node((2, 2), text(fill: mute)[停下：任一局之後皆可], name: <stop>, stroke: (paint: mute, dash: "dashed")),
+  edge(<g1>, <stop>, "-|>", stroke: (paint: mute, dash: "dashed")),
+  edge(<g2>, <stop>, "-|>", stroke: (paint: mute, dash: "dashed")),
+  edge(<g3>, <stop>, "-|>", stroke: (paint: mute, dash: "dashed")),
+)))
+
+- 分析單位：一位玩家的一局。
+- 連續對局：同一場 arena 內的接連數局。
+- 前瞻驗證：2015 年 1/1–4/19 的 arena，#num(holdout.games) 局、#num(holdout.players) 位玩家。
+
+== 2014 年樣本概況
+
+#figure(grid(
+  columns: (1fr, 1fr),
+  gutter: 1.5em,
+  align: horizon,
+  fig("data_overview_per_player", width: 100%),
+  half("data_overview_composition", left, 100%),
+))
+
+- #num(y2014.players) 位玩家，其中 #num(per-player.arena_players) 位下過 arena。
+- 每人局數的中位數為 #num(float(per-player.q50)) 局。
+- 前 1% 的玩家每人逾 #num(float(per-player.q99)) 局。
+
+同一玩家的對局彼此相依。
+
+== 限制與類推的界線
+
+#figure(table(
+  columns: (auto, auto, auto),
+  table.hline(stroke: 1pt + slate),
+  [], [Lichess 2014 arena], [電競排位],
+  table.hline(stroke: 0.5pt + rule),
+  [對手來源], [隨機指派], [依實力排隊],
+  [分差], [寬], [窄],
+  [配對的目標], [無其他目標], [可能以留住玩家為目標],
+  table.hline(stroke: 1pt + slate),
+))
+
+- 資料僅含下完的對局，不含等候中放棄與取消的配對。
+
+結論僅適用於對手隨機指派的情境。
+
+#show: appendix
+
+== 參考文獻
+
+#text(size: 14pt, bibliography("refs.bib", title: none, style: "apa"))
