@@ -23,6 +23,7 @@
 | `expected-score-baselines.md` | 三個期望勝率的基準哪個好？修正的概似比檢定在相依資料下的檢定水準如何？ |
 | `novice-period.md` | 新手期如何界定？Lichess 的 provisional 門檻從何而來？與累計局數的代理差多少？校準偏差在門檻處是否消失？ |
 | `crossover.md` | 剛被隨機分到強對手之後，下一局的表現是否低於期望？總效果與直接效果有何不同？ |
+| `continuation.md` | 被分到強對手是否改變續下？續下的選擇之下，crossover 的結論能否推到所有玩家？ |
 | `match-quality-leave.md` | 隨機配對下，匹配品質是否影響續下與離開？效果的機制是什麼？（附錄） |
 | `eomm-assumption.md` | EOMM 的關鍵假設（給定結果，對手不影響離開）是否成立？等實力配對是否最好？（附錄） |
 | `fixed-effects-churn.md` | Heliyon 2024 的固定效應模型在 Lichess 上能否複製？自選對手與隨機配對下的估計差多少？ |

@@ -117,7 +117,7 @@
 - **有序結果的配適度檢定**：Lipsitz、Fitzmaurice、Molenberghs（Applied Statistics 45，1996）
 - **risk-adjusted CUSUM**：Steiner、Cook、Farewell、Treasure（Biostatistics 1(4)，2000）
 - **觀察研究的敏感度分析**：Rosenbaum，Observational Studies
-- **部分識別的界限**：Manski（American Economic Review 80(2)，1990）；Lee（Review of Economic Studies 76(3)，2009）
+- **部分識別的界限**：Manski（American Economic Review 80(2)，1990）；Lee（Review of Economic Studies 76(3)，2009），含共變數分格收窄界限的做法；Imbens、Manski（Econometrica 72(6)，2004），涵蓋部分識別參數本身的信賴區間
 - **隨機化實驗中的共變數調整**：Freedman（Advances in Applied Mathematics 40(2)，2008）；Lin（Annals of Applied Statistics 7(1)，2013）。加入共變數只影響精度，不影響隨機化推論的有效性
 - **重複測量的摘要量**：Matthews、Altman、Campbell、Royston（BMJ 300，1990），Analysis of serial measurements in medical research。每位受試者彙總成一個量再做初等檢定
 - **以反轉隨機化檢定求比值的區間**：Imbens、Rosenbaum（Journal of the Royal Statistical Society Series A 168(1)，2005）。工具變數弱時仍有正確的涵蓋率
