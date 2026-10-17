@@ -178,61 +178,66 @@
 - **對局長度的機械效果與總效果的分離**：目前只有每場錦標賽第一局的對局長度（API 的 `createdAt` 與 `lastMoveAt`）。不在範圍內，附錄只說明它是匹配品質效果的候選機制
 - **大廳對局仍含指定邀戰與疑似 pool 的對局**：校準與流失定義的「一般對局」都未區分，須以 API 的 `source` 分開後重估
 
-### 依賴圖
+### 進度圖
 
-方框為方法，六角形為會影響其他方法的結論。
+灰底為已完成，棕框為下一步，白框為待辦，虛線框為等待外部條件或可選。
 
 ```mermaid
 flowchart TD
-    wave[arena 配對批次的重建]
-    replaym[Glicko-2 重放]
-    novm[新手期]
-    basem[期望勝率的三個基準]
-    churnm[連續對局與流失的定義]
-    xom[arena 的 crossover 模型]
-    selm[續下的選擇與界限]
-    filterm[等級分是否失準]
-    predm[依狀態調整的勝率]
-    stopm[停止規則]
-    prospm[前瞻驗證]
-    demom[demo]
-    streakm[連敗的檢驗（可選）]
-    appm[附錄：匹配品質、EOMM、Heliyon]
+    subgraph A["分析"]
+        a1[資料、重放、新手期、配對批次]:::done
+        a2[期望勝率的三個基準]:::done
+        a3[剛被分到強對手的 carryover]:::done
+        a4[續下的選擇與 Lee 界限]:::done
+        a5[等級分在剛輸之後是否失準]:::done
+        a6[依狀態調整的勝率<br/>與 LightGBM、XGBoost、MLP 的對比]:::done
+        a7[民間停止規則的回測]:::done
+        a8[附錄：匹配品質、EOMM、Heliyon]:::done
+    end
 
-    crand{{配對確為隨機}}
-    cbase{{主基準}}
-    cco{{carryover 的大小與形狀}}
-    cpred{{殘差能由近況預測}}
-    cprosp{{結論是否重現}}
+    subgraph P["前瞻驗證"]
+        p1[登記文件<br/>主基準、檢驗量、判定規則<br/>最小可偵測效果、事後型態]:::next
+        p2[commit 登記]:::todo
+        p3[跑 2015/1/1–4/19 arena<br/>只跑一次]:::todo
+    end
 
-    wave --> crand
-    basem --> cbase
-    xom --> cco
-    filterm --> cpred
-    prospm --> cprosp
+    subgraph D["demo"]
+        d1[係數輸出成 JSON]:::todo
+        d2[React 靜態頁<br/>輸入等級分、RD、上一局 → 勝和負機率]:::todo
+        d3[標示驗證是否通過]:::todo
+    end
 
-    replaym --> novm
-    replaym --> basem
-    novm --> basem
-    crand --> xom
-    cbase --> xom
-    churnm --> selm
-    xom --> selm
-    cbase --> filterm
-    cbase --> predm
-    cpred --> predm
-    cbase --> stopm
-    selm --> stopm
-    predm --> prospm
-    stopm --> prospm
-    cco --> prospm
-    cprosp --> demom
-    cbase --> streakm
-    cpred --> streakm
-    crand --> appm
+    subgraph R["報告與簡報"]
+        r0[資料介紹簡報 data.typ]:::done
+        r1[交付規格：頁數、格式、期限]:::wait
+        r2[方法章：識別、檢定、選擇的處理]:::todo
+        r3[結果章：校準、carryover、預測、回測]:::todo
+        r4[前瞻驗證結果與建議]:::todo
+        r5[限制與類推到電競的界線]:::todo
+        r6[期末簡報]:::todo
+    end
 
-    classDef concl fill:#fff4d6,stroke:#c99a06
-    class crand,cbase,cco,cpred,cprosp concl
+    subgraph O["可選與並行"]
+        o1[連勝連敗的 parametric bootstrap]:::opt
+        o2[source 抓取<br/>→ 大廳對局重估]:::wait
+        o3[待查：11 月底配對機制分段<br/>執子顏色偏向]:::opt
+    end
+
+    a2 & a3 & a6 & a7 --> p1 --> p2 --> p3
+    a6 --> d1 --> d2 --> d3
+    p3 --> d3
+    p3 --> r4
+    A --> r2 & r3
+    r1 --> r2
+    r2 & r3 & r4 & r5 --> r6
+    a2 --> o1
+    o2 -.-> r5
+
+    classDef done fill:#e8e8e8,stroke:#888,color:#555
+    classDef next fill:#f3e3c3,stroke:#8b5a2b,stroke-width:2px
+    classDef todo fill:#fff,stroke:#333
+    classDef wait fill:#fff,stroke:#999,stroke-dasharray:4 3
+    classDef opt fill:#fff,stroke:#bbb,stroke-dasharray:2 2,color:#777
 ```
 
 ## 進度與待辦
