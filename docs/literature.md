@@ -99,7 +99,7 @@
 
 - **2014 年 arena 錦標賽的配對**：`modules/tournament/src/main/arena/PairingSystem.scala`（commit `f09a2e9893`）。空閒玩家超過 12 人時隨機配對，12 人以下時避免重複對手並優先配對等待最久者，不使用等級分。此前的 `modules/tournament/src/main/Pairing.scala` 邏輯相同。https://github.com/lichess-org/lila/blob/f09a2e9893/modules/tournament/src/main/arena/PairingSystem.scala
 - **arena 改依等級分與排名配對**：commit `91155129bc`「pair arena players based on rating」、`7efa063e52`「use ranking in arena tournament pairing」、`355477ae1e`「let player rating slightly impact arena pairings」，皆在 2015 年 4 月 20 日至 23 日；5 月有 `d32490926f`、`9ec9e25558`、`d5fb74155d`、`4256ddaa49`、`4dec1bb29a` 等後續調整。為前瞻驗證樣本止於 2015 年 4 月 19 日的依據。https://github.com/lichess-org/lila/commit/91155129bc
-- **2014 年的 pool 試行**：2014 年 6 月起的一系列 commit，含「pool games don't affect global rating」；2014-10-01 的「hide homepage pool buttons」停用入口。可在 lila 以 commit 搜尋 `pool` 查得
+- **2014 年的 pool 試行**：`modules/pool/src/main/AutoPairing.scala`。2014-06-04 `eb716fc0a9` 開始開發，2014-10-01 `9a3af151a3`「hide homepage pool buttons」停用首頁入口，2014-10-13 `ba1b081cef`「trash the pools」刪除整個 module。配對規則的最終版為 2014-06-29 `2b4aaad6e1`，此後未再改：可配對的玩家依近約 9 局的淨分（勝 +1、和 0、負 -1）由高到低排序，同分時依 pool 等級分由高到低，相鄰兩人一組；人數為奇數時剔除等候最短者；沒有等級分範圍，也不隨機。6 月 9 日至 29 日間規則數度修改，最早版本只依等級分排序。配對以 wave 為單位，間隔 20 至 80 秒。每個 pool 各有一個 Glicko 等級分，表頭的 `WhiteElo`、`BlackElo` 與 RatingDiff 是 pool 等級分（`Joiner.scala` 以 `PerfPicker.mainOrDefault`）；2014-06-18 `750f127ca6` 起不更新全站等級分，速度類別等級分照常更新。程式中的 pool id 有 `1-0`、`3-0`、`5-0`、`5-5`，實際開放哪些寫在不公開的設定檔。建局時 `source` 為 `Pool`（id 8）；`ba1b081cef` 把 id 8 從 `Source` 移除，現行 lila 沒有 8，所以這些對局在現行 API 沒有 `source` 值。help 頁說會避開近幾局的對手，程式中沒有這段邏輯
 - **錦標賽的執子顏色**：commit `7032c7c355`「randomize piece colors in tournament pairings」在 2015 年 4 月，表示 2014 年錦標賽的顏色分配可能不是隨機的，具體規則待查。https://github.com/lichess-org/lila/commit/7032c7c355
 - **大廳的分數範圍篩選**：commit `909f5a8e89`「fix lobby filter rating range」（2015-01-08），表示此前已有此功能。https://github.com/lichess-org/lila/commit/909f5a8e89
 - **現行 quick pairing（pool）**：2016 年 11 月底至 12 月初的 `pool` 分支 commit
@@ -119,6 +119,8 @@
 - **觀察研究的敏感度分析**：Rosenbaum，Observational Studies
 - **部分識別的界限**：Manski（American Economic Review 80(2)，1990）；Lee（Review of Economic Studies 76(3)，2009）
 - **隨機化實驗中的共變數調整**：Freedman（Advances in Applied Mathematics 40(2)，2008）；Lin（Annals of Applied Statistics 7(1)，2013）。加入共變數只影響精度，不影響隨機化推論的有效性
+- **重複測量的摘要量**：Matthews、Altman、Campbell、Royston（BMJ 300，1990），Analysis of serial measurements in medical research。每位受試者彙總成一個量再做初等檢定
+- **以反轉隨機化檢定求比值的區間**：Imbens、Rosenbaum（Journal of the Royal Statistical Society Series A 168(1)，2005）。工具變數弱時仍有正確的涵蓋率
 - **truncation by death 與 principal stratification**：Zhang、Rubin（Journal of Educational and Behavioral Statistics 28(4)，2003）。survivor average causal effect 的界限
 - **pattern-mixture 模型**：Little（JASA 88，1993）。依退出時點分組處理縱貫資料的退出
 - **邊界上的概似比檢定**：Self、Liang（JASA 82，1987）。變異數成分為 0 時，虛無分布為卡方的混合
