@@ -205,6 +205,7 @@ Glicko 的等級分是事後平均，濾波器設定正確時不會在剛輸之�
 | 修正的概似比檢定的檢定水準 | 有效玩家數到數千時接近名目水準；有效玩家數少時仍偏寬鬆。Blitz、Classical 的真實樣本落在接近名目水準的範圍，Bullet 略為寬鬆 | 修正的概似比檢定作為主要做法；Bullet 上接近顯著邊緣的結果須保留，必要時改用小樣本修正的 sandwich | `docs/expected-score-baselines.md` |
 | 改用修正的概似比檢定後的結論 | 校準、EOMM 關鍵假設、Heliyon 的階段與 Mundlak 檢定的結論皆未改變；獨立假設下的 p 值普遍過小 | 已得出的結論照舊；`scripts/speed_fix_effect.py` 的修正前後比較仍以 Wald 為準，不重跑 | `docs/calibration.md`、`docs/eomm-assumption.md`、`docs/fixed-effects-churn.md` |
 | 期望勝率的三個基準 | 有序 logistic 與 Glicko 形式對加入 RD 的有序 logistic 都被拒絕；加入 RD 的模型在全部、新手、老手三組的樣本外表現都最好；RD 的收縮比 Glicko 的式子更強 | 主基準定為加入 RD 的有序 logistic，另兩者作敏感度分析；新手對局留在主樣本，由基準吸收 | `docs/expected-score-baselines.md` |
+| 剛被分到強對手之後的 carryover | Bullet 沒有證據；Blitz 的總效果成立、只延續一局，直接效果的主要檢定方向相同但不顯著，連續 $h$ 的對照顯著。上一局的配對會改變下一局的對手，總效果含這條 arena 特有的管道 | 依狀態調整的勝率只在 Blitz 加入上一局一項；類推到排隊配對時只能說直接效果方向一致、未能確立；結論都只在續下者上，須經 Lee 界限 | `docs/crossover.md` |
 
 這些結論帶出的待查事項：
 
@@ -300,7 +301,7 @@ flowchart TD
 
 ### 待辦（依序）
 
-1. **arena 的 crossover 模型**：平衡檢驗、總效果與直接效果、前一至三局的 carryover、劑量反應、輸棋本身的效果；玩家內對比的配對 $t$ 檢定；以玩家與以局兩種加權；GLMM、CMH、Mantel–Haenszel 與 Bradley–Terry–Davidson 的對照
+1. **crossover 模型的其餘對照**：玩家隨機截距的 GLMM、Bradley–Terry–Davidson 模型、錦標賽之後大廳的下一局
 2. **續下模型**：本場內是否再開一局；單調性的檢查
 3. **界限**：Lee 界限，與 Manski 界限、inverse probability weighting、有參數的敏感度分析並報
 4. **等級分是否失準**：依 RD 與上一局結果分層的校準；改變 τ 重放
