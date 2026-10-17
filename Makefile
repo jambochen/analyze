@@ -4,3 +4,7 @@ PYTHON ?= .venv/bin/python
 
 check-report-captions:
 	$(PYTHON) scripts/check_report_captions.py
+
+.PHONY: lint
+lint:
+	$(PYTHON) -m ruff check scripts

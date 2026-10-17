@@ -25,7 +25,18 @@ dev = [
     "jupytext>=1.19.5",
     "kaggle>=2.2.4",
     "nbconvert>=7.17.1",
+    "ruff>=0.17.1",
 ]
 
 [tool.uv.sources]
 glicko-replay = { path = "rust/glicko_replay" }
+
+[tool.ruff]
+line-length = 250
+
+[tool.ruff.lint]
+select = ["F", "E9"]
+
+[tool.ruff.lint.per-file-ignores]
+# 函式引用的全域陣列在檔尾以 del 釋放記憶體；函式在 del 之前已呼叫完，F821 是誤報
+"scripts/glicko_replay.py" = ["F821"]

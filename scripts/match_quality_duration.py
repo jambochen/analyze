@@ -6,7 +6,6 @@
 import sys
 
 import matplotlib.pyplot as plt
-import numpy as np
 import polars as pl
 import pyfixest as pf
 
