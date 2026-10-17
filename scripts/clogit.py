@@ -5,8 +5,6 @@
 import os
 
 os.environ.setdefault("JAX_PLATFORMS", "cpu")
-# XLA 的 CPU 執行緒數不受 OMP 等環境變數控制，以 affinity 限制在 8 核，與其他並行工作共用機器
-os.sched_setaffinity(0, range(8))
 
 import jax
 import jax.numpy as jnp

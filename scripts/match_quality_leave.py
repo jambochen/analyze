@@ -4,10 +4,8 @@
 # 兩層都控制期望匹配品質 q_bar（定義見 arena_batches.player_sample）：隨機配對保證的是 q 在給定 q_bar 下與玩家無關，
 # 不是 q 本身與玩家無關。
 
-import multiprocessing as mp
 import os
 import sys
-from concurrent.futures import ProcessPoolExecutor
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -15,7 +13,8 @@ import polars as pl
 import pyfixest as pf
 
 sys.path.insert(0, "scripts")
-from arena_batches import e_grid, multi_null, player_sample, repair
+import pairing_null
+from arena_batches import player_sample
 from clogit import fit
 
 B = 2000
@@ -53,15 +52,10 @@ with pl.Config(tbl_cols=-1, tbl_width_chars=250):
     print(sample)
 sample.write_csv("outputs/tables/match_quality_leave_sample.csv")
 
-# 兩局以上的批：每局兩列相鄰（依 game_id 排序），即每個玩家位置的實際對手是相鄰的那一列
-m = d.filter(pl.col("layer") == "multi").sort("bid", "game_id", "color")
+m, ns = pairing_null.structure(d)
 nrow = m.height
-opp_act = np.arange(nrow) ^ 1
-assert (m["game_id"].to_numpy() == m["game_id"].to_numpy()[opp_act]).all()
-elos = np.unique(np.r_[d["elo"].to_numpy(), d["opp_elo"].to_numpy()])
-ns = multi_null(m, e_grid(elos), elos)
-E, ui, tci, bi, nb = ns["E"], ns["ui"], ns["tci"], ns["bi"], ns["nb"]
-e_act = E[tci, ui, ui[opp_act]]
+bi, nb = ns["bi"], ns["nb"]
+e_act = ns["e_act"]
 assert np.abs(e_act - m["e"].to_numpy()).max() < 1e-9
 rule = m["rule"].to_numpy()
 after = m["after_1130"].to_numpy()
@@ -104,27 +98,11 @@ def stats(e):
     return {"q": slopes(q - q_bar), "e": slopes(e - e_bar), "q_raw": slopes(q)}
 
 
-NULLS = ["main", "unrestricted_before_1130"]
-
-
-def draw(job):
-    # 每次重新配對有自己的種子：平行時結果不隨工作分配到哪個行程而變
-    k, i = job
-    return stats(E[tci, ui, ui[repair(ns, NULLS[k], np.random.default_rng([k, i]))]])
-
-
-def all_cores():
-    # clogit 在 import 時把行程限制在 8 核，fork 出的工作行程會繼承
-    os.sched_setaffinity(0, range(os.cpu_count()))
-
-
 act = stats(e_act)
 ri_rows = []
 null_keep = {}
-# 單次重新配對是單執行緒的 numpy 運算，以 fork 的多行程分攤
-with ProcessPoolExecutor(os.cpu_count() - 2, mp_context=mp.get_context("fork"), initializer=all_cores) as ex:
-    draws_by_null = {nl: list(ex.map(draw, [(k, i) for i in range(B)], chunksize=25)) for k, nl in enumerate(NULLS)}
-for null in NULLS:
+draws_by_null = pairing_null.run(ns, stats, B)
+for null in pairing_null.NULLS:
     draws = draws_by_null[null]
     for var in act:
         for key, a in act[var].items():
@@ -150,6 +128,10 @@ ri = ri.join(pm.select("response").with_columns(p_holm=holm, null=pl.lit("main")
 with pl.Config(tbl_rows=-1, tbl_cols=-1, tbl_width_chars=250):
     print(ri.filter(pl.col("subgroup") == "all"))
 ri.write_csv("outputs/tables/match_quality_leave_ri.csv")
+
+# XLA 的 CPU 執行緒數不受 OMP 等環境變數控制，以 affinity 限制在 8 核，與其他並行工作共用機器。
+# 放在平行池之後：fork 出的工作行程會繼承 affinity
+os.sched_setaffinity(0, range(8))
 
 # 批次分層的 conditional logit。total 只放配對前的變數，對應 RI 所檢驗的總效果；with_result 加入本局結果與顏色，是控制中介後的係數，
 # 解讀見 eomm_assumption.py。標準誤以錦標賽聚類：批次巢套在錦標賽中，條件概似的分數只能逐批計算，無法再拆到玩家

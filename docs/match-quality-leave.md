@@ -1,6 +1,6 @@
 # 隨機配對下匹配品質對離開的效果
 
-腳本：`scripts/match_quality_leave.py`（主分析）、`scripts/match_quality_duration.py`（對局長度的機制檢查）。共用 module：`scripts/arena_batches.py`（配對批次、樣本、虛無配對結構、期望匹配品質）、`scripts/clogit.py`（批次分層的 conditional logit）、`scripts/calibrated.py`（校準期望得分）。表在 `outputs/tables/match_quality_leave_*.csv`、`outputs/tables/match_quality_duration*.csv`，圖在 `outputs/figures/match_quality_leave_*.png`、`outputs/figures/match_quality_duration.png`。本文件只寫定性結論，數值一律見對應的輸出檔。
+腳本：`scripts/match_quality_leave.py`（主分析）、`scripts/match_quality_duration.py`（對局長度的機制檢查）。共用 module：`scripts/arena_batches.py`（配對批次、樣本）、`scripts/pairing_null.py`（批內重新配對的虛無分布、期望匹配品質）、`scripts/clogit.py`（批次分層的 conditional logit）、`scripts/calibrated.py`（校準期望得分）。表在 `outputs/tables/match_quality_leave_*.csv`、`outputs/tables/match_quality_duration*.csv`，圖在 `outputs/figures/match_quality_leave_*.png`、`outputs/figures/match_quality_duration.png`。本文件只寫定性結論，數值一律見對應的輸出檔。
 
 ## 問題
 

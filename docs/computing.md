@@ -47,11 +47,15 @@ RTX 3070 的 float64 吞吐量遠低於 float32，最大概似、Hessian 與尾�
 
 ### 平行池
 
-`scripts/arena_crossover.py` 的 permutation test 以 fork 的行程池平行：
+permutation test 的重抽由 `scripts/pairing_null.py` 的 `run` 以 fork 的行程池平行，`arena_crossover.py` 與 `match_quality_leave.py` 共用：
 - 所有虛無分布的工作合成一個清單一次送出，最後一波才不會只剩少數行程在跑
-- 每個工作的重抽次數取到工作數為行程數的數倍，但不小到讓呼叫開銷蓋過運算
+- 每個工作一次跑一批重抽，批的大小取到工作數為行程數的數倍，但不小到讓呼叫開銷蓋過運算
+- 第 i 次重抽的種子固定為虛無分布的序號與 i，結果不隨工作分到哪個行程而變
 - 每次重抽只呼叫一次統計量函式，再從結果取各統計量；在 comprehension 內逐一取用會讓每次重抽重算整組，結果正確、只是慢，靠第 1 步的估計才看得出來
 - jax 的執行緒啟動後再 fork 可能死結：平行池需要的模型以 numpy 與 scipy 估計，jax 的配適放在平行池結束之後
+- 限制 XLA 執行緒的 `sched_setaffinity` 會被 fork 出的工作行程繼承，所以寫在用 jax 的腳本內、平行池之後，不寫在被 import 的 module 裡
+
+每次重抽的時間幾乎全花在統計量（numpy 的 `bincount`），重抽配法本身只佔一小部分，所以這一段不需要 Rust；變慢時先把多次重抽疊成矩陣，以稀疏的批指示矩陣一次相乘。
 
 平行池以外的 polars 建表、逐位玩家的 Python 迴圈是單執行緒，jax 的最大概似只部分平行；這些段落短時不必處理。
 

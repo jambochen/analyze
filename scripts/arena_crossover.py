@@ -15,9 +15,6 @@ import sys
 os.environ["JAX_PLATFORMS"] = "cpu"
 sys.path.insert(0, "scripts")
 
-import multiprocessing as mp
-from concurrent.futures import ProcessPoolExecutor
-
 import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
@@ -27,19 +24,18 @@ from scipy import optimize, stats
 from statsmodels.stats.contingency_tables import StratifiedTable
 
 import likelihood as lk
-from arena_batches import e_grid, multi_null, player_sample_rd, player_slopes, repair
+import pairing_null
+from arena_batches import player_sample_rd, player_slopes
 from calibrated import Q
 
 B = 2000
 B_BOOT = 999
-CHUNK_DRAWS = 20
 MIN_ROWS_SLOPE = 10
 SPEEDS = ["Bullet", "Blitz", "Classical"]
 GROUPS = SPEEDS + ["all"]
 # 加權與批的組合。純隨機規則的批為敏感度分析：2014 年 12 人以下的批有小幅偏離隨機（docs/random-pairing.md）
 COMBOS = [("game", "all"), ("game", "random_rule"), ("player", "all"), ("player", "random_rule")]
 LAGS = [1, 2, 3]
-NULLS = ["main", "unrestricted_before_1130"]
 BAL = ["elo_c", "log_games_in_tour", "novice", "rd"]
 C_GRID = np.round(np.arange(-0.5, 0.5001, 0.001), 3)
 
@@ -56,14 +52,11 @@ d = player_sample_rd().with_columns(
     sp=pl.col("speed").replace_strict({s: i for i, s in enumerate(SPEEDS)}, return_dtype=pl.Int64),
 )
 
-# 兩局以上的批：每局兩列相鄰，依 bid、game_id、color 排序，與 multi_null 的要求相同
-m = d.filter(pl.col("layer") == "multi").sort("bid", "game_id", "color").with_row_index("midx")
-elos = np.unique(np.r_[d["elo"].to_numpy(), d["opp_elo"].to_numpy()])
-E = e_grid(elos)
-ns = multi_null(m, E, elos)
-ui, tci, bi, nb = ns["ui"], ns["tci"], ns["bi"], ns["nb"]
+m, ns = pairing_null.structure(d)
+m = m.with_row_index("midx")
+bi, nb = ns["bi"], ns["nb"]
 e_bar_m = m["e_bar"].to_numpy()
-h_act_m = e_bar_m - E[tci, ui, ui[np.arange(m.height) ^ 1]]
+h_act_m = e_bar_m - ns["e_act"]
 assert np.abs(h_act_m - m["h"].to_numpy()).max() < 1e-9
 
 grp = ["player", "tournament_id"]
@@ -195,23 +188,13 @@ KEYS = list(act)
 NG = len(COMBOS) * len(GROUPS)
 
 
-def draws(job):
-    # 每次重新配對有自己的種子：平行時結果不隨工作分配到哪個行程而變
-    kn, i0 = job
-    out = []
-    for i in range(i0, i0 + CHUNK_DRAWS):
-        st = stats_of(e_bar_m - E[tci, ui, ui[repair(ns, NULLS[kn], np.random.default_rng([kn, i]))]])
-        out.append(np.concatenate([st[c] for c in KEYS]))
-    print(kn, i0 + CHUNK_DRAWS, "draws", flush=True)
-    return np.array(out)
+def stat_vec(e):
+    # 每次重抽只呼叫一次 stats_of，再從結果取各統計量
+    st = stats_of(e_bar_m - e)
+    return np.concatenate([st[c] for c in KEYS])
 
 
-# 單次重新配對是單執行緒的 numpy 運算；每個工作一次跑一批重抽，避免切得太碎。
-# 兩個虛無分布的工作一起送出，最後一波才不會只剩少數行程在跑
-jobs = [(kn, i) for kn in range(len(NULLS)) for i in range(0, B, CHUNK_DRAWS)]
-with ProcessPoolExecutor(os.cpu_count() - 2, mp_context=mp.get_context("fork")) as ex:
-    res_jobs = list(ex.map(draws, jobs))
-nd = {nl: np.concatenate([r_ for (kn, _), r_ in zip(jobs, res_jobs) if kn == knl]) for knl, nl in enumerate(NULLS)}
+nd = {nl: np.array(v) for nl, v in pairing_null.run(ns, stat_vec, B).items()}
 
 
 def label(gi):
@@ -221,7 +204,7 @@ def label(gi):
 slope_elo = t.group_by("speed").agg(pl.col("slope_elo").mean())
 slope_elo = dict(zip(slope_elo["speed"], slope_elo["slope_elo"])) | {"all": t["slope_elo"].mean()}
 ri_rows, ar_rows = [], []
-for nl in NULLS:
+for nl in pairing_null.NULLS:
     arr = nd[nl].reshape(B, len(KEYS), NG)
     for ki, c in enumerate(KEYS):
         if c.startswith("ar_"):

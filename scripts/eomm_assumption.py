@@ -3,8 +3,12 @@
 # 加入 q = |e - 0.5| 與「結果 × q」，以修正的概似比檢定 H0：q 與交互作用的係數皆為 0；並估 EOMM 的理論判準
 # Δ = c(勝) + c(負) - 2c(和)。主分析限兩局以上的配對批次（設計上的隨機），一局一批作補充。
 
+import os
 import resource
 import sys
+
+# XLA 的 CPU 執行緒數不受 OMP 等環境變數控制，以 affinity 限制在 8 核，與其他並行工作共用機器
+os.sched_setaffinity(0, range(8))
 
 import matplotlib.pyplot as plt
 import numpy as np
