@@ -100,6 +100,19 @@ result = g14.filter(pl.col("result") != "*").group_by("speed", "result").len().s
 print(result)
 result.write_csv("outputs/tables/data_overview_result.csv")
 
+# 依分差分組的勝和負比例，與期望得分曲線對照。分差取白方減黑方，50 分一組；
+# 600 分以外的對局少，不畫。只做比例，不擬合任何模型
+by_gap = (
+    g14.filter(pl.col("result") != "*", pl.col("white_elo").is_not_null(), pl.col("black_elo").is_not_null())
+    .with_columns(d=((pl.col("white_elo") - pl.col("black_elo")) / 50).round() * 50)
+    .filter(pl.col("d").abs() <= 600)
+    .group_by("d", "result")
+    .len()
+    .sort("d", "result")
+)
+print(by_gap)
+by_gap.write_csv("outputs/tables/data_overview_result_by_gap.csv")
+
 per_player = (
     pl.concat([g14.select("arena", p=pl.col("white_id")), g14.select("arena", p=pl.col("black_id"))])
     .group_by("p")
@@ -144,7 +157,7 @@ ax.set_ylabel("games per month (millions)")
 ax.legend(loc="center left", frameon=False)
 ax.spines[["top", "right"]].set_visible(False)
 fig.tight_layout()
-fig.savefig("outputs/figures/data_overview_timeline.png", dpi=200)
+fig.savefig("outputs/figures/data_overview_timeline.svg")
 
 fig, ax = plt.subplots(figsize=(6, 3.6))
 bins = np.arange(0, 1001, 20)
@@ -158,17 +171,16 @@ ax.set_yticks([])
 ax.legend(frameon=False)
 ax.spines[["top", "right", "left"]].set_visible(False)
 fig.tight_layout()
-fig.savefig("outputs/figures/data_overview_rating_gap.png", dpi=200)
+fig.savefig("outputs/figures/data_overview_rating_gap.svg")
 
 order = ["Bullet", "Blitz", "Classical"]
-fig, axes = plt.subplots(1, 2, figsize=(9, 2.6))
-ax = axes[0]
+fig, ax = plt.subplots(figsize=(4.5, 2.6))
 for i, arena in enumerate([True, False]):
-    s = speed.filter(pl.col("arena") == arena)
-    tot = s["len"].sum()
+    s_ = speed.filter(pl.col("arena") == arena)
+    tot = s_["len"].sum()
     left = 0
     for sp, c in zip(order, [BLUE, ORANGE, AQUA]):
-        v = s.filter(pl.col("speed") == sp)["len"].sum() / tot
+        v = s_.filter(pl.col("speed") == sp)["len"].sum() / tot
         ax.barh(i, v, left=left, color=c, edgecolor="white", lw=2)
         if v > 0.06:
             ax.text(left + v / 2, i, sp, ha="center", va="center", color="white", fontsize=9)
@@ -177,25 +189,33 @@ ax.set_yticks([0, 1], ["arena", "lobby &\nchallenge"])
 ax.set_xlim(0, 1)
 ax.set_xticks([0, 0.5, 1], ["0", "50%", "100%"])
 ax.set_title("speed class", fontsize=10, loc="left")
-ax = axes[1]
-for i, sp in enumerate(order):
-    r = result.filter(pl.col("speed") == sp)
-    tot = r["len"].sum()
-    left = 0
-    for res, c, lab in [("1-0", "0.35", "white wins"), ("1/2-1/2", AQUA, "draw"), ("0-1", "0.7", "black wins")]:
-        v = r.filter(pl.col("result") == res)["len"].sum() / tot
-        ax.barh(i, v, left=left, color=c, edgecolor="white", lw=2, label=lab if i == 0 else None)
-        left += v
-ax.set_yticks(range(3), order)
-ax.set_xlim(0, 1)
-ax.set_xticks([0, 0.5, 1], ["0", "50%", "100%"])
-ax.set_title("result", fontsize=10, loc="left")
-ax.legend(ncols=3, frameon=False, fontsize=8, loc="upper center", bbox_to_anchor=(0.5, -0.18))
-for ax in axes:
-    ax.spines[["top", "right", "left"]].set_visible(False)
-    ax.tick_params(left=False)
+ax.spines[["top", "right", "left"]].set_visible(False)
+ax.tick_params(left=False)
 fig.tight_layout()
-fig.savefig("outputs/figures/data_overview_composition.png", dpi=200)
+fig.savefig("outputs/figures/data_overview_composition.svg")
+
+wide = by_gap.pivot(on="result", index="d", values="len").fill_null(0).sort("d")
+d = wide["d"].to_numpy()
+n = wide.select(pl.sum_horizontal("1-0", "1/2-1/2", "0-1")).to_series().to_numpy()
+fig, ax = plt.subplots(figsize=(4.5, 3.4))
+ax.stackplot(
+    d,
+    wide["1-0"].to_numpy() / n,
+    wide["1/2-1/2"].to_numpy() / n,
+    wide["0-1"].to_numpy() / n,
+    colors=["0.35", AQUA, "0.75"],
+    labels=["white wins", "draw", "black wins"],
+)
+ax.set_xlim(-600, 600)
+ax.set_ylim(0, 1)
+ax.set_xticks([-400, 0, 400])
+ax.set_yticks([0, 0.5, 1], ["0", "50%", "100%"])
+ax.set_xlabel("white rating − black rating")
+ax.set_title("2014 rated games", fontsize=9, loc="left", color="0.35")
+ax.legend(ncols=3, frameon=False, fontsize=8, loc="upper center", bbox_to_anchor=(0.5, -0.2))
+ax.spines[["top", "right"]].set_visible(False)
+fig.tight_layout()
+fig.savefig("outputs/figures/data_overview_result_by_gap.svg")
 
 fig, ax = plt.subplots(figsize=(6, 3.6))
 for col, c, lab in [("games", ORANGE, "all rated games"), ("arena_games", BLUE, "arena games")]:
@@ -207,7 +227,7 @@ ax.set_ylabel("share of players with ≥ x games")
 ax.legend(frameon=False)
 ax.spines[["top", "right"]].set_visible(False)
 fig.tight_layout()
-fig.savefig("outputs/figures/data_overview_per_player.png", dpi=200)
+fig.savefig("outputs/figures/data_overview_per_player.svg")
 
 fig, ax = plt.subplots(figsize=(9, 1.8))
 tot = source["len"].sum()
@@ -229,4 +249,4 @@ ax.set_xticks([0, 0.5, 1], ["0", "50%", "100%"])
 ax.set_title("2014 rated games by pairing source", fontsize=10, loc="left")
 ax.spines[["top", "right", "left"]].set_visible(False)
 fig.tight_layout()
-fig.savefig("outputs/figures/data_overview_source.png", dpi=200)
+fig.savefig("outputs/figures/data_overview_source.svg")

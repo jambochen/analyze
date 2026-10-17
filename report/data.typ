@@ -16,11 +16,6 @@
 #let per-player = csv("../outputs/tables/data_overview_per_player.csv", row-type: dictionary).first()
 
 #let fig(name, ..args) = image("../outputs/figures/" + name + ".svg", ..args)
-// composition 圖左右兩格分屬不同頁，以裁切取其一半；figure 內置中會使超寬的圖偏移，故靠左再平移
-#let half(name, side, width) = box(width: width, clip: true, align(left, move(
-  dx: if side == left { 0pt } else { -width },
-  fig(name, width: 2 * width),
-)))
 #let flow = (node-stroke: 0.6pt + slate, node-inset: 0.6em, node-corner-radius: 3pt, spacing: (2.2em, 1.6em), edge-stroke: 0.6pt + slate)
 
 #title-slide()
@@ -70,31 +65,57 @@
 
 配對規則與每局的估計勝率皆不公開，兩方皆無可檢驗的資料。
 
-== 研究問題與資料的選擇
-
-#define[期望勝率在哪些情況下系統性地錯？]
-
-#figure(table(
-  columns: (auto, auto, auto),
-  table.hline(stroke: 1pt + slate),
-  [研究問題], [檢查的步驟], [需要的資料],
-  table.hline(stroke: 0.5pt + rule),
-  [各情況下期望勝率是否不偏], [估出勝率], [局前雙方分數與結果],
-  [輸局後期望勝率是否另有偏誤], [輸了之後的下一次估計], [連續對局與配對來源],
-  [停止時點的選擇], [再開一局或停下], [由前兩問的結果推得],
-  table.hline(stroke: 1pt + slate),
-))
-
-Lichess 的計分規則、配對規則與局前分數皆公開。
-
 == 資料來源與規模
 
 #figure(fig("data_overview_timeline", height: 62%))
 
+- Lichess 的計分規則、配對規則與局前分數皆公開。
 - Lichess 官方資料庫的月檔，授權 CC0。
 - 2013 年 1 月至 2015 年 6 月的標準棋 rated 對局，共 #num(scale.map(r => int(r.games)).sum()) 局。
 
-== 等級分與期望得分
+== 等級分系統
+
+#figure(
+  table(
+    columns: (auto, auto, auto, auto),
+    table.hline(stroke: 1pt + slate),
+    [系統], [記錄的量], [對手 RD 大時], [使用例],
+    table.hline(stroke: 0.5pt + rule),
+    [Elo], [等級分], [不考慮], [FIDE],
+    [Glicko], [等級分、RD], [期望得分往 0.5 收縮], [Chess.com],
+    [Glicko-2], [另加波動度], [同 Glicko], [Lichess],
+    [MMR], [遊戲內部的實力分數], [多不公開], [Overwatch 2、Valorant],
+    table.hline(stroke: 1pt + slate),
+  ),
+  caption: [出處：@elo1978、@glickman1999、@glickman2001；MMR 與可見段位分開：@riot2021rr],
+)
+
+- RD（rating deviation）：等級分的不確定程度，新帳號較大。
+
+各系統皆以局前分數估出期望得分，再以實際結果更新。
+
+== 期望得分與賽後更新
+
+#figure(table(
+  columns: (auto, auto, auto),
+  table.hline(stroke: 1pt + slate),
+  [系統], [期望得分 $E$], [賽後更新],
+  table.hline(stroke: 0.5pt + rule),
+  [Elo], [$E = 1 \/ (1 + 10^(-d \/ 400))$], [$r' = r + K (S - E)$],
+  [Glicko], [$E = 1 \/ (1 + 10^(-g d \/ 400))$], [調整幅度隨自身 RD 變大],
+  [Glicko-2], [同 Glicko], [同 Glicko，另以波動度調整 RD],
+  table.hline(stroke: 1pt + slate),
+))
+
+- $r$、$r'$：自己賽前、賽後的等級分。
+- $d$：等級分差（自己 − 對手）。
+- $S$：實際得分，勝 1、和 0.5、負 0。
+- $K$：每局調整幅度的常數，由系統設定。
+- $g = 1 \/ sqrt(1 + 3 q^2 "RD"_"對手"^2 \/ pi^2)$，$q = ln 10 \/ 400$。
+
+RD 為 0 時 $g = 1$，Glicko 即 Elo。
+
+== 期望得分曲線與和局
 
 #figure(grid(
   columns: (1fr, 1fr),
@@ -112,20 +133,20 @@ Lichess 的計分規則、配對規則與局前分數皆公開。
       y-min: 0,
       y-max: 1,
       axis-style: "left",
+      legend: "inner-north-west",
       {
-        plot.add(domain: (-800, 800), x => 1 / (1 + calc.pow(10, -x / 400)), style: (stroke: 1.5pt + slate))
+        plot.add(domain: (-800, 800), x => 1 / (1 + calc.pow(10, -x / 400)), style: (stroke: 1.5pt + slate), label: [對手 RD = 0])
+        // Glicko 的 g(RD)：RD = 350 為新帳號的初始值
+        let g = 1 / calc.sqrt(1 + 3 * calc.pow(350 / 173.7178, 2) / calc.pow(calc.pi, 2))
+        plot.add(domain: (-800, 800), x => 1 / (1 + calc.pow(10, -g * x / 400)), style: (stroke: (paint: mute, thickness: 1.5pt, dash: "dashed")), label: [對手 RD = 350])
       },
     )
     cetz.draw.content((4.5, -1.2), [等級分差（自己 − 對手）])
   })),
-  half("data_overview_composition", right, 100%),
+  fig("data_overview_result_by_gap", width: 100%),
 ))
 
-- 局前雙方各有一個等級分，Lichess 採 Glicko-2。
-- 得分：勝 1、和 0.5、負 0。
-- 期望得分：得分的期望值，由雙方等級分差決定。
-
-結果分勝、和、負三類，和局不可捨棄。
+各分差下皆有和局，期望得分以 0.5 計入。
 
 == 四種配對方式
 
@@ -199,8 +220,6 @@ Lichess 的計分規則、配對規則與局前分數皆公開。
 ))
 
 - RatingDiff：該局使雙方等級分各加減多少。
-- rating deviation：等級分的不確定程度，新帳號較大。
-
 RatingDiff 是結果的函數，一律不用。
 
 == 分析單位與樣本切分
@@ -246,7 +265,7 @@ RatingDiff 是結果的函數，一律不用。
   gutter: 1.5em,
   align: horizon,
   fig("data_overview_per_player", width: 100%),
-  half("data_overview_composition", left, 100%),
+  fig("data_overview_composition", width: 100%),
 ))
 
 - #num(y2014.players) 位玩家，其中 #num(per-player.arena_players) 位下過 arena。
