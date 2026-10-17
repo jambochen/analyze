@@ -19,7 +19,7 @@ import numpy as np
 import polars as pl
 
 import likelihood as lk
-from arena_batches import player_sample_rd
+from arena_batches import rating_filter_sample
 from calibrated import Q
 
 SPEEDS = ["Bullet", "Blitz", "Classical"]
@@ -34,22 +34,7 @@ def holm(p):
     return out
 
 
-grp = ["player", "tournament_id"]
-t = (
-    player_sample_rd()
-    .sort("player", "tournament_id", "start", "game_id")
-    .with_columns(
-        prev_result=pl.col("result").shift(1).over(grp),
-        dr=((pl.col("elo") - pl.col("elo").shift(1).over(grp)) / 100).cast(pl.Float64),
-    )
-    .filter(pl.col("prev_result").is_not_null())
-    .with_columns(L=(pl.col("e_base") / (1 - pl.col("e_base"))).log(), const=pl.lit(1.0))
-)
-# 自身 RD 的五等分，依速度類別各自取切點
-t = pl.concat([
-    s.with_columns(rdq=pl.Series(np.searchsorted(np.quantile(s["rd"].to_numpy(), np.linspace(0, 1, NQ + 1)[1:-1]), s["rd"].to_numpy(), side="right")))
-    for s in t.partition_by("speed")
-]).with_columns(*[(pl.col("rdq") == q).cast(pl.Float64).alias(f"q{q}") for q in range(1, NQ)], *[(pl.col("dr") * (pl.col("rdq") == q)).alias(f"dr_q{q}") for q in range(1, NQ)])
+t = rating_filter_sample(NQ)
 sample = t.group_by("speed", "rdq", "prev_result").agg(n=pl.len(), players=pl.col("player").n_unique(), rd_min=pl.col("rd").min(), rd_max=pl.col("rd").max(), dr_mean=pl.col("dr").mean(), resid_mean=pl.col("resid").mean()).sort("speed", "rdq", "prev_result")
 print(sample)
 sample.write_csv("outputs/tables/rating_filter_error_sample.csv")

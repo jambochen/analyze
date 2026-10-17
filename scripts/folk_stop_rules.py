@@ -12,52 +12,14 @@ import numpy as np
 import polars as pl
 from scipy.stats import norm
 
-from arena_batches import player_sample_rd
+from arena_batches import STOP_RULES, stop_rule_sample
 
-UTC = "UTC"
-DAY_GAP = 12 * 3600
 SPEEDS = ["Bullet", "Blitz", "Classical"]
-RULES = ["first_loss", "two_losses"]
-RD_NOVICE = 110
+RULES = STOP_RULES
 B = 2000
-
-# 一天以全部對局（含大廳）的開局間隔切分：大廳對局不進序列，但玩家在下大廳就不算離開
-days = (
-    pl.scan_parquet("data/processed/player_games.parquet")
-    .filter(pl.col("start") >= pl.datetime(2014, 6, 1, time_zone=UTC), pl.col("start") < pl.datetime(2015, 1, 1, time_zone=UTC))
-    .select("game_id", "player", "start", "prev_gap")
-    .collect()
-    .sort("player", "start", "game_id")
-    .with_columns(day=(pl.col("prev_gap").is_null() | (pl.col("prev_gap") > DAY_GAP)).cum_sum().over("player"))
-    .with_columns(day_start=pl.col("start").first().over("player", "day"))
-    .select("game_id", "player", "day", "day_start")
-)
-
-d = (
-    player_sample_rd()
-    .select("game_id", "player", "start", "speed", "result", "resid", "rd", "opp_rd")
-    .join(days, on=["game_id", "player"])
-    .sort("player", "start", "game_id")
-)
 pd_ = ["player", "day"]
-loss = (pl.col("result") == "loss").cast(pl.Int32)
-d = (
-    d.with_columns(run=(pl.col("result") != "loss").cum_sum().over(pd_))
-    .with_columns(streak=loss.cum_sum().over(pd_ + ["run"]))
-    .with_columns(
-        # 觸發的那一局本身保留，之後的局刪去
-        del_first_loss=(loss.cum_sum().over(pd_) - loss) > 0,
-        del_two_losses=((pl.col("streak") >= 2).cast(pl.Int32).cum_sum().over(pd_) - (pl.col("streak") >= 2).cast(pl.Int32)) > 0,
-        novice=pl.max_horizontal("rd", "opp_rd") >= RD_NOVICE,
-    )
-)
 
-# 隔天第一局：下一個含 arena 局的一天中的第一局 arena 局。先在全年的序列上找，再限於下半年開始的天
-first = d.group_by(pd_, maintain_order=True).agg(pl.col("resid").first(), pl.col("speed").first())
-first = first.with_columns(next_resid=pl.col("resid").shift(-1).over("player"), next_speed=pl.col("speed").shift(-1).over("player")).select(pd_ + ["next_resid", "next_speed"])
-h2 = pl.col("day_start") >= pl.datetime(2014, 7, 1, time_zone=UTC)
-d = d.filter(h2).drop("run", "streak")
-del_days = d.group_by(pd_).agg(*[pl.col(f"del_{r}").any().alias(f"any_{r}") for r in RULES]).join(first, on=pd_, how="left")
+d, del_days = stop_rule_sample()
 
 sample = d.group_by("speed").agg(
     n=pl.len(), players=pl.col("player").n_unique(), days=pl.struct(pd_).n_unique(),

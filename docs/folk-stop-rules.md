@@ -1,6 +1,6 @@
 # 民間停止規則的回測
 
-腳本：`scripts/folk_stop_rules.py`。共用 module：`scripts/arena_batches.py`（`player_sample_rd`）。表在 `outputs/tables/folk_stop_rules_*.csv`，圖在 `outputs/figures/folk_stop_rules_backtest.png`。規格見 `docs/methods.md`「停止規則」。本文件只寫定性結論，數值一律見對應的輸出檔。
+腳本：`scripts/folk_stop_rules.py`。共用 module：`scripts/arena_batches.py`（`stop_rule_sample`）。表在 `outputs/tables/folk_stop_rules_*.csv`，圖在 `outputs/figures/folk_stop_rules_backtest.png`。規格見 `docs/methods.md`「停止規則」。本文件只寫定性結論，數值一律見對應的輸出檔。
 
 ## 問題
 

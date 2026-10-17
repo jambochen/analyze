@@ -27,7 +27,7 @@ from scipy import optimize, stats
 from statsmodels.stats.contingency_tables import StratifiedTable
 
 import likelihood as lk
-from arena_batches import e_grid, multi_null, player_sample_rd, repair
+from arena_batches import e_grid, multi_null, player_sample_rd, player_slopes, repair
 from calibrated import Q
 
 B = 2000
@@ -339,16 +339,6 @@ def contrast(r, h, player, opp_a, opp_b):
     return {"players": P, "diff": dp.mean(), "se_t": se_t, "se_link": se_link, "t": tt, "p": 2 * stats.t.sf(abs(tt), P - 1), "h_diff": dh.mean(), "effect_per_h": dp.mean() / dh.mean()}
 
 
-# 每位玩家的斜率：殘差對 h 的 OLS，至少 MIN_ROWS_SLOPE 列的玩家，等權重 t 檢定
-def player_slopes(r, h, player):
-    df = pl.DataFrame({"p": player, "r": r, "h": h}).group_by("p").agg(
-        n=pl.len(), b=pl.cov("r", "h") / pl.col("h").var()
-    ).filter(pl.col("n") >= MIN_ROWS_SLOPE, pl.col("b").is_finite())
-    b = df["b"].to_numpy()
-    tt = b.mean() / (b.std(ddof=1) / np.sqrt(len(b)))
-    return {"players": len(b), "mean_slope": b.mean(), "se": b.std(ddof=1) / np.sqrt(len(b)), "t": tt, "p": 2 * stats.t.sf(abs(tt), len(b) - 1)}
-
-
 con_rows, slope_rows, game_rows, spec_rows, dose_rows, ratio_rows = [], [], [], [], [], []
 rng = np.random.default_rng(1)
 sc_t = t["score"].to_numpy()
@@ -375,7 +365,7 @@ for j, spd in enumerate(SPEEDS):
                 r = s[f"r_{'dir' if eff == 'direct' else 'tot'}"].to_numpy()
                 c = contrast(r, hk, s["player"].to_numpy(), s["opponent"].to_numpy(), s["opp_lag1"].to_numpy())
                 con_rows.append({"speed": spd, "lag": k, "sample": sample_name, "effect": eff, **c, "elo_per_0_1": 0.1 * c["effect_per_h"] / spe})
-                slope_rows.append({"speed": spd, "lag": k, "sample": sample_name, "effect": eff, **player_slopes(r, hk, s["player"].to_numpy())})
+                slope_rows.append({"speed": spd, "lag": k, "sample": sample_name, "effect": eff, **player_slopes(r, hk, s["player"].to_numpy(), MIN_ROWS_SLOPE)})
     print(spd, "contrasts", flush=True)
 
     s = ts.filter(pl.col("layer_lag1") == "multi")

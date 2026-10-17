@@ -20,7 +20,7 @@ import polars as pl
 from scipy import optimize, stats
 
 import likelihood as lk
-from arena_batches import player_sample_rd
+from arena_batches import continuation_sample
 
 B = 999
 SPEEDS = ["Bullet", "Blitz", "Classical"]
@@ -38,31 +38,7 @@ def holm(p):
     return out
 
 
-grp = ["player", "tournament_id"]
-d = (
-    player_sample_rd()
-    .filter(pl.col("layer").is_in(LAYERS))
-    .sort("player", "tournament_id", "start", "game_id")
-    .with_columns(
-        *[pl.col("resid").shift(-k).over(grp).alias(f"resid_next{k}") for k in LAGS],
-        *[pl.col("score_per_elo").shift(-k).over(grp).alias(f"spe_next{k}") for k in LAGS],
-        n_after=pl.len().over(grp) - 1 - pl.int_range(pl.len()).over(grp),
-        novice_rd=((pl.col("rd") >= 110) | (pl.col("opp_rd") >= 110)).cast(pl.Float64),
-        loss=(pl.col("result") == "loss").cast(pl.Float64),
-    )
-    # 跨年的錦標賽在 2015 年的局不在樣本中，續下會被誤記為離開
-    .filter(pl.col("tour_last") < pl.datetime(2015, 1, 1, time_zone="UTC"))
-    .with_columns(elo_c2=pl.col("elo_c") ** 2, h_win=pl.col("h") * pl.col("win"), h_draw=pl.col("h") * pl.col("draw"))
-)
-# 第 k 局之後的風險集：tour_left 有定義（錦標賽不被資料終點或停擺截斷），且本局之後錦標賽仍有 k 局名目長度的時間
-for k in LAGS:
-    d = d.with_columns(
-        pl.when(pl.col("tour_left").is_not_null() & ((pl.col("tour_last") - pl.col("start")).dt.total_seconds() >= k * pl.col("est_duration")))
-        .then(pl.col("n_after") >= k)
-        .alias(f"cont{k}")
-    )
-# 第一局之後的續下與 tour_left 一致
-assert d.filter(pl.col("cont1").is_not_null(), pl.col("cont1") == pl.col("tour_left")).height == 0
+d = continuation_sample(LAGS)
 
 sample = pl.concat([
     d.filter(pl.col(f"cont{k}").is_not_null())

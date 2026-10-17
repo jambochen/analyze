@@ -3,6 +3,7 @@
 
 import numpy as np
 import polars as pl
+from scipy import stats
 
 from calibrated import probs, rd_baseline
 
@@ -283,3 +284,112 @@ def player_sample_rd():
         resid=pl.col("score") - pl.col("e_base"),
         score_per_elo=pl.col("slope_elo") * (lo * (1 - lo) + hi * (1 - hi)) / 2,
     )
+
+
+STOP_RULES = ["first_loss", "two_losses"]
+
+
+def stop_rule_sample(day_gap=12 * 3600, rd_novice=110):
+    """2014 下半年的 arena 玩家局，加上一天的切分與兩條民間停止規則刪去的局；回傳 (d, del_days)。
+
+    一天以全部對局（含大廳）的開局間隔切分：大廳對局不進序列，但玩家在下大廳就不算離開。
+    del_<rule> 為該規則刪去的局（觸發的那一局本身保留）。del_days 每天一列，next_resid 為下一個含 arena 局的一天中
+    第一局 arena 局的殘差（next_opponent 為該局的對手），先在全年的序列上找，再限於下半年開始的天。
+    """
+    days = (
+        pl.scan_parquet("data/processed/player_games.parquet")
+        .filter(pl.col("start") >= pl.datetime(2014, 6, 1, time_zone=UTC), pl.col("start") < pl.datetime(2015, 1, 1, time_zone=UTC))
+        .select("game_id", "player", "start", "prev_gap")
+        .collect()
+        .sort("player", "start", "game_id")
+        .with_columns(day=(pl.col("prev_gap").is_null() | (pl.col("prev_gap") > day_gap)).cum_sum().over("player"))
+        .with_columns(day_start=pl.col("start").first().over("player", "day"))
+        .select("game_id", "player", "day", "day_start")
+    )
+    d = (
+        player_sample_rd()
+        .select("game_id", "player", "opponent", "start", "speed", "result", "resid", "rd", "opp_rd")
+        .join(days, on=["game_id", "player"])
+        .sort("player", "start", "game_id")
+    )
+    pd_ = ["player", "day"]
+    loss = (pl.col("result") == "loss").cast(pl.Int32)
+    d = (
+        d.with_columns(run=(pl.col("result") != "loss").cum_sum().over(pd_))
+        .with_columns(streak=loss.cum_sum().over(pd_ + ["run"]))
+        .with_columns(
+            del_first_loss=(loss.cum_sum().over(pd_) - loss) > 0,
+            del_two_losses=((pl.col("streak") >= 2).cast(pl.Int32).cum_sum().over(pd_) - (pl.col("streak") >= 2).cast(pl.Int32)) > 0,
+            novice=pl.max_horizontal("rd", "opp_rd") >= rd_novice,
+        )
+    )
+    first = d.group_by(pd_, maintain_order=True).agg(pl.col("resid").first(), pl.col("speed").first(), pl.col("opponent").first())
+    first = first.with_columns(
+        next_resid=pl.col("resid").shift(-1).over("player"), next_speed=pl.col("speed").shift(-1).over("player"), next_opponent=pl.col("opponent").shift(-1).over("player")
+    ).select(pd_ + ["next_resid", "next_speed", "next_opponent"])
+    d = d.filter(pl.col("day_start") >= pl.datetime(2014, 7, 1, time_zone=UTC)).drop("run", "streak")
+    del_days = d.group_by(pd_).agg(*[pl.col(f"del_{r}").any().alias(f"any_{r}") for r in STOP_RULES]).join(first, on=pd_, how="left")
+    return d, del_days
+
+
+def rating_filter_sample(nq=5):
+    """有上一局的 arena 玩家局，加上一局的結果 prev_result、上一局的等級分變動 dr（每 100 分）、
+    主基準期望得分的 logit L，與自身 RD 的 nq 等分 rdq（依速度類別各自取切點，0 起算）及其虛擬變數 q*、dr_q*。"""
+    grp = ["player", "tournament_id"]
+    t = (
+        player_sample_rd()
+        .sort("player", "tournament_id", "start", "game_id")
+        .with_columns(
+            prev_result=pl.col("result").shift(1).over(grp),
+            dr=((pl.col("elo") - pl.col("elo").shift(1).over(grp)) / 100).cast(pl.Float64),
+        )
+        .filter(pl.col("prev_result").is_not_null())
+        .with_columns(L=(pl.col("e_base") / (1 - pl.col("e_base"))).log(), const=pl.lit(1.0))
+    )
+    return pl.concat([
+        s.with_columns(rdq=pl.Series(np.searchsorted(np.quantile(s["rd"].to_numpy(), np.linspace(0, 1, nq + 1)[1:-1]), s["rd"].to_numpy(), side="right")))
+        for s in t.partition_by("speed")
+    ]).with_columns(*[(pl.col("rdq") == q).cast(pl.Float64).alias(f"q{q}") for q in range(1, nq)], *[(pl.col("dr") * (pl.col("rdq") == q)).alias(f"dr_q{q}") for q in range(1, nq)])
+
+
+def player_slopes(r, h, player, min_rows):
+    """每位玩家殘差對 h 的 OLS 斜率，至少 min_rows 列的玩家，等權重 t 檢定。"""
+    df = pl.DataFrame({"p": player, "r": r, "h": h}).group_by("p").agg(
+        n=pl.len(), b=pl.cov("r", "h") / pl.col("h").var()
+    ).filter(pl.col("n") >= min_rows, pl.col("b").is_finite())
+    b = df["b"].to_numpy()
+    tt = b.mean() / (b.std(ddof=1) / np.sqrt(len(b)))
+    return {"players": len(b), "mean_slope": b.mean(), "se": b.std(ddof=1) / np.sqrt(len(b)), "t": tt, "p": 2 * stats.t.sf(abs(tt), len(b) - 1)}
+
+
+def continuation_sample(lags):
+    """兩層（multi、single）的 arena 玩家局，加上之後第 k 局的殘差 resid_next{k} 與續下 cont{k}。
+
+    cont{k} 只在第 k 局之後的風險集內有定義：tour_left 有定義（錦標賽不被資料終點或停擺截斷），
+    且本局之後錦標賽仍有 k 局名目長度的時間。
+    """
+    grp = ["player", "tournament_id"]
+    d = (
+        player_sample_rd()
+        .filter(pl.col("layer").is_in(["multi", "single"]))
+        .sort("player", "tournament_id", "start", "game_id")
+        .with_columns(
+            *[pl.col("resid").shift(-k).over(grp).alias(f"resid_next{k}") for k in lags],
+            *[pl.col("score_per_elo").shift(-k).over(grp).alias(f"spe_next{k}") for k in lags],
+            n_after=pl.len().over(grp) - 1 - pl.int_range(pl.len()).over(grp),
+            novice_rd=((pl.col("rd") >= 110) | (pl.col("opp_rd") >= 110)).cast(pl.Float64),
+            loss=(pl.col("result") == "loss").cast(pl.Float64),
+        )
+        # 跨年的錦標賽在 2015 年的局不在樣本中，續下會被誤記為離開
+        .filter(pl.col("tour_last") < pl.datetime(2015, 1, 1, time_zone="UTC"))
+        .with_columns(elo_c2=pl.col("elo_c") ** 2, h_win=pl.col("h") * pl.col("win"), h_draw=pl.col("h") * pl.col("draw"))
+    )
+    for k in lags:
+        d = d.with_columns(
+            pl.when(pl.col("tour_left").is_not_null() & ((pl.col("tour_last") - pl.col("start")).dt.total_seconds() >= k * pl.col("est_duration")))
+            .then(pl.col("n_after") >= k)
+            .alias(f"cont{k}")
+        )
+    # 第一局之後的續下是 tour_left 的反面
+    assert d.filter(pl.col("cont1").is_not_null(), pl.col("cont1") == pl.col("tour_left")).height == 0
+    return d

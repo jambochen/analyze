@@ -27,6 +27,7 @@
 | `rating-filter.md` | 剛輸或剛贏之後，系統的期望得分是否偏？殘差能否由上一局的等級分變動預測？能否分開濾波誤差與 tilt？ |
 | `folk-stop-rules.md` | 「輸了今天休息」這類民間停止規則有沒有用？停下之後隔天的第一局表現如何？ |
 | `state-adjusted-probs.md` | 依上一局修正後的勝、和、負機率比系統的期望準多少？保留哪些近況項？「再開一局」差多少？ |
+| `player-aggregation.md` | 先彙總到玩家再用 delta method 或 $t$ 檢定，能否在哪些分析上取代 sandwich？玩家等權何時有偏誤？報告的相依一章怎麼講？ |
 | `match-quality-leave.md` | 隨機配對下，匹配品質是否影響續下與離開？效果的機制是什麼？（附錄） |
 | `eomm-assumption.md` | EOMM 的關鍵假設（給定結果，對手不影響離開）是否成立？等實力配對是否最好？（附錄） |
 | `fixed-effects-churn.md` | Heliyon 2024 的固定效應模型在 Lichess 上能否複製？自選對手與隨機配對下的估計差多少？ |
