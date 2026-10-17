@@ -4,7 +4,7 @@
 import numpy as np
 import polars as pl
 
-from calibrated import probs
+from calibrated import probs, rd_baseline
 
 UTC = "UTC"
 TCS = ["Blitz", "Bullet", "Classical"]
@@ -254,4 +254,32 @@ def player_sample():
             q_bar=pl.when(pl.col("layer") == "multi").then("q_bar_m").otherwise("q_bar_w"),
         )
         .drop("e_bar_m", "q_bar_m", "e_bar_w", "q_bar_w")
+    )
+
+
+def player_sample_rd():
+    """player_sample 加上對手的帳號代碼、重放的雙方 RD 與主基準（calibrated.rd_baseline）。
+
+    h = e_bar - e 為隨機配對產生的對手強弱，正值為對手比依配對機制所期望的強；resid 為得分減主基準的期望得分；
+    score_per_elo 為主基準下期望得分對自身等級分的斜率，把得分尺度的效果換算成等級分。
+    """
+    ids = pl.scan_parquet("data/processed/lichess_games.parquet").select("game_id", "white_id", "black_id")
+    rp = pl.scan_parquet("data/processed/glicko_replay.parquet").select("game_id", "white_rd", "black_rd")
+    d = (
+        player_sample()
+        .join(ids.collect(), on="game_id")
+        .join(rp.collect(), on="game_id")
+        .with_columns(
+            rd=pl.when(pl.col("color") == "white").then("white_rd").otherwise("black_rd").cast(pl.Float64),
+            opp_rd=pl.when(pl.col("color") == "white").then("black_rd").otherwise("white_rd").cast(pl.Float64),
+            opponent=pl.when(pl.col("color") == "white").then("black_id").otherwise("white_id"),
+        )
+        .drop("white_id", "black_id", "white_rd", "black_rd")
+    )
+    lo = 1 / (1 + (-(pl.col("eta") - pl.col("w"))).exp())
+    hi = 1 / (1 + (-(pl.col("eta") + pl.col("w"))).exp())
+    return rd_baseline(d).with_columns(
+        h=pl.col("e_bar") - pl.col("e"),
+        resid=pl.col("score") - pl.col("e_base"),
+        score_per_elo=pl.col("slope_elo") * (lo * (1 - lo) + hi * (1 - hi)) / 2,
     )

@@ -27,8 +27,8 @@ from scipy import optimize, stats
 from statsmodels.stats.contingency_tables import StratifiedTable
 
 import likelihood as lk
-from arena_batches import e_grid, multi_null, player_sample, repair
-from calibrated import Q, rd_baseline
+from arena_batches import e_grid, multi_null, player_sample_rd, repair
+from calibrated import Q
 
 B = 2000
 B_BOOT = 999
@@ -51,31 +51,9 @@ def holm(p):
     return out
 
 
-ids = pl.scan_parquet("data/processed/lichess_games.parquet").select("game_id", "white_id", "black_id")
-rp = pl.scan_parquet("data/processed/glicko_replay.parquet").select("game_id", "white_rd", "black_rd")
-d = (
-    player_sample()
-    .join(ids.collect(), on="game_id")
-    .join(rp.collect(), on="game_id")
-    .with_columns(
-        rd=pl.when(pl.col("color") == "white").then("white_rd").otherwise("black_rd").cast(pl.Float64),
-        opp_rd=pl.when(pl.col("color") == "white").then("black_rd").otherwise("white_rd").cast(pl.Float64),
-        opponent=pl.when(pl.col("color") == "white").then("black_id").otherwise("white_id"),
-    )
-    .drop("white_id", "black_id", "white_rd", "black_rd")
-)
-d = rd_baseline(d).with_columns(
-    h=pl.col("e_bar") - pl.col("e"),
+d = player_sample_rd().with_columns(
     y=pl.col("result").replace_strict({"loss": 0, "draw": 1, "win": 2}, return_dtype=pl.Int8),
-    resid=pl.col("score") - pl.col("e_base"),
     sp=pl.col("speed").replace_strict({s: i for i, s in enumerate(SPEEDS)}, return_dtype=pl.Int64),
-    # 主基準下期望得分對自身等級分的斜率，把得分尺度的效果換算成等級分
-    score_per_elo=pl.col("slope_elo")
-    * (
-        (1 / (1 + (-(pl.col("eta") - pl.col("w"))).exp())) * (1 - 1 / (1 + (-(pl.col("eta") - pl.col("w"))).exp()))
-        + (1 / (1 + (-(pl.col("eta") + pl.col("w"))).exp())) * (1 - 1 / (1 + (-(pl.col("eta") + pl.col("w"))).exp()))
-    )
-    / 2,
 )
 
 # 兩局以上的批：每局兩列相鄰，依 bid、game_id、color 排序，與 multi_null 的要求相同
@@ -333,20 +311,10 @@ def args_of(s):
     return (X, s["xr"].to_numpy(), s["xd"].to_numpy(), s["y"].to_numpy().astype(np.float64))
 
 
-# 以局加權的修正概似比檢定：lambda 以依玩家分群與 dyadic 的 meat 各算一次，取較大者（較保守）
 def lrt(s, cols0, cols1, ppo1=False):
-    a, w_, b_ = args_of(s), s["player"].to_numpy(), s["opponent"].to_numpy()
-    f0, f1 = free_of(cols0), free_of(cols1, ppo1)
-    th1, ll1, V, Hi, S, _ = lk.fit(ll, T0, f1, a, w_, b_)
-    _, ll0, *_ = lk.fit(ll, T0, f0, a, w_, b_)
-    idx = np.flatnonzero(~np.isin(f1, f0))
-    pc = np.unique(w_, return_inverse=True)[1]
-    Sp = np.stack([np.bincount(pc, S[:, j]) for j in range(S.shape[1])], 1)
-    Vp = Hi @ (Sp.T @ Sp) @ Hi
-    lam_d, lam_p = lk.lr_weights(Hi, V, idx), lk.lr_weights(Hi, Vp, idx)
-    lam = lam_d if lam_d.max() >= lam_p.max() else lam_p
-    res = lk.adjusted_lrt(2 * (ll1 - ll0), lam)
-    return th1, f1, V, res | {"lam_max_dyadic": lam_d.max(), "lam_max_player": lam_p.max()}
+    f1 = free_of(cols1, ppo1)
+    th1, V, res = lk.lrt_player_dyad(ll, T0, free_of(cols0), f1, args_of(s), s["player"].to_numpy(), s["opponent"].to_numpy())
+    return th1, f1, V, res
 
 
 # 玩家內的對比：每位玩家「h > 0 之後」減「h <= 0 之後」的平均殘差，對玩家做配對 t 檢定。

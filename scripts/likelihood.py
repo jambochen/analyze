@@ -103,3 +103,17 @@ def adjusted_lrt(lr, lam):
     else:
         p, method = wchisq_sf_imhof(lr, lam), "imhof"
     return {"lr": lr, "df": df, "p_naive": stats.chi2.sf(lr, df), "p": p, "p_method": method, "p_upper": p_upper, "p_satt": wchisq_sf_satt(lr, lam), "lam_min": lam.min(), "lam_max": lam.max()}
+
+
+# 以局加權的修正概似比檢定：lambda 以依玩家分群（w 為群）與 dyadic 的 meat 各算一次，取較大者（較保守）。
+# 回傳 (完整模型的參數, 完整模型的 dyadic 共變異, 檢定結果)
+def lrt_player_dyad(ll, t0, f0, f1, args, w, b):
+    th1, ll1, V, Hi, S, _ = fit(ll, t0, f1, args, w, b)
+    _, ll0, *_ = fit(ll, t0, f0, args, w, b)
+    idx = np.flatnonzero(~np.isin(f1, f0))
+    pc = np.unique(w, return_inverse=True)[1]
+    Sp = np.stack([np.bincount(pc, S[:, j]) for j in range(S.shape[1])], 1)
+    Vp = Hi @ (Sp.T @ Sp) @ Hi
+    lam_d, lam_p = lr_weights(Hi, V, idx), lr_weights(Hi, Vp, idx)
+    lam = lam_d if lam_d.max() >= lam_p.max() else lam_p
+    return th1, V, adjusted_lrt(2 * (ll1 - ll0), lam) | {"lam_max_dyadic": lam_d.max(), "lam_max_player": lam_p.max()}
