@@ -15,7 +15,7 @@ import polars as pl
 import pyfixest as pf
 
 sys.path.insert(0, "scripts")
-from arena_batches import e_grid, multi_null, player_sample
+from arena_batches import e_grid, multi_null, player_sample, repair
 from clogit import fit
 
 B = 2000
@@ -63,29 +63,10 @@ ns = multi_null(m, e_grid(elos), elos)
 E, ui, tci, bi, nb = ns["E"], ns["ui"], ns["tci"], ns["bi"], ns["nb"]
 e_act = E[tci, ui, ui[opp_act]]
 assert np.abs(e_act - m["e"].to_numpy()).max() < 1e-9
-rand_rows = ns["rand_rows"]
-rand_bi = bi[rand_rows]
 rule = m["rule"].to_numpy()
 after = m["after_1130"].to_numpy()
 q_bar = m["q_bar"].to_numpy()
 e_bar = m["e_bar"].to_numpy()
-
-
-def repair(null, rng):
-    opp = np.empty(nrow, int)
-    o = rand_rows[np.argsort(rand_bi + rng.random(len(rand_rows)))]
-    opp[o[0::2]] = o[1::2]
-    opp[o[1::2]] = o[0::2]
-    for slots, mt, v_main, v_pre in ns["smart"].values():
-        v = v_main if null == "main" else v_pre
-        r = np.floor(rng.random(len(slots)) * v.sum(1))
-        pick = np.argmax(v.cumsum(1) > r[:, None], axis=1)
-        pairs = mt[pick]
-        a = np.take_along_axis(slots, pairs[:, :, 0], 1).ravel()
-        b = np.take_along_axis(slots, pairs[:, :, 1], 1).ravel()
-        opp[a] = b
-        opp[b] = a
-    return opp
 
 
 # 檢定統計量：y 先對批次固定效應與配對前就決定的變數（自身等級分、本場已下局數、新手）殘差化，再取 q - q_bar 的批內斜率。
@@ -129,7 +110,7 @@ NULLS = ["main", "unrestricted_before_1130"]
 def draw(job):
     # 每次重新配對有自己的種子：平行時結果不隨工作分配到哪個行程而變
     k, i = job
-    return stats(E[tci, ui, ui[repair(NULLS[k], np.random.default_rng([k, i]))]])
+    return stats(E[tci, ui, ui[repair(ns, NULLS[k], np.random.default_rng([k, i]))]])
 
 
 def all_cores():

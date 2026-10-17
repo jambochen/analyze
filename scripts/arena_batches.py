@@ -144,6 +144,28 @@ def multi_null(m, E, elos):
     )
 
 
+def repair(ns, null, rng):
+    """依 multi_null 的虛無配對結構重抽一次批內配法，回傳每個玩家位置的新對手位置。
+
+    null 為 "main" 或 "unrestricted_before_1130"（12 人以下批在 2014-11-30 以前不加「不重配」的限制）。
+    """
+    rand_rows = ns["rand_rows"]
+    opp = np.empty(len(ns["bi"]), int)
+    o = rand_rows[np.argsort(ns["bi"][rand_rows] + rng.random(len(rand_rows)))]
+    opp[o[0::2]] = o[1::2]
+    opp[o[1::2]] = o[0::2]
+    for slots, mt, v_main, v_pre in ns["smart"].values():
+        v = v_main if null == "main" else v_pre
+        r = np.floor(rng.random(len(slots)) * v.sum(1))
+        pick = np.argmax(v.cumsum(1) > r[:, None], axis=1)
+        pairs = mt[pick]
+        a = np.take_along_axis(slots, pairs[:, :, 0], 1).ravel()
+        b = np.take_along_axis(slots, pairs[:, :, 1], 1).ravel()
+        opp[a] = b
+        opp[b] = a
+    return opp
+
+
 def expected_multi(ns):
     """主虛無分布下每個玩家位置的期望 e 與期望 q（精確值，不靠模擬）。"""
     E, ui, tci, bi = ns["E"], ns["ui"], ns["tci"], ns["bi"]

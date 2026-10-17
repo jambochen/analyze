@@ -22,6 +22,42 @@ coef = (
 )
 
 
+# 主基準：加入雙方 RD 的有序 logistic（expected_score_baselines.py 的 rd_ordinal，全部對局）。
+# 在上式的 eta 再加 t8 g(sigma) x_d，sigma 為雙方 RD 的合成
+RD_PARAMS = PARAMS + ["slope_g_diff"]
+Q = 0.005756462732485115  # ln 10 / 400
+rd_coef = (
+    pl.read_csv("outputs/tables/expected_score_baselines_coef.csv")
+    .filter(pl.col("model") == "rd_ordinal", pl.col("sample") == "all")
+    .pivot(on="param", index="speed", values="est")
+    .select("speed", *RD_PARAMS)
+)
+
+
+def rd_baseline(df):
+    """對 player_games 的列（須含 rd、opp_rd），依自身視角加上主基準的 eta、w、e_base 與 slope_elo。
+
+    P(勝) = sigmoid(eta - w)，P(不輸) = sigmoid(eta + w)。slope_elo 為自身等級分每多 1 分 eta 增加多少
+    （分差斜率，不含平均等級分項），用於把效果換算成等級分。
+    """
+    is_white = pl.col("color") == "white"
+    sign = pl.when(is_white).then(1.0).otherwise(-1.0)
+    w_elo = pl.when(is_white).then(pl.col("elo")).otherwise(pl.col("opp_elo"))
+    b_elo = pl.when(is_white).then(pl.col("opp_elo")).otherwise(pl.col("elo"))
+    xr = ((w_elo + b_elo) / 2 - 1500) / 100
+    xd = (w_elo - b_elo) / 100
+    gs = 1 / (1 + 3 * Q**2 * (pl.col("rd").cast(pl.Float64) ** 2 + pl.col("opp_rd").cast(pl.Float64) ** 2) / 3.141592653589793**2).sqrt()
+    slope = pl.col("slope_diff") + pl.col("slope_diff_x_rating") * xr + pl.col("slope_g_diff") * gs
+    eta = pl.col("white_adv") + pl.col("white_adv_x_rating") * xr + pl.col("white_adv_x_rating2") * xr**2 + slope * xd
+    w = (pl.col("log_draw_width") + pl.col("log_draw_width_x_rating") * xr + pl.col("log_draw_width_x_rating2") * xr**2).exp()
+    return (
+        df.join(rd_coef.lazy() if isinstance(df, pl.LazyFrame) else rd_coef, on="speed", how="left")
+        .with_columns(eta=sign * eta, w=w, slope_elo=slope / 100)
+        .with_columns(e_base=(1 / (1 + (-(pl.col("eta") - pl.col("w"))).exp()) + 1 / (1 + (-(pl.col("eta") + pl.col("w"))).exp())) / 2)
+        .drop(RD_PARAMS)
+    )
+
+
 def probs(df, color=True):
     """對 player_games 的列，依自身視角加上 p_win、p_draw、p_loss、e_cal 四欄。
 
