@@ -15,7 +15,7 @@
 
 長時間的 API 抓取以 `systemd-run --user --unit=…` 在工作階段外執行，加 `Restart=on-failure`，日誌放專案內而非 `/tmp`。
 
-熱點依序處理：向量化（numpy、polars、jax 的 `vmap`）、numba、Rust。Rust 的條件見 `CLAUDE.md`。
+熱點依序處理：向量化（numpy、polars、jax 的 `vmap`）、numba、Rust。Rust 的條件見「Rust 擴充」。
 
 ## 記憶體
 
@@ -66,6 +66,23 @@ permutation test 的重抽由 `scripts/pairing_null.py` 的 `run` 以 fork 的�
 ### conditional logit 的分母
 
 給定流失次數時，分母是所有流失日組合的總和。以初等對稱多項式的動態規劃逐位玩家精確計算，流失日多於一半時改以未流失日為事件，計算量取決於 $\min(k, n-k)$（`scripts/clogit.py`、`docs/fixed-effects-churn.md`）。
+
+## Rust 擴充：僅限實測過的熱點
+
+預設全部用 Python。只有同時滿足以下兩個條件，才考慮寫 Rust crate 以 pyo3 綁定：
+
+1. **該段是經常觸發瓶頸**。該運算會頻繁或多處使用。
+2. **既有套件解不掉**。該運算在 numpy / scipy / statsmodels / polars 裡沒有
+   對應實作，或有實作但是純 Python 迴圈、未走 C/C++/Rust 加速
+
+兩者皆成立時，Rust 的價值在 rayon 並行與 SIMD，適合的形態是自訂的逐列數值
+迴圈、bootstrap 重抽、對每個群組重複擬合這類 numpy 向量化表達不出來的運算。
+
+反之不要寫：能用 numpy 向量化改寫的、只跑一次的前處理、佔總時間比例低的段落。
+維護一條 Rust 建置鏈的成本高於它省下的時間。
+
+crate 放 `rust/<name>/`，以 maturin 建置，在 `pyproject.toml` 宣告依賴。
+Python 側須保留一份等價的參考實作，用於驗證 Rust 版結果一致。
 
 ## 數值
 

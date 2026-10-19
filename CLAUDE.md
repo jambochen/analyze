@@ -61,7 +61,7 @@
 
 `scripts/explore/` 放探索性實測，不進正式流程。
 
-執行耗時以分鐘計或平行的分析之前，讀 `docs/computing.md`。
+執行耗時以分鐘計或平行的分析，或考慮寫 Rust 擴充之前，讀 `docs/computing.md`。
 
 ## 提交
 
@@ -69,19 +69,9 @@
 
 `scripts/` 的 lint 為 `make lint`（ruff，設定在 `pyproject.toml`），pre-commit hook 對暫存的腳本執行同一檢查。
 
-## 資料取得：一律用 CLI，不用 MCP
+## 資料取得
 
-取得資料一律透過命令列，寫成 `scripts/fetch/` 下的腳本，不要用 MCP 工具。
-
-理由：CLI 的每一步都留在腳本裡，別人照著跑得到同一份資料；MCP 呼叫留不下可重現的紀錄。
-
-Lichess 以 curl 下載並以官方 sha256 驗證。Kaggle 資料用：
-
-```bash
-uvx --from kaggle kaggle datasets download -d <slug> -f <file> -p <dest> --unzip
-```
-
-Kaggle 憑證已設定完成：`~/.kaggle/credentials.json`（OAuth，帳號 `jambo2`）。憑證**絕不寫進專案任何檔案**。
+下載資料或寫 `scripts/fetch/`、`data/raw/*/SOURCE.md` 之前，讀 `docs/data-fetching.md`。
 
 ## 目錄結構
 
@@ -100,19 +90,6 @@ outputs/tables/    表
 
 `data/raw/` 不納入 git（見 `.gitignore`）。
 
-## 資料溯源
-
-每份下載的資料，在 `data/raw/<name>/SOURCE.md` 記錄：
-
-- 資料源名稱與完整 URL
-- 下載日期
-- 授權條款與再利用限制
-- 筆數與欄位數
-- 欄位說明（名稱、型別、單位、編碼意義）
-- 資料版本或更新頻率
-
-政府開放資料經常改版且不保留歷史版本，下載當下即記錄，不可事後補。
-
 ## 語言
 
 - 報告：繁體中文
@@ -123,31 +100,18 @@ outputs/tables/    表
 
 ## 技術棧
 
-**Python**。腳本副檔名 `.py`。
+**Python**。腳本副檔名 `.py`。Rust 擴充只限實測過的熱點，條件見 `docs/computing.md`。
 
 `report/` 用 **Typst**。腳本負責算數與產圖，圖以檔案輸出到 `outputs/figures/`，
 Typst 端只排版與 `image()` 引入，不在文件內執行程式碼。簡報用 touying 的
 metropolis 主題。
 
+改 Typst 內容時，以源碼與 `typst compile --root . report/<name>.typ` 判斷結果；
+投影片內容是否溢出到下一頁，以 `make check-slides` 檢查。只有使用者要求拍板
+版面時，才把 PDF 轉成圖片檢視。
+
 demo 用 React，建置成不需伺服器的靜態檔案。模型係數與重播用的匿名對局由
 Python 腳本輸出成 JSON，前端只負責計算與呈現。
-
-### Rust 擴充：僅限實測過的熱點
-
-預設全部用 Python。只有同時滿足以下兩個條件，才考慮寫 Rust crate 以 pyo3 綁定：
-
-1. **該段是經常觸發瓶頸**。該運算會頻繁或多處使用。
-2. **既有套件解不掉**。該運算在 numpy / scipy / statsmodels / polars 裡沒有
-   對應實作，或有實作但是純 Python 迴圈、未走 C/C++/Rust 加速
-
-兩者皆成立時，Rust 的價值在 rayon 並行與 SIMD，適合的形態是自訂的逐列數值
-迴圈、bootstrap 重抽、對每個群組重複擬合這類 numpy 向量化表達不出來的運算。
-
-反之不要寫：能用 numpy 向量化改寫的、只跑一次的前處理、佔總時間比例低的段落。
-維護一條 Rust 建置鏈的成本高於它省下的時間。
-
-crate 放 `rust/<name>/`，以 maturin 建置，在 `pyproject.toml` 宣告依賴。
-Python 側須保留一份等價的參考實作，用於驗證 Rust 版結果一致。
 
 ## 程式碼風格
 
