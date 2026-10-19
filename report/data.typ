@@ -6,7 +6,7 @@
 
 #show: deck.with(config-info(
   title: title-font[線上對戰的勝率預估],
-  author: [統計研究所　學期分析報告],
+  author: [陳力福、陳政博、李宜哲],
 ))
 
 #let num(x) = strfmt("{}", int(x), fmt-thousands-separator: ",")
@@ -180,6 +180,27 @@ RD 為 0 時 $g = 1$，期望得分與 Elo 相同。
 ))
 
 各分差下皆有和局，和局的實際得分記 0.5。
+
+== 速度類別
+
+#figure(
+  table(
+    columns: (auto, auto, auto),
+    table.hline(stroke: 1pt + slate),
+    [類別], [估計時長], [時間制例],
+    table.hline(stroke: 0.5pt + rule),
+    [Bullet], [未滿 180 秒], [1+0、2+1],
+    [Blitz], [180 至 479 秒], [3+0、3+2、5+0],
+    [Classical], [480 秒以上], [10+0、15+15],
+    table.hline(stroke: 1pt + slate),
+  ),
+  caption: [出處：scalachess `Speed.scala`],
+)
+
+- 時間制 3+2：每方 3 分鐘，每走一步加 2 秒。
+- 估計時長 = 底秒 + 30 × 每步加秒。
+
+三類各有一套等級分。
 
 == 四種配對方式
 
