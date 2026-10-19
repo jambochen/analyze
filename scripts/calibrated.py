@@ -8,6 +8,8 @@
 
 import polars as pl
 
+import ordinal
+
 PARAMS = [
     "white_adv", "white_adv_x_rating", "white_adv_x_rating2",
     "slope_diff", "slope_diff_x_rating",
@@ -25,7 +27,6 @@ coef = (
 # 主基準：加入雙方 RD 的有序 logistic（expected_score_baselines.py 的 rd_ordinal，全部對局）。
 # 在上式的 eta 再加 t8 g(sigma) x_d，sigma 為雙方 RD 的合成
 RD_PARAMS = PARAMS + ["slope_g_diff"]
-Q = 0.005756462732485115  # ln 10 / 400
 rd_coef = (
     pl.read_csv("outputs/tables/expected_score_baselines_coef.csv")
     .filter(pl.col("model") == "rd_ordinal", pl.col("sample") == "all")
@@ -34,22 +35,27 @@ rd_coef = (
 )
 
 
+def _white_view():
+    # 列是自身視角，係數是白方視角；兩個係數表的平均等級分與和局帶寬參數同名
+    is_white = pl.col("color") == "white"
+    w_elo = pl.when(is_white).then(pl.col("elo")).otherwise(pl.col("opp_elo"))
+    b_elo = pl.when(is_white).then(pl.col("opp_elo")).otherwise(pl.col("elo"))
+    xr = ((w_elo + b_elo) / 2 - 1500) / 100
+    xd = (w_elo - b_elo) / 100
+    w = (pl.col("log_draw_width") + pl.col("log_draw_width_x_rating") * xr + pl.col("log_draw_width_x_rating2") * xr**2).exp()
+    return is_white, xr, xd, w
+
+
 def rd_baseline(df):
     """對 player_games 的列（須含 rd、opp_rd），依自身視角加上主基準的 eta、w、e_base 與 slope_elo。
 
     P(勝) = sigmoid(eta - w)，P(不輸) = sigmoid(eta + w)。slope_elo 為自身等級分每多 1 分 eta 增加多少
     （分差斜率，不含平均等級分項），用於把效果換算成等級分。
     """
-    is_white = pl.col("color") == "white"
+    is_white, xr, xd, w = _white_view()
     sign = pl.when(is_white).then(1.0).otherwise(-1.0)
-    w_elo = pl.when(is_white).then(pl.col("elo")).otherwise(pl.col("opp_elo"))
-    b_elo = pl.when(is_white).then(pl.col("opp_elo")).otherwise(pl.col("elo"))
-    xr = ((w_elo + b_elo) / 2 - 1500) / 100
-    xd = (w_elo - b_elo) / 100
-    gs = 1 / (1 + 3 * Q**2 * (pl.col("rd").cast(pl.Float64) ** 2 + pl.col("opp_rd").cast(pl.Float64) ** 2) / 3.141592653589793**2).sqrt()
-    slope = pl.col("slope_diff") + pl.col("slope_diff_x_rating") * xr + pl.col("slope_g_diff") * gs
+    slope = pl.col("slope_diff") + pl.col("slope_diff_x_rating") * xr + pl.col("slope_g_diff") * ordinal.g("rd", "opp_rd")
     eta = pl.col("white_adv") + pl.col("white_adv_x_rating") * xr + pl.col("white_adv_x_rating2") * xr**2 + slope * xd
-    w = (pl.col("log_draw_width") + pl.col("log_draw_width_x_rating") * xr + pl.col("log_draw_width_x_rating2") * xr**2).exp()
     return (
         df.join(rd_coef.lazy() if isinstance(df, pl.LazyFrame) else rd_coef, on="speed", how="left")
         .with_columns(eta=sign * eta, w=w, slope_elo=slope / 100)
@@ -64,14 +70,9 @@ def probs(df, color=True):
     color=False 時去掉白方優勢（t0..t2 設 0），得到只反映等級分差距的期望得分：
     匹配品質要衡量的是配對本身的懸殊程度，執子顏色另作解釋變數。
     """
-    is_white = pl.col("color") == "white"
-    w_elo = pl.when(is_white).then(pl.col("elo")).otherwise(pl.col("opp_elo"))
-    b_elo = pl.when(is_white).then(pl.col("opp_elo")).otherwise(pl.col("elo"))
-    xr = ((w_elo + b_elo) / 2 - 1500) / 100
-    xd = (w_elo - b_elo) / 100
+    is_white, xr, xd, w = _white_view()
     adv = (pl.col("white_adv") + pl.col("white_adv_x_rating") * xr + pl.col("white_adv_x_rating2") * xr**2) if color else pl.lit(0.0)
     eta = adv + (pl.col("slope_diff") + pl.col("slope_diff_x_rating") * xr) * xd
-    w = (pl.col("log_draw_width") + pl.col("log_draw_width_x_rating") * xr + pl.col("log_draw_width_x_rating2") * xr**2).exp()
     p_white_win = 1 / (1 + (-(eta - w)).exp())
     p_white_not_loss = 1 / (1 + (-(eta + w)).exp())
     p_draw = p_white_not_loss - p_white_win

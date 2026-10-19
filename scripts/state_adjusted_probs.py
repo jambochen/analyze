@@ -20,6 +20,7 @@ import xgboost
 
 import likelihood as lk
 import novice
+import ordinal
 from arena_batches import player_sample_rd
 
 UTC = "UTC"
@@ -60,23 +61,12 @@ XCOLS = ["prev_draw", "prev_win", "dr"]
 
 # 主基準的 eta、w 為 offset。t0 平移 eta、t1 縮放和局帶寬：主基準在全站對局上估計，
 # arena 的玩家與大廳不同，這兩項吸收 arena 的整體差異
-def ord_ll(e, ww, y):
-    u, v = e + ww, e - ww
-    ldraw = jax.nn.log_sigmoid(u) + jax.nn.log_sigmoid(-v) + jnp.log(-jnp.expm1(-2 * ww))
-    return jnp.where(y == 2, jax.nn.log_sigmoid(v), jnp.where(y == 0, jax.nn.log_sigmoid(-u), ldraw))
-
-
-def ord_p(e, ww):
-    pw, pn = 1 / (1 + np.exp(-(e - ww))), 1 / (1 + np.exp(-(e + ww)))
-    return np.stack([1 - pn, pn - pw, pw], 1)
-
-
 def ll(t, eta, w, X, y):
-    return ord_ll(eta + t[0] + X @ t[2:], w * jnp.exp(t[1]), y)
+    return ordinal.ll(eta + t[0] + X @ t[2:], w * jnp.exp(t[1]), y)
 
 
 def probs(t, eta, w, X):
-    return ord_p(eta + t[0] + X @ t[2:], w * np.exp(t[1]))
+    return ordinal.probs(eta + t[0] + X @ t[2:], w * np.exp(t[1]))
 
 
 # MLP 的輸出層給線性預測式與和局帶寬的對數，經與有序 logistic 相同的累積 logit 得到機率
@@ -88,7 +78,7 @@ def mlp_out(p, X):
 
 
 def mlp_nll(p, X, y):
-    return -jnp.mean(ord_ll(*mlp_out(p, X), y))
+    return -jnp.mean(ordinal.ll(*mlp_out(p, X), y))
 
 
 @jax.jit
@@ -203,7 +193,7 @@ for spd in SPEEDS:
             if wait == 10:
                 break
     e_mlp, w_mlp = mlp_out(best_p, Mt)
-    loss["mlp"] = losses(ord_p(np.asarray(e_mlp, dtype=np.float64), np.asarray(w_mlp, dtype=np.float64)), ate[3])
+    loss["mlp"] = losses(ordinal.probs(np.asarray(e_mlp, dtype=np.float64), np.asarray(w_mlp, dtype=np.float64)), ate[3])
     print(spd, "mlp epochs", epoch + 1, "best valid", best, flush=True)
 
     nov = te["novice_rd"].to_numpy()

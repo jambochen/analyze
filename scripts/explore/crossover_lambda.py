@@ -7,15 +7,14 @@ import sys
 os.environ["JAX_PLATFORMS"] = "cpu"
 sys.path.insert(0, "scripts")
 
-import jax
 import jax.numpy as jnp
 import numpy as np
 import polars as pl
 
 import likelihood as lk
+import ordinal
 from arena_batches import player_sample
 
-Q = np.log(10) / 400
 ids = pl.scan_parquet("data/processed/lichess_games.parquet").select("game_id", "white_id", "black_id")
 rp = pl.scan_parquet("data/processed/glicko_replay.parquet").select("game_id", "white_rd", "black_rd")
 grp = ["player", "tournament_id"]
@@ -34,7 +33,7 @@ d = (
     .with_columns(
         xr=((pl.col("elo") + pl.col("opp_elo")) / 2 - 1500) / 100,
         xd=(pl.col("elo") - pl.col("opp_elo")) / 100,
-        gs=1 / (1 + 3 * Q**2 * (pl.col("rd") ** 2 + pl.col("opp_rd") ** 2) / np.pi**2).sqrt(),
+        gs=ordinal.g("rd", "opp_rd"),
     )
     .sort("player", "tournament_id", "start", "game_id")
     .with_columns(h_lag1=pl.col("h").shift(1).over(grp), layer_lag1=pl.col("layer").shift(1).over(grp))
@@ -48,10 +47,7 @@ K = len(COLS)
 # t[0] 截距，t[1:K+1] 各共變數，t[K+1:K+4] 和局帶寬的對數（常數、平均等級分、其平方）
 def ll(t, X, xr, y):
     eta = t[0] + X @ t[1 : K + 1]
-    w = jnp.exp(t[K + 1] + t[K + 2] * xr + t[K + 3] * xr**2)
-    u, v = eta + w, eta - w
-    ldraw = jax.nn.log_sigmoid(u) + jax.nn.log_sigmoid(-v) + jnp.log(-jnp.expm1(-2 * w))
-    return jnp.where(y == 2, jax.nn.log_sigmoid(v), jnp.where(y == 0, jax.nn.log_sigmoid(-u), ldraw))
+    return ordinal.ll(eta, jnp.exp(t[K + 1] + t[K + 2] * xr + t[K + 3] * xr**2), y)
 
 
 T0 = np.zeros(K + 4)

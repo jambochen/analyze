@@ -15,14 +15,16 @@ import polars as pl
 from scipy import optimize, stats
 
 import likelihood as lk
+import novice
+import ordinal
 
 jax.config.update("jax_enable_x64", True)
 
 UTC = "UTC"
 CLASSES = ["Bullet", "Blitz", "Classical"]
 # 累計局數的門檻是暫定的新手期界線；calibration_experience.png 用來檢查這條界線是否落在校準斜率趨穩之後
-N_EST = 30
-ELO = np.log(10) / 400
+N_EST = novice.GAMES
+ELO = ordinal.Q
 # 有序模型與 proportional odds 檢驗在每個速度類別抽 N_FIT 局的簡單隨機樣本上估計
 N_FIT = 1_000_000
 
@@ -144,11 +146,7 @@ level.write_csv("outputs/tables/calibration_level.csv")
 # 所以「和局率是否隨等級變化」與「白方優勢是否隨等級變化」可分開檢驗
 def ll_ord(t, xr, xd, y):
     eta = t[0] + t[1] * xr + t[2] * xr**2 + (t[3] + t[4] * xr) * xd
-    w = jnp.exp(t[5] + t[6] * xr + t[7] * xr**2)
-    u, v = eta + w, eta - w
-    # F(u) - F(v) = F(u) F(-v) (1 - e^{-(u-v)})，避免和局率很低時相減失去精度
-    ldraw = jax.nn.log_sigmoid(u) + jax.nn.log_sigmoid(-v) + jnp.log(-jnp.expm1(-2 * w))
-    return jnp.where(y == 2, jax.nn.log_sigmoid(v), jnp.where(y == 0, jax.nn.log_sigmoid(-u), ldraw))
+    return ordinal.ll(eta, jnp.exp(t[5] + t[6] * xr + t[7] * xr**2), y)
 
 
 # 平均得分的 quasi-likelihood（fractional logit）：只對得分的平均建模，和局的 0.5 照實際值代入，
@@ -158,14 +156,10 @@ def ll_frac(t, xr, L, s):
     return s * jax.nn.log_sigmoid(z) + (1 - s) * jax.nn.log_sigmoid(-z)
 
 
-# proportional odds 的對立模型：勝的門檻上，分差與分差乘等級分的斜率另有位移 t8、t9。
-# 位移大到兩門檻交錯時和局機率為負，以極小值截住，概似因此極低，不會被選中
+# proportional odds 的對立模型：勝的門檻上，分差與分差乘等級分的斜率另有位移 t8、t9
 def ll_ppo(t, xr, xd, y):
     eta = t[0] + t[1] * xr + t[2] * xr**2 + (t[3] + t[4] * xr) * xd
-    w = jnp.exp(t[5] + t[6] * xr + t[7] * xr**2)
-    u, v = eta + w, eta - w + (t[8] + t[9] * xr) * xd
-    ldraw = jax.nn.log_sigmoid(u) + jax.nn.log_sigmoid(-v) + jnp.log(-jnp.expm1(-jnp.maximum(u - v, 1e-12)))
-    return jnp.where(y == 2, jax.nn.log_sigmoid(v), jnp.where(y == 0, jax.nn.log_sigmoid(-u), ldraw))
+    return ordinal.ll(eta, jnp.exp(t[5] + t[6] * xr + t[7] * xr**2), y, shift=(t[8] + t[9] * xr) * xd)
 
 
 def wald(theta, V, R, r):
@@ -237,13 +231,12 @@ for tc in CLASSES:
         z = (r - 1500) / 100
         eta = th[0] + th[1] * z + th[2] * z**2
         slope = th[3] + th[4] * z
-        wd = np.exp(th[5] + th[6] * z + th[7] * z**2)
-        F = lambda u: 1 / (1 + np.exp(-u))
-        dS = 0.5 * slope / 100 * (F(eta + wd) * (1 - F(eta + wd)) + F(eta - wd) * (1 - F(eta - wd)))
+        pw, pn = ordinal.cum(eta, np.exp(th[5] + th[6] * z + th[7] * z**2))
+        dS = 0.5 * slope / 100 * (pn * (1 - pn) + pw * (1 - pw))
         implied_rows.append({
             "speed": tc, "rbar": r,
-            "p_draw_d0": F(eta + wd) - F(eta - wd),
-            "white_score_d0": 0.5 * (F(eta + wd) + F(eta - wd)),
+            "p_draw_d0": pn - pw,
+            "white_score_d0": 0.5 * (pn + pw),
             "white_adv_rating_points": 100 * eta / slope,
             "score_slope_ratio_to_elo": dS / (ELO / 4),
         })
@@ -280,9 +273,7 @@ for tc in CLASSES:
     probs["elo_draw_split"] = np.stack([1 - Ete - pd_ / 2, pd_, Ete - pd_ / 2], 1)
     for nm, t in [("ordinal_rating", th_tr), ("ordinal_constant", th_base)]:
         eta = t[0] + t[1] * xr_te + t[2] * xr_te**2 + (t[3] + t[4] * xr_te) * xd_te
-        wd = np.exp(t[5] + t[6] * xr_te + t[7] * xr_te**2)
-        pw, pn = 1 / (1 + np.exp(-(eta - wd))), 1 / (1 + np.exp(-(eta + wd)))
-        probs[nm] = np.stack([1 - pn, pn - pw, pw], 1)
+        probs[nm] = ordinal.probs(eta, np.exp(t[5] + t[6] * xr_te + t[7] * xr_te**2))
     O = np.eye(3)[yte]
     loss = {}
     for nm, p in probs.items():

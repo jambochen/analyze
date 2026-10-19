@@ -17,6 +17,7 @@ import numpy as np
 import polars as pl
 
 import likelihood as lk
+import ordinal
 
 N_GAME, REPS, BATCH = 20_000, 1_000, 500
 # (玩家數, 活躍度的 Pareto 形狀參數)；形狀參數越小，少數玩家佔的局數越多
@@ -27,11 +28,8 @@ T0 = np.array([0, 0.5, 0, 0, -1.0])
 
 
 def ll(t, xd, z1, z2, y):
-    eta = t[0] + t[1] * xd + t[2] * z1 + t[3] * z2
-    w = jnp.exp(t[4])
-    u, v = eta + w, eta - w
-    ldraw = jax.nn.log_sigmoid(u) + jax.nn.log_sigmoid(-v) + jnp.log(-jnp.expm1(-2 * w))
-    return jnp.where(y == 2, jax.nn.log_sigmoid(v), jnp.where(y == 0, jax.nn.log_sigmoid(-u), ldraw))
+    # 與正式分析共用同一份概似，模擬檢驗的才是正式用的那一份
+    return ordinal.ll(t[0] + t[1] * xd + t[2] * z1 + t[3] * z2, jnp.exp(t[4]), y)
 
 
 # 受限參數固定為 0；回傳 (參數, 對數概似, H, 逐局分數)，皆帶批的維度

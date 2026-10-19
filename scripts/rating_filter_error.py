@@ -20,7 +20,7 @@ import polars as pl
 
 import likelihood as lk
 from arena_batches import rating_filter_sample
-from calibrated import Q
+from ordinal import Q
 
 SPEEDS = ["Bullet", "Blitz", "Classical"]
 RESULTS = ["loss", "draw", "win"]

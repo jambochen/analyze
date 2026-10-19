@@ -16,10 +16,11 @@ import polars as pl
 
 import likelihood as lk
 import novice
+import ordinal
 
 UTC = "UTC"
 CLASSES = ["Bullet", "Blitz", "Classical"]
-Q = np.log(10) / 400
+Q = ordinal.Q
 N_FIT = 1_000_000
 
 g_ = (
@@ -42,11 +43,10 @@ d = (
     .filter(pl.col("perf") == pl.col("speed"))
     .with_columns(
         diff=(pl.col("white_elo") - pl.col("black_elo")).cast(pl.Float64),
-        sigma=(pl.col("white_rd").cast(pl.Float64) ** 2 + pl.col("black_rd").cast(pl.Float64) ** 2).sqrt(),
+        gs=ordinal.g("white_rd", "black_rd"),
         rd_max=pl.max_horizontal("white_rd", "black_rd"),
         lt_any=pl.col("white_left_truncated") | pl.col("black_left_truncated"),
     )
-    .with_columns(gs=1 / (1 + 3 * Q**2 * pl.col("sigma") ** 2 / np.pi**2).sqrt())
     .with_columns(
         xr=((pl.col("white_elo") + pl.col("black_elo")) / 2 - 1500) / 100,
         xd=pl.col("diff") / 100,
@@ -67,10 +67,7 @@ print(d.group_by("speed").agg(n=pl.len(), novice_rd=pl.col("novice_rd").mean(), 
 # 只留 t0、t5、t8 即 Glicko 形式：分差依雙方合成的 RD 往 0 收縮，切點自由估計
 def ll_ord(t, xr, xd, gxd, y):
     eta = t[0] + t[1] * xr + t[2] * xr**2 + (t[3] + t[4] * xr) * xd + t[8] * gxd
-    w = jnp.exp(t[5] + t[6] * xr + t[7] * xr**2)
-    u, v = eta + w, eta - w
-    ldraw = jax.nn.log_sigmoid(u) + jax.nn.log_sigmoid(-v) + jnp.log(-jnp.expm1(-2 * w))
-    return jnp.where(y == 2, jax.nn.log_sigmoid(v), jnp.where(y == 0, jax.nn.log_sigmoid(-u), ldraw))
+    return ordinal.ll(eta, jnp.exp(t[5] + t[6] * xr + t[7] * xr**2), y)
 
 
 def ll_frac(t, L, s):
@@ -80,9 +77,7 @@ def ll_frac(t, L, s):
 
 def probs(t, xr, xd, gxd):
     eta = t[0] + t[1] * xr + t[2] * xr**2 + (t[3] + t[4] * xr) * xd + t[8] * gxd
-    w = np.exp(t[5] + t[6] * xr + t[7] * xr**2)
-    pw, pn = 1 / (1 + np.exp(-(eta - w))), 1 / (1 + np.exp(-(eta + w)))
-    return np.stack([1 - pn, pn - pw, pw], 1)
+    return ordinal.probs(eta, np.exp(t[5] + t[6] * xr + t[7] * xr**2))
 
 
 PARAMS = ["white_adv", "white_adv_x_rating", "white_adv_x_rating2", "slope_diff", "slope_diff_x_rating", "log_draw_width", "log_draw_width_x_rating", "log_draw_width_x_rating2", "slope_g_diff"]

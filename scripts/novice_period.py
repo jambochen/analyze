@@ -14,11 +14,12 @@ import polars as pl
 
 import likelihood as lk
 import novice
+import ordinal
 
 UTC = "UTC"
 CLASSES = ["Bullet", "Blitz", "Classical"]
 RD_MAIN, RD_ALT, N_EST = novice.RD, novice.RD_ALT, novice.GAMES
-ELO = np.log(10) / 400
+ELO = ordinal.Q
 
 g = (
     pl.scan_parquet("data/processed/lichess_games.parquet")

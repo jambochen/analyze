@@ -15,7 +15,6 @@ import sys
 os.environ["JAX_PLATFORMS"] = "cpu"
 sys.path.insert(0, "scripts")
 
-import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
@@ -24,9 +23,9 @@ from scipy import optimize, stats
 from statsmodels.stats.contingency_tables import StratifiedTable
 
 import likelihood as lk
+import ordinal
 import pairing_null
 from arena_batches import player_sample_rd, player_slopes
-from calibrated import Q
 
 B = 2000
 B_BOOT = 999
@@ -89,13 +88,8 @@ sample.write_csv("outputs/tables/arena_crossover_sample.csv")
 
 # 總效果的虛無模型只有兩個參數（位移 alpha、和局帶寬的對數倍率 delta），以 numpy 估計：
 # 之後要 fork 出工作行程，jax 的執行緒在 fork 前不能啟動
-def ord_parts(off, wo, a, dl):
-    eta, w = off + a, wo * np.exp(dl)
-    return 1 / (1 + np.exp(-(eta - w))), 1 / (1 + np.exp(-(eta + w)))
-
-
 def nll_null(p, off, wo, y):
-    hi, nl = ord_parts(off, wo, *p)
+    hi, nl = ordinal.cum(off + p[0], wo * np.exp(p[1]))
     return -np.log(np.where(y == 2, hi, np.where(y == 0, 1 - nl, nl - hi))).sum()
 
 
@@ -105,10 +99,7 @@ s_t, v_t = np.zeros(t.height), np.zeros(t.height)
 for j, spd in enumerate(SPEEDS):
     k = sp_t == j
     r = optimize.minimize(nll_null, [0.0, 0.0], args=(off_t[k], wo_t[k], y_t[k]), method="BFGS", options={"gtol": 1e-10})
-    hi, nl = ord_parts(off_t[k], wo_t[k], *r.x)
-    yk = y_t[k]
-    s_t[k] = np.where(yk == 2, 1 - hi, np.where(yk == 0, -nl, 1 - hi - nl))
-    v_t[k] = np.where(yk == 2, hi * (1 - hi), np.where(yk == 0, nl * (1 - nl), hi * (1 - hi) + nl * (1 - nl)))
+    s_t[k], v_t[k] = ordinal.score_info(off_t[k] + r.x[0], wo_t[k] * np.exp(r.x[1]), y_t[k])
     print(spd, "null", r.x, s_t[k].sum())
 resid_t, score_lag1 = t["resid"].to_numpy(), t["score_lag1"].to_numpy()
 pl_t, opn_t, opl_t = (t[c].to_numpy() for c in ["player", "opponent", "opp_lag1"])
@@ -259,7 +250,7 @@ t = t.with_columns(
     sxr=pl.col("sign") * pl.col("xr"),
     sxr2=pl.col("sign") * pl.col("xr") ** 2,
     xdxr=pl.col("xd") * pl.col("xr"),
-    gxd=pl.col("xd") / (1 + 3 * Q**2 * (pl.col("rd") ** 2 + pl.col("opp_rd") ** 2) / np.pi**2).sqrt(),
+    gxd=pl.col("xd") * ordinal.g("rd", "opp_rd"),
     elo_c2=pl.col("elo_c") ** 2,
     elo_c3=pl.col("elo_c") ** 3,
     ebar_xd=pl.col("e_bar") * pl.col("xd"),
@@ -275,10 +266,7 @@ P_DRAW, P_PPO = NX + 1, NX + 4
 
 def ll(th, X, xr, xd, y):
     eta = th[0] + X @ th[1 : NX + 1]
-    w = jnp.exp(th[P_DRAW] + th[P_DRAW + 1] * xr + th[P_DRAW + 2] * xr**2)
-    u, v = eta + w, eta - w + th[P_PPO] * xd
-    ldraw = jax.nn.log_sigmoid(u) + jax.nn.log_sigmoid(-v) + jnp.log(-jnp.expm1(-(u - v)))
-    return jnp.where(y == 2, jax.nn.log_sigmoid(v), jnp.where(y == 0, jax.nn.log_sigmoid(-u), ldraw))
+    return ordinal.ll(eta, jnp.exp(th[P_DRAW] + th[P_DRAW + 1] * xr + th[P_DRAW + 2] * xr**2), y, shift=th[P_PPO] * xd)
 
 
 def free_of(cols, ppo=False):
@@ -332,8 +320,8 @@ for j, spd in enumerate(SPEEDS):
     th0, *_ = lk.fit(ll, T0, free_of(BASE), a_s, ts["player"].to_numpy(), ts["opponent"].to_numpy())
     X, xr, xd, _ = a_s
     eta = th0[0] + X @ th0[1 : NX + 1]
-    w = np.exp(th0[P_DRAW] + th0[P_DRAW + 1] * xr + th0[P_DRAW + 2] * xr**2)
-    e_dir = (1 / (1 + np.exp(-(eta - w))) + 1 / (1 + np.exp(-(eta + w)))) / 2
+    pw, pn = ordinal.cum(eta, np.exp(th0[P_DRAW] + th0[P_DRAW + 1] * xr + th0[P_DRAW + 2] * xr**2))
+    e_dir = (pw + pn) / 2
     ts = ts.with_columns(r_dir=pl.Series(ts["score"].to_numpy() - e_dir), r_tot=pl.col("resid"))
     spe = ts["score_per_elo"].mean()
     for k in LAGS:
@@ -359,10 +347,7 @@ for j, spd in enumerate(SPEEDS):
     X, xr, xd, y = args_of(s)
     th0s, *_ = lk.fit(ll, T0, free_of(BASE), (X, xr, xd, y), s["player"].to_numpy(), s["opponent"].to_numpy())
     eta = th0s[0] + X @ th0s[1 : NX + 1]
-    w = np.exp(th0s[P_DRAW] + th0s[P_DRAW + 1] * xr + th0s[P_DRAW + 2] * xr**2)
-    hi, nl = 1 / (1 + np.exp(-(eta - w))), 1 / (1 + np.exp(-(eta + w)))
-    sc = np.where(y == 2, 1 - hi, np.where(y == 0, -nl, 1 - hi - nl))
-    vv = np.where(y == 2, hi * (1 - hi), np.where(y == 0, nl * (1 - nl), hi * (1 - hi) + nl * (1 - nl)))
+    sc, vv = ordinal.score_info(eta, np.exp(th0s[P_DRAW] + th0s[P_DRAW + 1] * xr + th0s[P_DRAW + 2] * xr**2), y)
     hs = s["h_lag1"].to_numpy()
     pc = np.unique(s["player"].to_numpy(), return_inverse=True)[1]
     P = pc.max() + 1
