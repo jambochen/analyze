@@ -33,7 +33,7 @@ pyfixest 預設在模型物件中保留資料副本與去均值後的設計矩�
 
 ### 最大概似的逐塊計算
 
-jax 對數百萬列一次求梯度與 Hessian，會展開與列數同長的中間陣列。`scripts/likelihood.py` 的 `fit` 把資料切成固定大小的塊，逐塊 jit 計算後加總。每個受限模型都要重估的分析，在各速度類別抽固定大小的簡單隨機樣本（`docs/calibration.md`「三類結果的有序模型」）。
+jax 對數百萬列一次求梯度與 Hessian，會展開與列數同長的中間陣列。`scripts/likelihood.py` 的 `fit` 把資料切成固定大小的塊，逐塊 jit 計算後加總。每個受限模型都要重估的分析，在各速度類別抽固定大小的簡單隨機樣本（`docs/results/calibration.md`「三類結果的有序模型」）。
 
 ## 速度
 
@@ -61,11 +61,11 @@ permutation test 的重抽由 `scripts/pairing_null.py` 的 `run` 以 fork 的�
 
 ### Glicko-2 的逐局重放
 
-每局的更新依賴前一局的狀態，無法向量化，也沒有套件實作 Lichess 的規則，所以寫成 Rust（`rust/glicko_replay/`，pyo3、rayon，native 編譯與 fat LTO），以 Python 參考實作逐位元驗證（`docs/glicko-replay.md`「實作與一致性驗證」「建置」）。rayon 只用於同時跑多組規則與參數（`glicko_replay_timing.csv`、`glicko_replay_full_timing.csv`）。
+每局的更新依賴前一局的狀態，無法向量化，也沒有套件實作 Lichess 的規則，所以寫成 Rust（`rust/glicko_replay/`，pyo3、rayon，native 編譯與 fat LTO），以 Python 參考實作逐位元驗證（`docs/data/glicko-replay.md`「實作與一致性驗證」「建置」）。rayon 只用於同時跑多組規則與參數（`glicko_replay_timing.csv`、`glicko_replay_full_timing.csv`）。
 
-### conditional logit 的分母
+### 條件概似的 logistic 迴歸的分母
 
-給定流失次數時，分母是所有流失日組合的總和。以初等對稱多項式的動態規劃逐位玩家精確計算，流失日多於一半時改以未流失日為事件，計算量取決於 $\min(k, n-k)$（`scripts/clogit.py`、`docs/fixed-effects-churn.md`）。
+給定流失次數時，分母是所有流失日組合的總和。以初等對稱多項式的動態規劃逐位玩家精確計算，流失日多於一半時改以未流失日為事件，計算量取決於 $\min(k, n-k)$（`scripts/clogit.py`、`docs/results/appendix/fixed-effects-churn.md`）。
 
 ## Rust 擴充：僅限實測過的熱點
 

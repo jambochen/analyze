@@ -5,7 +5,7 @@
 
 ## 連勝連敗的爭議
 
-圖：左半是 Overwatch、Marvel Rivals、League of Legends、Valorant 社群的抱怨標題拼貼，與開發商否認的原句並列，下方一列小字標 EOMM、OptMatch、EnMatch 三篇論文（出處見 `docs/community-perception.md`）。右半是 `streak_chance.svg`，勝率一半時打 n 局至少出現一次 8 連勝或 8 連敗的機率，對照 1/256 的虛線
+圖：左半是 Overwatch、Marvel Rivals、League of Legends、Valorant 社群的抱怨標題拼貼，與開發商否認的原句並列，下方一列小字標 EOMM、OptMatch、EnMatch 三篇論文（出處見 `docs/background/community-perception.md`）。右半是 `streak_chance.svg`，勝率一半時打 n 局至少出現一次 8 連勝或 8 連敗的機率，對照 1/256 的虛線
 
 字數：300
 

@@ -47,7 +47,7 @@ Reddit 原文經 Arctic Shift 存檔（`/api/posts/ids`）讀取，標為「存�
 - Riot（Valorant），EvrMoar 於 r/VALORANT 的回覆，2022-04-03，https://www.reddit.com/r/VALORANT/comments/tvb772/this_problem_is_now_getting_soo_common_dude/i393gp7/ （存檔）。公平的對局較能留住玩家；刻意製造輸贏會使 MMR 無法估計實力
 - Riot，「Ask VALORANT - Rank Rating Edition」，2021-03-18，https://playvalorant.com/en-us/news/dev/ask-valorant-rank-rating-edition/ （已讀）。MMR 不公開，與可見的段位刻意部分脫鉤
 - NetEase（Marvel Rivals），官方 X，2025-08-21，https://x.com/MarvelRivals/status/1958627668536311945 （貼文已讀，附的影片未看）。「不使用 EOMM」見 PCGamesN 報導 https://www.pcgamesn.com/marvel-rivals/eomm-accusations （已讀）
-- Activision，Call of Duty Matchmaking White Paper #2，https://research.activision.com/publications/2024/07/Call-of-Duty-Matchmaking-Intel-02 （頁面存在，PDF 未讀；內容另見 `literature.md`）
+- Activision，Call of Duty Matchmaking White Paper #2，https://research.activision.com/publications/2024/07/Call-of-Duty-Matchmaking-Intel-02 （頁面存在，PDF 未讀；內容另見 `docs/background/literature.md`）
 
 ## 玩家引用的網易論文
 

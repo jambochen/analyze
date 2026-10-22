@@ -14,7 +14,7 @@
 
 總問題是期望勝率在哪些情況下系統性地錯；主角是排完隊、看到對手之後的玩家。交付物是修正後的勝和負機率，以 React 靜態 demo 呈現；玩家端民間停止規則的回測只在報告中呈現。
 
-研究問題與識別見 `docs/design.md`，方法規格見 `docs/methods.md`，進度、已得出的結論與待辦見 `docs/plan.md`，其餘文件的索引見 `docs/README.md`。
+研究問題與識別見 `docs/design.md`，方法規格見 `docs/methods.md`，各方法的主從、依賴與待辦見 `docs/plan.md`，各分析的結論見 `docs/results/`，總覽見根目錄 `README.md`，其餘文件的索引見 `docs/README.md`。
 
 資料：`data/raw/lichess/`，Lichess 官方資料庫 2014 年全年與 2015 年 1 至 6 月的標準棋 rated 對局；配對來源另以 Lichess API 取得。
 
@@ -61,7 +61,7 @@
 
 `scripts/explore/` 放探索性實測，不進正式流程。
 
-執行耗時以分鐘計或平行的分析，或考慮寫 Rust 擴充之前，讀 `docs/computing.md`。
+執行耗時以分鐘計或平行的分析，或考慮寫 Rust 擴充之前，讀 `docs/internal/computing.md`。
 
 ## 提交
 
@@ -71,7 +71,7 @@
 
 ## 資料取得
 
-下載資料或寫 `scripts/fetch/`、`data/raw/*/SOURCE.md` 之前，讀 `docs/data-fetching.md`。
+下載資料或寫 `scripts/fetch/`、`data/raw/*/SOURCE.md` 之前，讀 `docs/data/data-fetching.md`。
 
 ## 目錄結構
 
@@ -81,7 +81,7 @@ data/processed/    清理後資料
 scripts/           正式分析腳本（.py），依研究問題命名
 scripts/explore/   探索性實測
 scripts/fetch/     資料下載腳本
-docs/              見 docs/README.md
+docs/              見 docs/README.md；results/ 結論，data/ 前處理，background/ 文獻與選題，internal/ 工作規範
 report/            Typst 報告、簡報及其輸出
 demo/              React 靜態 demo
 outputs/figures/   圖
@@ -96,11 +96,11 @@ outputs/tables/    表
 - 說明性示意圖（概念圖、流程圖）的圖內文字與圖說可用繁體中文；技術名詞保留原文
 - 統計圖的圖內文字、座標軸、圖例與圖說用英文；圖形周圍的正文仍用繁體中文
 - 程式碼註解與文件：繁體中文
-- 撰寫或修改報告、簡報的用詞與方法說明時，依 `docs/report-language.md` 檢查讀者背景、術語首次說明及資料與文獻的對應；套件、函式及欄位名稱保留英文原文
+- 撰寫或修改報告、簡報的用詞與方法說明時，依 `docs/internal/report-language.md` 檢查讀者背景、術語首次說明及資料與文獻的對應；套件、函式及欄位名稱保留英文原文
 
 ## 技術棧
 
-**Python**。腳本副檔名 `.py`。Rust 擴充只限實測過的熱點，條件見 `docs/computing.md`。
+**Python**。腳本副檔名 `.py`。Rust 擴充只限實測過的熱點，條件見 `docs/internal/computing.md`。
 
 `report/` 用 **Typst**。腳本負責算數與產圖，圖以檔案輸出到 `outputs/figures/`，
 Typst 端只排版與 `image()` 引入，不在文件內執行程式碼。簡報用 touying 的

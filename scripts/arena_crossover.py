@@ -32,7 +32,7 @@ B_BOOT = 999
 MIN_ROWS_SLOPE = 10
 SPEEDS = ["Bullet", "Blitz", "Classical"]
 GROUPS = SPEEDS + ["all"]
-# 加權與批的組合。純隨機規則的批為敏感度分析：2014 年 12 人以下的批有小幅偏離隨機（docs/random-pairing.md）
+# 加權與批的組合。純隨機規則的批為敏感度分析：2014 年 12 人以下的批有小幅偏離隨機（docs/results/random-pairing.md）
 COMBOS = [("game", "all"), ("game", "random_rule"), ("player", "all"), ("player", "random_rule")]
 LAGS = [1, 2, 3]
 BAL = ["elo_c", "log_games_in_tour", "novice_games", "rd"]

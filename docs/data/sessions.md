@@ -6,9 +6,9 @@
 
 每局拆成雙方各一列。每位玩家的對局依開局時間排成一條序列，所有定義都在這條序列上計算。
 
-- **排除無鐘對局**：無鐘對局一局可跨數日，開局時間不代表玩家當時在線，放進序列會把同一段時間內的即時對局切開。無鐘對局包括通信棋，以及 2014 年 12 月以前計入 Classical 等級分的無鐘對局（`docs/speed-class.md`），局數都很少（`sessions_sample.csv` 的 `correspondence`、`no_clock_classical`）
+- **排除無鐘對局**：無鐘對局一局可跨數日，開局時間不代表玩家當時在線，放進序列會把同一段時間內的即時對局切開。無鐘對局包括通信棋，以及 2014 年 12 月以前計入 Classical 等級分的無鐘對局（`docs/data/speed-class.md`），局數都很少（`sessions_sample.csv` 的 `correspondence`、`no_clock_classical`）
 - **排除自己對自己的局**：同一帳號同時是白方與黑方，無法拆成兩名玩家（`self_games`）
-- **類別與跨類別**：類別一律用對局當時等級分所屬的速度類別（`speed`，`docs/speed-class.md`），不用月檔 `Event` 的時間類別。跨類別不切開：同一玩家從 Blitz 換到 Bullet，仍是同一次坐在電腦前。序列包含 Bullet、Blitz、Classical 三類，連續對局可跨類別。在主門檻下，連續對局內換類別的轉換只占少數，Classical 之後換類別的比例最高（`sessions_cross_class.csv`）
+- **類別與跨類別**：類別一律用對局當時等級分所屬的速度類別（`speed`，`docs/data/speed-class.md`），不用月檔 `Event` 的時間類別。跨類別不切開：同一玩家從 Blitz 換到 Bullet，仍是同一次坐在電腦前。序列包含 Bullet、Blitz、Classical 三類，連續對局可跨類別。在主門檻下，連續對局內換類別的轉換只占少數，Classical 之後換類別的比例最高（`sessions_cross_class.csv`）
 - **2013 年只作前文**：2014 年 1 月初的對局，其局序與連續對局編號須接上 2013 年 12 月的對局，否則會把延續中的連續對局切斷。序列從 2013 年 1 月起計算，輸出只保留 2014-01-01 00:00 UTC 至資料終點的玩家局
 
 時間計算一律用 UTC 的開局時間。月檔依巴黎時間切月（`month` 欄不是 UTC 月份），2015 年 6 月月檔止於 2015-06-30 22:00 UTC，此即資料終點；之後的對局在未下載的 2015 年 7 月月檔。
@@ -36,7 +36,7 @@
 
 ### 開局間隔與「間隔減去對局長度」
 
-以每方 40 步、時鐘用盡估計一局的名目長度 $D = 2(\text{base} + 40 \times \text{increment})$。這只是長度的估計，與速度類別的判定無關：研究期間大部分時候 Lichess 以 base + 30 × increment 劃分速度類別（`docs/speed-class.md`）。直接相減的「間隔減去 $D$」不可用：實際對局多半短於名目長度，相當比例的相鄰間隔小於 $D$，相減後取不了對數，擬合結果隨截斷方式大幅改變。
+以每方 40 步、時鐘用盡估計一局的名目長度 $D = 2(\text{base} + 40 \times \text{increment})$。這只是長度的估計，與速度類別的判定無關：研究期間大部分時候 Lichess 以 base + 30 × increment 劃分速度類別（`docs/data/speed-class.md`）。直接相減的「間隔減去 $D$」不可用：實際對局多半短於名目長度，相當比例的相鄰間隔小於 $D$，相減後取不了對數，擬合結果隨截斷方式大幅改變。
 
 改看間隔除以 $D$ 的比值（`sessions_gap.png` 下排）。比值的第一個峰在三類別都落在 1 或略低於 1，表示扣除對局長度後，三個類別的連續對局有相近的結構。以此擬合的分界（`sessions_threshold.csv` 的 `ratio_threshold`）構成另一種門檻規則「間隔不超過 $k \cdot D$」，納入敏感度比較。
 
@@ -119,7 +119,7 @@
 | `opponent` | uint32 | 對手的帳號代碼 |
 | `color` | str | `white` 或 `black` |
 | `start` | datetime (UTC) | 開局時間，到秒 |
-| `speed` | str | Bullet、Blitz、Classical：對局當時等級分所屬的速度類別（`docs/speed-class.md`），`elo`、`opp_elo` 即此類別的等級分 |
+| `speed` | str | Bullet、Blitz、Classical：對局當時等級分所屬的速度類別（`docs/data/speed-class.md`），`elo`、`opp_elo` 即此類別的等級分 |
 | `time_control`、`base_seconds`、`increment_seconds` | str、int | 時間制 |
 | `est_duration` | int | 名目對局長度 $2(\text{base} + 40 \times \text{increment})$，秒 |
 | `tournament_id` | str | 錦標賽 ID，一般對局為 null |

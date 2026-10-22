@@ -1,4 +1,4 @@
-# 新手期的界定，依據見 docs/novice-period.md。依新手分組或控制新手的分析都從這裡取門檻；
+# 新手期的界定，依據見 docs/results/novice-period.md。依新手分組或控制新手的分析都從這裡取門檻；
 # 欄名標明界定方式（novice_rd、novice_games），同名不同義的欄位會讓報告的界定對不到程式。
 
 import polars as pl

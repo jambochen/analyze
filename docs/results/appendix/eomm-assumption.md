@@ -1,6 +1,6 @@
 # EOMM 關鍵假設的檢驗
 
-腳本：`scripts/eomm_assumption.py`。共用 module：`scripts/arena_batches.py`（樣本、期望匹配品質）、`scripts/clogit.py`、`scripts/calibrated.py`。表在 `outputs/tables/eomm_assumption_*.csv`，圖在 `outputs/figures/eomm_assumption_*.png`。本文件只寫定性結論，數值一律見對應的輸出檔。總效果與兩層識別的背景見 `docs/match-quality-leave.md`。
+腳本：`scripts/eomm_assumption.py`。共用 module：`scripts/arena_batches.py`（樣本、期望匹配品質）、`scripts/clogit.py`、`scripts/calibrated.py`。表在 `outputs/tables/eomm_assumption_*.csv`，圖在 `outputs/figures/eomm_assumption_*.png`。本文件只寫定性結論，數值一律見對應的輸出檔。總效果與兩層識別的背景見 `docs/results/appendix/match-quality-leave.md`。
 
 ## 問題
 
@@ -19,12 +19,12 @@ EOMM（arXiv 1702.06820，見 `docs/methods.md`「借用的方法」）把流失
 
 歷史特徵由對局檔（`data/processed/lichess_games.parquet`）重建每位玩家自 2013 年 1 月起的完整序列，含一般對局與三個速度類別，不含無鐘對局（含通信棋）與自己對自己的局，與 `player_games` 的口徑相同；重建的前一局間隔與累計局數和 `player_games` 逐列一致。2014 年的對局，近 30 天的局數都完整可見；2013 年以前的對局史不在資料中，最近 10 局在自 2013 年起不足 10 局時記為「無」，此時「無」混合了真正的新帳號與左截斷，與 `player_game_no` 的新手代理同一口徑。
 
-EOMM 原模型之外另加控制：期望匹配品質 $\bar q$（有號版本為 $\bar e$）、自身等級分及其平方、執子顏色、本場已下局數、錦標賽剩餘時間、新手、速度類別。隨機配對保證的是給定 $\bar q$ 後 $q$ 與玩家無關，不控制 $\bar q$ 會混入玩家在候選者中的等級分位置（`docs/match-quality-leave.md`「期望匹配品質」）。
+EOMM 原模型之外另加控制：期望匹配品質 $\bar q$（有號版本為 $\bar e$）、自身等級分及其平方、執子顏色、本場已下局數、錦標賽剩餘時間、新手、速度類別。隨機配對保證的是給定 $\bar q$ 後 $q$ 與玩家無關，不控制 $\bar q$ 會混入玩家在候選者中的等級分位置（`docs/results/appendix/match-quality-leave.md`「期望匹配品質」）。
 
 ### 檢驗
 
 - **關鍵假設**：在模型中加入 $q$、$q \times$ 勝、$q \times$ 和，以概似比檢定三者皆為 0，虛無分布以玩家聚類的 sandwich 修正為加權卡方；Wald 統計量並列作對照。有號版本以 $e$ 及其交互作用取代
-- **穩健性**：兩局以上的批另以批次分層的 conditional logit 檢定（錦標賽聚類），把比較限制在同一次配對之內；一局一批另以「錦標賽 × 5 分鐘」固定效應的 logistic 檢定（玩家聚類）
+- **穩健性**：兩局以上的批另以批次分層的條件概似的 logistic 迴歸檢定（錦標賽聚類），把比較限制在同一次配對之內；一局一批另以「錦標賽 × 5 分鐘」固定效應的 logistic 檢定（玩家聚類）
 - **$\Delta$**：$c(o)$ 為把本局結果設為 $o$、其他變數取觀察值的平均預測離開機率。信賴區間以 delta method 搭配玩家聚類共變數求得；在兩局以上的批上以 50 次玩家 block bootstrap 比對
 - **樣本**：主分析為兩局以上的批（設計上的隨機），一局一批為補充。反應變數主為 `leave_8h`（EOMM 的定義）與 `tour_left`，另列 `leave_session`
 
@@ -32,9 +32,9 @@ EOMM 原模型之外另加控制：期望匹配品質 $\bar q$（有號版本為
 
 ### 關鍵假設不成立
 
-兩局以上的批中，三個反應變數的修正概似比檢定都拒絕「給定結果，$q$ 不影響離開」（`eomm_assumption_tests.csv`），與 Wald 檢定的結論相同；conditional logit 的檢定結論相同，一局一批的兩種估計也相同。有號版本的拒絕更強。
+兩局以上的批中，三個反應變數的修正概似比檢定都拒絕「給定結果，$q$ 不影響離開」（`eomm_assumption_tests.csv`），與 Wald 檢定的結論相同；條件概似的 logistic 迴歸的檢定結論相同，一局一批的兩種估計也相同。有號版本的拒絕更強。
 
-型態（`eomm_assumption_curve.png`、`eomm_assumption_coef.csv`、`docs/match-quality-leave.md` 的 `match_quality_leave_desc.png`）：
+型態（`eomm_assumption_curve.png`、`eomm_assumption_coef.csv`、`docs/results/appendix/match-quality-leave.md` 的 `match_quality_leave_desc.png`）：
 
 - **贏棋之後**：懸殊的對局之後離開較少，各反應變數、兩層皆然。依有號版本，以強方身分贏棋後離開最少
 - **輸棋之後**：以 8 小時離開衡量，兩局以上的批中 $q$ 幾乎沒有作用；錦標賽中途離開與連續對局結束則仍隨 $q$ 下降。依有號版本，以強方身分輸棋（爆冷輸）後離開最多
@@ -44,7 +44,7 @@ EOMM 原模型之外另加控制：期望匹配品質 $\bar q$（有號版本為
 
 ### $\Delta$ 的正負
 
-以 `leave_8h` 與 `tour_left` 衡量，兩層的 $\Delta$ 都為正，加入 $q$、有號的 $e$ 或當日狀態代理後不變（`eomm_assumption_c.csv`、`eomm_assumption_delta.png`）。以 `leave_session` 衡量，兩局以上的批為正，一局一批則與 0 無法區分；`docs/sessions.md` 已指出和局後的續下率對門檻敏感，這個差異可能來自和局通常下得較久。delta method 的標準誤與 block bootstrap 的標準差相近（`eomm_assumption_bootstrap.csv`）。
+以 `leave_8h` 與 `tour_left` 衡量，兩層的 $\Delta$ 都為正，加入 $q$、有號的 $e$ 或當日狀態代理後不變（`eomm_assumption_c.csv`、`eomm_assumption_delta.png`）。以 `leave_session` 衡量，兩局以上的批為正，一局一批則與 0 無法區分；`docs/data/sessions.md` 已指出和局後的續下率對門檻敏感，這個差異可能來自和局通常下得較久。delta method 的標準誤與 block bootstrap 的標準差相近（`eomm_assumption_bootstrap.csv`）。
 
 依 EOMM 的理論，$\Delta > 0$ 且只有結果影響流失時，勢均力敵的配對即為最佳。但關鍵假設不成立，這個推論的前提就不在：贏棋後的離開率還依分差而變，懸殊的配對在贏方那一側另有降低離開的作用，方向與「勢均力敵最佳」相反。哪一邊佔優須在流失模型中同時納入結果與分差，由配對策略的模擬決定，不能只看 $\Delta$ 的正負。
 
@@ -58,7 +58,7 @@ EOMM 原模型之外另加控制：期望匹配品質 $\bar q$（有號版本為
 
 ### 與對局長度的關係
 
-`docs/match-quality-leave.md` 指出懸殊的對局下得較短，以開局間隔定義的離開會機械性地隨 $q$ 下降。贏棋後離開隨 $q$ 下降的型態，也出現在受對局長度影響最小的 8 小時離開，故不全是機械效果；但以強方身分贏棋通常就是快速取勝，兩者無法以現有資料完全分開。
+`docs/results/appendix/match-quality-leave.md` 指出懸殊的對局下得較短，以開局間隔定義的離開會機械性地隨 $q$ 下降。贏棋後離開隨 $q$ 下降的型態，也出現在受對局長度影響最小的 8 小時離開，故不全是機械效果；但以強方身分贏棋通常就是快速取勝，兩者無法以現有資料完全分開。
 
 ## 對後續分析的意涵
 

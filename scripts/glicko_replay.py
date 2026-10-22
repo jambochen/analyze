@@ -1,6 +1,6 @@
 # 從對局史逐局重放 Lichess 的 Glicko-2，能否重現表頭的對局前等級分？
 # 能重現之處，重放的 RD 與 volatility 才可採用。規則來源見 scripts/glicko.py 與
-# docs/glicko-replay.md。
+# docs/data/glicko-replay.md。
 #
 # 資料始於 2013-01，此前已有 rated 對局，多數帳號在資料內的首局表頭不是 1500，
 # 從 1500 起的純重放因此大多不相符，誤差又經對手擴散。主分析改用以表頭校正的重放：

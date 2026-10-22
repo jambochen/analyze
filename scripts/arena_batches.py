@@ -1,5 +1,5 @@
 # arena 配對批次的重建，與以批次為單位的 2014 年 arena 玩家局樣本。
-# 批次：同一場錦標賽中開局時間相同（到秒）的對局視為同一次配對（依據見 docs/random-pairing.md）。
+# 批次：同一場錦標賽中開局時間相同（到秒）的對局視為同一次配對（依據見 docs/results/random-pairing.md）。
 
 import numpy as np
 import polars as pl

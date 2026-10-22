@@ -10,7 +10,7 @@ Lichess 依速度類別（Bullet、Blitz、Classical、通信棋）分別維護�
 
 ## 判定規則與出處
 
-沿用 Glicko-2 重放已驗證的規則（`docs/glicko-replay.md`「移植的規則」與「規則變更的實際上線時間」），不另訂一套。依對局的建立時間（`start`）、`base_seconds` 與 `increment_seconds`：
+沿用 Glicko-2 重放已驗證的規則（`docs/data/glicko-replay.md`「移植的規則」與「規則變更的實際上線時間」），不另訂一套。依對局的建立時間（`start`）、`base_seconds` 與 `increment_seconds`：
 
 | 期間 | 有鐘的對局 | 無鐘的對局 |
 |---|---|---|
@@ -45,11 +45,11 @@ Lichess 依速度類別（Bullet、Blitz、Classical、通信棋）分別維護�
 
 逐項的前後對照見 `speed_fix_effect_estimates.csv`（每列為一個估計量，含差距及差距相對於修正前標準誤的倍數），依表與量彙整的變號與顯著性改變見 `speed_fix_effect_summary.csv`。
 
-**主要結論全部不變**。各分析文件（`docs/calibration.md`、`docs/sessions.md`、`docs/match-quality-leave.md`、`docs/eomm-assumption.md`、`docs/fixed-effects-churn.md`）的定性結論在修正後逐項成立。
+**主要結論全部不變**。各分析文件（`docs/results/calibration.md`、`docs/data/sessions.md`、`docs/results/appendix/match-quality-leave.md`、`docs/results/appendix/eomm-assumption.md`、`docs/results/appendix/fixed-effects-churn.md`）的定性結論在修正後逐項成立。
 
 - **校準**：三個類別的校準斜率仍明顯小於 1，各檢定的結論與 Holm 校正後的判定都不變。變動最大的是 Classical：移出的每步加秒較大的時間制，原本是以 Blitz 的等級分混入 Classical；移出後 Classical 的校準斜率略升，偏差仍在。變號者只有與 0 無法區分的交互作用項
 - **連續對局的門檻**：各類別的主門檻變動一至兩分鐘，比值門檻不變。續下率、離開率的水準只有小幅變化，類別、arena 與一般對局、輸贏之間的大小順序都不變
-- **匹配品質的總效果**：三個主反應變數的方向、randomization inference 與 Holm 調整後的結論不變，係數的變動遠小於標準誤。變動明顯的只有以主門檻一半定義的連續對局結束：門檻變動相對於一局的長度不小，效果變小但仍是各反應變數中最大，「門檻越短效果越大」的梯度不變；該反應變數中和局的係數由正轉為與 0 無法區分，與 `docs/sessions.md` 指出和局的位置對門檻敏感一致
+- **匹配品質的總效果**：三個主反應變數的方向、批內重新配對的 permutation test 與 Holm 調整後的結論不變，係數的變動遠小於標準誤。變動明顯的只有以主門檻一半定義的連續對局結束：門檻變動相對於一局的長度不小，效果變小但仍是各反應變數中最大，「門檻越短效果越大」的梯度不變；該反應變數中和局的係數由正轉為與 0 無法區分，與 `docs/data/sessions.md` 指出和局的位置對門檻敏感一致
 - **EOMM 關鍵假設**：檢定在各層、各反應變數仍拒絕；$\Delta$ 的正負與顯著性不變，一局一批的 `leave_session` 仍與 0 無法區分
 - **Heliyon 模型的比較**：以原始等級分差為變數的設定完全不變（不經類別）；以校準期望得分或 $q$ 為變數的設定只有可忽略的變動
 

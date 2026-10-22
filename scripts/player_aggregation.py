@@ -1,4 +1,4 @@
-# 先彙總到玩家再用課內方法，能否取代 sandwich（規格見 docs/player-aggregation.md）。
+# 先彙總到玩家再用課內方法，能否取代 sandwich（規格見 docs/internal/player-aggregation.md）。
 # 玩家之間近似獨立時，以局加權的平均之差 = 玩家總和的比值，標準誤由「玩家為獨立單位、比值的 delta method」得到，
 # 代數上等於以玩家為群的 sandwich 乘 sqrt(m / (m - 1))；以玩家等權時即一樣本或配對 t 檢定。
 # 兩者都忽略「同一局的兩位玩家」的相依，以 dyadic sandwich 核對。比較只在估計目標相同的列上算標準誤比值

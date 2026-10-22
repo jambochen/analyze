@@ -1,6 +1,6 @@
 # 其他對局資料
 
-Lichess 以外、可取得原始資料且與等級分匹配相關的對局資料。用途是補足 Lichess 與電競之間的距離：Lichess 2014 年錦標賽提供隨機配對的因果識別，但不是電競式的排隊配對。各研究的出處見 `docs/literature.md`。
+Lichess 以外、可取得原始資料且與等級分匹配相關的對局資料。用途是補足 Lichess 與電競之間的距離：Lichess 2014 年錦標賽提供隨機配對的因果識別，但不是電競式的排隊配對。各研究的出處見 `docs/background/literature.md`。
 
 ## 候選
 

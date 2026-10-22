@@ -4,7 +4,7 @@
 
 ## 問題
 
-表頭只有對局前等級分，沒有 rating deviation（RD）與 volatility。從對局史逐局重放 Lichess 的 Glicko-2，若能重現表頭的等級分，就同時得到每局雙方的對局前 RD 與 volatility，供 Glicko-2 形式的期望得分、新手期（provisional）的界定，以及分解校準斜率小於 1 的來源（`docs/calibration.md`）。
+表頭只有對局前等級分，沒有 rating deviation（RD）與 volatility。從對局史逐局重放 Lichess 的 Glicko-2，若能重現表頭的等級分，就同時得到每局雙方的對局前 RD 與 volatility，供 Glicko-2 形式的期望得分、新手期（provisional）的界定，以及分解校準斜率小於 1 的來源（`docs/results/calibration.md`）。
 
 ## 移植的規則
 
@@ -26,7 +26,7 @@
 
 2014 年 7 月底至 2015 年 6 月 `PerfsUpdater.scala` 的其他變更（三棋種、antichess、atomic、horde、pool 移除、開局錦標賽）都只涉及變體棋或 pool，不影響標準棋的速度類別。2014 年 6 月至 10 月的 pool 對局，表頭存的是 pool 等級分而非速度類別的等級分（`PerfPicker.main` 對 pool 對局回傳 pool 的 perf），但速度類別仍照常更新；資料中無法辨認哪些是 pool 對局。
 
-月檔的 `Event` 欄的時間類別是以每步加秒乘 40 的公式事後標的，與 2015 年 4 月以前實際計分所用的類別不同（例如 300+5 在當時計入 Blitz）。重放的速度類別一律依上表由 `base_seconds`、`increment_seconds` 與建立時間重新判定，不用資料中的 `time_class`。判定規則即 `glicko.speed()`，`lichess_games.parquet` 的 `speed` 欄與其後的分析都用同一個函式（`docs/speed-class.md`）。
+月檔的 `Event` 欄的時間類別是以每步加秒乘 40 的公式事後標的，與 2015 年 4 月以前實際計分所用的類別不同（例如 300+5 在當時計入 Blitz）。重放的速度類別一律依上表由 `base_seconds`、`increment_seconds` 與建立時間重新判定，不用資料中的 `time_class`。判定規則即 `glicko.speed()`，`lichess_games.parquet` 的 `speed` 欄與其後的分析都用同一個函式（`docs/data/speed-class.md`）。
 
 ### 規則變更的實際上線時間
 
@@ -107,8 +107,8 @@ Python 參考實作（`scripts/glicko.py`）逐行照 Java 原始碼移植，Rus
 - **排除或另外處理左截斷帳號的前段對局**。`white_left_truncated` 標出資料內首局表頭不是 1500 的帳號，`white_prior_games` 為此前在同一類別的局數；這類帳號在累積到相符比例與其他帳號相近的局數之前（`glicko_replay_experience.csv`），RD 不可信。2014 年起左截斷帳號的占比已小
 - **表頭鏈曾中斷的帳號**（`white_header_clean` 為假）RD 仍由重放產生，相符比例只略低，可以使用，但 2014 年 6 月至 10 月的 Bullet、Blitz 受 pool 影響，宜作敏感度分析
 - **通信棋不可用**
-- **新手期**可直接以重放的 RD 界定，不必再以累計局數代理；門檻與界定見 `docs/novice-period.md`
-- **校準斜率的分解**：現在可以計算 Glicko-2 形式的期望得分（依對手 RD 收縮），並比較它與 Elo 形式在校準上的差異。重放的 RD 在穩定帳號身上相當集中（`glicko_replay_experience.csv` 的 `median_rd`、`p90_rd`），所以預期 RD 收縮只能解釋斜率小於 1 的一小部分，這與 `docs/calibration.md` 的推測一致，有待正式檢驗
+- **新手期**可直接以重放的 RD 界定，不必再以累計局數代理；門檻與界定見 `docs/results/novice-period.md`
+- **校準斜率的分解**：現在可以計算 Glicko-2 形式的期望得分（依對手 RD 收縮），並比較它與 Elo 形式在校準上的差異。重放的 RD 在穩定帳號身上相當集中（`glicko_replay_experience.csv` 的 `median_rd`、`p90_rd`），所以預期 RD 收縮只能解釋斜率小於 1 的一小部分，這與 `docs/results/calibration.md` 的推測一致，有待正式檢驗
 
 ## 限制
 

@@ -1,12 +1,12 @@
 # 報告用詞與方法說明
 
-適用於 `report/` 的書面報告、投影片及講稿。簡報的句型與版面另見 `slides.md`；個別術語的定義見根目錄 `GLOSSARY.md`。
+適用於 `report/` 的書面報告、投影片及講稿。簡報的句型與版面另見 `docs/internal/slides.md`；個別術語的定義見根目錄 `GLOSSARY.md`。
 
 ## 讀者與首次說明
 
 讀者是統計研究所師生。數理統計、迴歸與 likelihood 可作為起點；不要因方法出現在引用論文中，就假設讀者已學過。迴歸以外的方法首次出現時，先用已知概念說明它解決什麼問題，再給名稱和公式。模擬可從 MC 的「重複生成資料並重估」說起。
 
-多數方法是 GLM、概似比或 score 檢定、重抽樣（permutation、bootstrap）的特例或組合，從這些已知方法講起，不另立名詞：校準迴歸講成以預測的 logit 為解釋變數的 logistic 迴歸，Bradley–Terry 講成每位玩家一個參數的 logistic 迴歸，Cochran–Mantel–Haenszel 講成依層的 score 檢定。文獻上的專名放在該段最後一句，作為出處。
+多數方法是 GLM、概似比或 score 檢定、重抽樣（permutation、bootstrap）的特例或組合，從這些已知方法講起，不另立名詞：校準迴歸講成以預測的 logit 為解釋變數的 logistic 迴歸，Bradley–Terry 講成每位玩家一個參數的 logistic 迴歸，Cochran–Mantel–Haenszel 講成每批一個截距的 score 檢定。文獻上的專名只在需要出處時放在該段最後一句。
 
 Lichess 欄位或西洋棋術語首次出現時說明其意義，定義以 `GLOSSARY.md` 為準。
 

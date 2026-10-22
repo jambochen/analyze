@@ -4,9 +4,9 @@
 
 ## 問題
 
-主問題以「系統的期望勝率」為基準，量剛輸之後的表現是否低於期望。基準本身若在某些對局條件下系統性地錯，後續的殘差會混入基準的錯。`docs/calibration.md` 已確認 Elo 形式高估強方、白方有固定優勢、和局機率隨等級變化；`docs/novice-period.md` 發現校準斜率隨 rating deviation（RD）連續變化，新手的偏差不宜靠門檻排除。這裡比較三個基準，決定主問題用哪一個：
+主問題以「系統的期望勝率」為基準，量剛輸之後的表現是否低於期望。基準本身若在某些對局條件下系統性地錯，後續的殘差會混入基準的錯。`docs/results/calibration.md` 已確認 Elo 形式高估強方、白方有固定優勢、和局機率隨等級變化；`docs/results/novice-period.md` 發現校準斜率隨 rating deviation（RD）連續變化，新手的偏差不宜靠門檻排除。這裡比較三個基準，決定主問題用哪一個：
 
-- **有序 logistic**：`docs/calibration.md` 的主模型，分差、平均等級分、先手
+- **有序 logistic**：`docs/results/calibration.md` 的主模型，分差、平均等級分、先手
 - **Glicko 形式**：分差依雙方合成的 RD 往 0 收縮，即 Glickman 對一局結果的預測式
 - **加入 RD 的有序 logistic**：在有序 logistic 上加入 Glicko 的收縮項，讓分差的斜率隨 RD 變化
 
@@ -14,10 +14,10 @@
 
 ## 資料與樣本
 
-- 2014 年 Bullet、Blitz、Classical 的有鐘對局，類別依 `speed`，含新手對局；RD 取自重放（`docs/glicko-replay.md`），只用重放的速度類別與對局相同者
-- 概似比檢定在各類別抽一個固定大小的簡單隨機樣本上估計，與 `docs/calibration.md` 相同；另以排除含左截斷一方的對局重做，因為左截斷帳號前段的 RD 是設定值
+- 2014 年 Bullet、Blitz、Classical 的有鐘對局，類別依 `speed`，含新手對局；RD 取自重放（`docs/data/glicko-replay.md`），只用重放的速度類別與對局相同者
+- 概似比檢定在各類別抽一個固定大小的簡單隨機樣本上估計，與 `docs/results/calibration.md` 相同；另以排除含左截斷一方的對局重做，因為左截斷帳號前段的 RD 是設定值
 - 樣本外評估：1 至 6 月估計，7 至 12 月全部對局評估，依新手（任一方 RD 達 provisional 門檻）與否分組
-- Elo 與 Glicko 期望得分本身的 Cox 校準用該類別全部的對局
+- Elo 與 Glicko 期望得分本身的校準迴歸用該類別全部的對局
 
 ## 做法
 
@@ -25,7 +25,7 @@
 
 有序 logistic 與 Glicko 形式都是加入 RD 的有序 logistic 的特例：前者令收縮項的係數為 0，後者令分差、等級分與和局帶寬的等級分項為 0、只留收縮項與切點。兩者各以概似比檢定與完整模型比較，不需要非巢狀的檢定。
 
-同一玩家下很多局，同一局又牽涉兩位玩家，觀察值不獨立，一般概似比統計量的虛無分布不是卡方。統計量照常計算，虛無分布改為加權卡方 $\sum_j \lambda_j \chi^2_1$，$\lambda_j$ 由完整模型的 Hessian 與 dyadic 的 meat 求得（`docs/methods.md`「檢定與區間」）。df 為 1 時有精確解；df 較大時以 Imhof 的反轉公式求尾機率，尾機率小到數值積分不可靠時，改報 $P(\lambda_{\max}\chi^2_{df} > x)$ 這個嚴格的上界。各檢定以 Holm 法控制族錯誤率。
+同一玩家下很多局，同一局又牽涉兩位玩家，觀察值不獨立，一般概似比統計量的虛無分布不是卡方。統計量照常計算，虛無分布改為加權卡方 $\sum_j \lambda_j \chi^2_1$，$\lambda_j$ 由完整模型的 Hessian 與 dyadic 的 meat 求得（`docs/methods.md`「檢定與區間」）。df 為 1 時有精確解；df 較大時以特徵函數的數值積分求尾機率，尾機率小到數值積分不可靠時，改報 $P(\lambda_{\max}\chi^2_{df} > x)$ 這個嚴格的上界。各檢定以 Holm 法控制族錯誤率。
 
 ### 修正檢定的檢定水準
 
@@ -33,7 +33,7 @@
 
 ### 期望得分本身的校準
 
-Glicko 只給期望得分，有序 logistic 的寫法需要自由估計尺度（有和局時累積 logit 的斜率較陡）。為了直接檢驗 Glicko 原式，另以 fractional logit 估 Elo 與 Glicko 期望得分的 Cox 校準截距與斜率，依新手與否分層。
+Glicko 只給期望得分，有序 logistic 的寫法需要自由估計尺度（有和局時累積 logit 的斜率較陡）。為了直接檢驗 Glicko 原式，另以得分為反應的 logistic 迴歸估 Elo 與 Glicko 期望得分的校準迴歸的截距與斜率，依新手與否分層。
 
 ### 樣本外評估
 
@@ -56,7 +56,7 @@ Glicko 只給期望得分，有序 logistic 的寫法需要自由估計尺度（
 
 ### RD 的收縮比 Glicko 的式子更強
 
-完整模型中，分差的斜率隨合成的 RD 增大而下降，下降得比 Glicko 的 $g(\sigma)$ 所隱含的更快（`expected_score_baselines_coef.csv` 的 `slope_diff` 與 `slope_g_diff`）。Cox 校準給出同一個方向：Glicko 的期望得分比 Elo 的更接近校準，新手對局尤其明顯，但兩者的斜率都仍低於 1，仍高估強方（`expected_score_baselines_cox.csv`）。也就是說，Glicko 承認的不確定性方向對，幅度不足。
+完整模型中，分差的斜率隨合成的 RD 增大而下降，下降得比 Glicko 的 $g(\sigma)$ 所隱含的更快（`expected_score_baselines_coef.csv` 的 `slope_diff` 與 `slope_g_diff`）。校準迴歸給出同一個方向：Glicko 的期望得分比 Elo 的更接近校準，新手對局尤其明顯，但兩者的斜率都仍低於 1，仍高估強方（`expected_score_baselines_cox.csv`）。也就是說，Glicko 承認的不確定性方向對，幅度不足。
 
 ### 樣本外：加入 RD 的模型在每一組都最好
 
@@ -64,9 +64,9 @@ Glicko 只給期望得分，有序 logistic 的寫法需要自由估計尺度（
 
 ## 對後續分析的意涵
 
-- **主基準**：加入 RD 的有序 logistic。檢定與樣本外評估指向同一個方向，沒有互相衝突。在估計 crossover 模型之前決定，寫進登記文件
+- **主基準**：加入 RD 的有序 logistic。檢定與樣本外評估指向同一個方向，沒有互相衝突。在估計前局效果模型之前決定，寫進登記文件
 - **另兩者為敏感度分析**：主問題的結論在三個基準下若不一致，如實寫出結論依賴基準
-- **新手對局可以留在主樣本**：完整模型讓期望勝率隨 RD 收縮，新手的偏差由基準吸收，不必以門檻排除；門檻只用於描述與敏感度分析（`docs/novice-period.md`）
+- **新手對局可以留在主樣本**：完整模型讓期望勝率隨 RD 收縮，新手的偏差由基準吸收，不必以門檻排除；門檻只用於描述與敏感度分析（`docs/results/novice-period.md`）
 - **Bullet 上的檢定**：修正的檢定略為寬鬆，接近顯著邊緣的結果須保留，或改用小樣本修正的 sandwich
 - **電競的對應**：系統自己算的不確定性（RD）是有用的資訊，但系統用它收縮期望勝率的幅度不夠；定級期結束後，期望勝率仍高估強方
 
@@ -75,4 +75,4 @@ Glicko 只給期望得分，有序 logistic 的寫法需要自由估計尺度（
 - **收縮項的形式固定為 $g(\sigma)$**：完整模型只多一個係數，不同的收縮形狀（例如依雙方 RD 各自收縮）未比較
 - **RD 取自重放**：重放與表頭不相符的範圍（左截斷帳號的前段、2014 年 pool 試行期、線上期間的 Classical）中，RD 的品質較差；排除左截斷的敏感度分析結論相同，pool 期間未另外排除
 - **檢定水準的模擬只是一種相依結構**：未觀測的玩家實力加上活躍度的集中；真實資料的相依可能更複雜，例如同一晚的狀態
-- **樣本外評估只有一次切分**：1 至 6 月對 7 至 12 月，期間 Lichess 於 7 月底重算等級分（`docs/calibration.md`）
+- **樣本外評估只有一次切分**：1 至 6 月對 7 至 12 月，期間 Lichess 於 7 月底重算等級分（`docs/results/calibration.md`）
