@@ -49,6 +49,7 @@
   show raw: set text(font: "Noto Sans Mono CJK TC", size: 1.2em, fill: slate)
   show regex("[\p{Han}，。、；：「」（）][ \n]+[\p{Han}，。、；：「」（）]"): it => it.text.replace(regex("[ \n]+"), "")
   set table(stroke: none, inset: (x: 0.6em, y: 0.45em), align: left)
+  show table: set align(center)
   show table.cell.where(y: 0): set text(weight: 500, fill: slate)
   set figure(numbering: none, gap: 0.5em)
   show figure.caption: set text(size: 0.7em, fill: mute)

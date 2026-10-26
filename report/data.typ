@@ -285,9 +285,9 @@ RatingDiff 是結果的函數，一律不用。
 // 段寬依月數比例：12、12、3.6、2.4
 #figure(grid(
   columns: (12fr, 12fr, 3.6fr, 2.4fr),
-  align: center,
+  align: center + bottom,
   row-gutter: 0.3em,
-  text(size: 14pt, fill: slate)[等級分歷史], text(size: 14pt, fill: slate)[主樣本], text(size: 14pt, fill: slate)[前瞻驗證], text(size: 14pt, fill: slate)[改制後],
+  text(size: 14pt, fill: slate)[補對局歷史], text(size: 14pt, fill: slate)[全部 rated 對局], text(size: 14pt, fill: slate, two[arena][留作驗證]), text(size: 14pt, fill: slate, two[改配對][規則後]),
   box(width: 100%, height: 0.9em, fill: rule), box(width: 100%, height: 0.9em, fill: sq-dark), box(width: 100%, height: 0.9em, fill: sq-light), box(width: 100%, height: 0.9em, fill: rule),
   text(size: 12pt, fill: mute)[2013], text(size: 12pt, fill: mute)[2014], text(size: 12pt, fill: mute)[1/1–4/19], text(size: 12pt, fill: mute)[4/20–6/30],
 ))
@@ -314,7 +314,7 @@ RatingDiff 是結果的函數，一律不用。
 
 - 分析單位：一位玩家的一局。
 - 連續對局：同一場 arena 內的接連數局。
-- 前瞻驗證：2015 年 1/1–4/19 的 arena，#num(holdout.games) 局、#num(holdout.players) 位玩家。
+- 留作驗證：2015 年 1/1–4/19 的 arena，#num(holdout.games) 局、#num(holdout.players) 位玩家。
 
 == 2014 年樣本概況
 
