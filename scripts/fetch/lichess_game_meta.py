@@ -13,6 +13,7 @@ gzip 壓縮存放，未壓縮約 4 GB，SSD 空間不足以存未壓縮檔。
 import asyncio
 import gzip
 import json
+import os
 from pathlib import Path
 
 import aiohttp
@@ -32,6 +33,12 @@ g = (
     .collect()
 )
 g.select("game_id", "arena").write_csv(DEST / "requested.csv")
+
+# 斷電時最後一批可能只寫了一半，殘缺的 gzip member 會讓下面的讀取失敗、重啟後無限循環；
+# 截回最後一批確認寫入後的長度
+COMMITTED = DEST / "games.ndjson.gz.size"
+if COMMITTED.exists():
+    os.truncate(OUT, int(COMMITTED.read_text()))
 
 done = set()
 if OUT.exists():
@@ -59,9 +66,15 @@ async def main():
                 except (aiohttp.ClientPayloadError, aiohttp.ClientConnectionError, asyncio.TimeoutError) as e:
                     print("retry", i, type(e).__name__, flush=True)
                     await asyncio.sleep(30)
-            # 每批各寫一個 gzip member 再關檔，中斷時最多損失一批
-            with gzip.open(OUT, "at") as out:
-                out.write(text if text.endswith("\n") else text + "\n")
+            # 每批各寫一個 gzip member，fsync 後才記下長度，中斷時最多損失一批
+            with open(OUT, "ab") as out:
+                out.write(gzip.compress((text if text.endswith("\n") else text + "\n").encode()))
+                out.flush()
+                os.fsync(out.fileno())
+                size = out.tell()
+            tmp = COMMITTED.with_suffix(".tmp")
+            tmp.write_text(str(size))
+            os.replace(tmp, COMMITTED)
             if i // 300 % 100 == 0:
                 print(i + 300, len(ids), flush=True)
 
