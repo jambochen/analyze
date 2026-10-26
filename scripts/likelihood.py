@@ -54,6 +54,21 @@ def fit(ll, t0, free, args, w, b):
     return np.asarray(full(r.x)), -r.fun, Hi @ dyad_meat(S, w, b) @ Hi, Hi, S, H
 
 
+# 以得分為反應的 logistic 迴歸（fractional logit）的 Newton 法，numpy。jax 的 fit 每次都要 jit 與逐塊加總，
+# 參數少、要重估上千次的 bootstrap 與 profile 用這個。回傳 (參數, 配適機率, 負 Hessian, quasi 對數概似)
+def frac_newton(X, s, t):
+    t = np.array(t, dtype=float)
+    for _ in range(50):
+        p = 1 / (1 + np.exp(-X @ t))
+        H = X.T @ (X * (p * (1 - p))[:, None])
+        step = np.linalg.solve(H, X.T @ (s - p))
+        t += step
+        if np.abs(step).max() < 1e-10:
+            break
+    p = 1 / (1 + np.exp(-X @ t))
+    return t, p, X.T @ (X * (p * (1 - p))[:, None]), float(np.sum(s * np.log(p) + (1 - s) * np.log1p(-p)))
+
+
 # 工作概似下，受檢參數 psi 的概似比統計量漸近為 sum_j lambda_j chi2_1，
 # lambda 為 [H^-1]_psi^-1 [V]_psi 的特徵值（Rotnitzky、Jewell 1990）。idx 是受檢參數在 free 中的位置
 def lr_weights(Hi, V, idx):

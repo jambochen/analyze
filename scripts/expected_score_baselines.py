@@ -34,6 +34,7 @@ g_ = (
         "game_id", "start", "speed", "white_elo", "black_elo",
         y=pl.col("result").replace_strict({"0-1": 0, "1/2-1/2": 1, "1-0": 2}, default=None, return_dtype=pl.Int8),
         w="white_id", b="black_id",
+        arena=pl.col("tournament_id").is_not_null(),
     )
     .filter(pl.col("y").is_not_null())
 )
@@ -56,8 +57,12 @@ d = (
         L_glicko=Q * pl.col("gs") * pl.col("diff"),
         novice_rd=novice.novice_rd("white_rd", "black_rd"),
         train=pl.col("start") < pl.datetime(2014, 7, 1, time_zone=UTC),
+        # 分層與 calibration.py 相同；重算前後以 8 月 1 日為界
+        source=pl.when(pl.col("arena")).then(pl.lit("arena")).otherwise(pl.lit("lobby")),
+        period=pl.when(pl.col("start") < pl.datetime(2014, 8, 1, time_zone=UTC)).then(pl.lit("Jan-Jul")).otherwise(pl.lit("Aug-Dec")),
+        band=((pl.col("white_elo") + pl.col("black_elo")) / 2).cut([1200, 1400, 1600, 1800, 2000], labels=["<1200", "1200-1400", "1400-1600", "1600-1800", "1800-2000", ">=2000"]).cast(pl.String),
     )
-    .select("speed", "w", "b", "y", "score", "xr", "xd", "gxd", "L_elo", "L_glicko", "rd_max", "novice_rd", "lt_any", "train")
+    .select("speed", "w", "b", "y", "score", "xr", "xd", "gxd", "L_elo", "L_glicko", "rd_max", "novice_rd", "lt_any", "train", "source", "period", "band")
     .collect(engine="streaming")
 )
 print(d.group_by("speed").agg(n=pl.len(), novice_rd=pl.col("novice_rd").mean(), lt_any=pl.col("lt_any").mean()).sort("speed"))
@@ -92,7 +97,7 @@ MODELS = {
 T0_GLICKO = np.zeros(9)
 T0_GLICKO[[0, 5, 8]] = [0.1, -2.5, 2 * 100 * Q]
 
-coef_rows, test_rows, cox_rows, pred_rows = [], [], [], []
+coef_rows, test_rows, cox_rows, pred_rows, curve_parts, strata_rows = [], [], [], [], [], []
 for tc in CLASSES:
     dt = d.filter(pl.col("speed") == tc)
     for variant, keep in [("all", pl.lit(True)), ("no_left_truncated", ~pl.col("lt_any"))]:
@@ -117,6 +122,23 @@ for tc in CLASSES:
             m = dt.filter(keep)
             th, _, V, *_ = lk.fit(ll_frac, [0.0, 1.0], np.arange(2), (m[nm].to_numpy(), m["score"].to_numpy()), m["w"].to_numpy(), m["b"].to_numpy())
             cox_rows.append({"speed": tc, "expected_score": nm.removeprefix("L_"), "group": grp, "n": m.height, "intercept": th[0], "intercept_se": np.sqrt(V[0, 0]), "slope": th[1], "slope_se": np.sqrt(V[1, 1])})
+
+    # 老手對局依兩種期望得分分組的平均殘差，分組與 calibration.py 的校準曲線相同
+    for nm in ["L_elo", "L_glicko"]:
+        curve_parts.append(
+            dt.filter(~pl.col("novice_rd"))
+            .with_columns(E=1 / (1 + (-pl.col(nm)).exp()))
+            .group_by(e_bin=(pl.col("E") * 20).floor().clip(0, 19) / 20 + 0.025)
+            .agg(n=pl.len(), e_mean=pl.col("E").mean(), resid_mean=(pl.col("score") - pl.col("E")).mean())
+            .with_columns(speed=pl.lit(tc), expected_score=pl.lit(nm.removeprefix("L_")))
+        )
+
+    # 老手對局的 Elo 期望得分依分層估截距與斜率，看偏差是否只出在某些子樣本
+    for k in ["band", "source", "period"]:
+        for v in dt[k].unique().sort().to_list():
+            m = dt.filter(~pl.col("novice_rd"), pl.col(k) == v)
+            th, _, V, Hi, *_ = lk.fit(ll_frac, [0.0, 1.0], np.arange(2), (m["L_elo"].to_numpy(), m["score"].to_numpy()), m["w"].to_numpy(), m["b"].to_numpy())
+            strata_rows.append({"speed": tc, "stratum_type": k, "stratum": v, "n": m.height, "intercept": th[0], "slope": th[1], "slope_se": np.sqrt(V[1, 1]), "slope_se_iid": np.sqrt(Hi[1, 1])})
 
     # 樣本外評估：1-6 月估計，7-12 月評估
     tr = dt.filter(pl.col("train")).sample(N_FIT, seed=2)
@@ -154,6 +176,8 @@ tests = tests.with_columns(p_holm=adj)
 tests.write_csv("outputs/tables/expected_score_baselines_tests.csv")
 cox = pl.DataFrame(cox_rows)
 cox.write_csv("outputs/tables/expected_score_baselines_cox.csv")
+pl.concat(curve_parts).sort("speed", "expected_score", "e_bin").write_csv("outputs/tables/expected_score_baselines_curve.csv")
+pl.DataFrame(strata_rows).write_csv("outputs/tables/expected_score_baselines_strata.csv")
 pred = pl.DataFrame(pred_rows)
 pred.write_csv("outputs/tables/expected_score_baselines_prediction.csv")
 print(coef.filter(pl.col("sample") == "all"))

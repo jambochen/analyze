@@ -124,23 +124,15 @@ share.write_csv("outputs/tables/novice_period_share.csv")
 print(share)
 
 
-# 分層的 Cox 校準：logit E[S] = a + b logit(E)，fractional logit 以 Newton 法估計。
-# 推論照 calibration.py 用 dyadic cluster：任兩局只要有共同玩家就相關
+# 分層的 Cox 校準：logit E[S] = a + b logit(E)。
+# 推論照 calibration.py 用 dyadic cluster：任兩局只要有共同玩家就相關；另存把對局當成獨立的標準誤
 def cox(m):
     X = np.stack([np.ones(m.height), m["L"].to_numpy()], 1)
     s = m["score"].to_numpy()
-    t = np.array([0.0, 1.0])
-    for _ in range(30):
-        p = 1 / (1 + np.exp(-X @ t))
-        H = X.T @ (X * (p * (1 - p))[:, None])
-        step = np.linalg.solve(H, X.T @ (s - p))
-        t += step
-        if np.abs(step).max() < 1e-10:
-            break
-    p = 1 / (1 + np.exp(-X @ t))
-    Hi = np.linalg.inv(X.T @ (X * (p * (1 - p))[:, None]))
+    t, p, H, _ = lk.frac_newton(X, s, [0.0, 1.0])
+    Hi = np.linalg.inv(H)
     V = Hi @ lk.dyad_meat(X * (s - p)[:, None], m["w"].to_numpy(), m["b"].to_numpy()) @ Hi
-    return t, V
+    return t, V, Hi
 
 
 RD_BINS = [60, 70, 80, 90, 100, 110, 130, 160, 200, 260]
@@ -164,8 +156,8 @@ for tc in CLASSES:
             m = dk.filter(pl.col("stratum") == v)
             if m.height < 2000:
                 continue
-            t, V = cox(m)
-            rows.append({"speed": tc, "stratum_type": k, "stratum": v, "n": m.height, "rd_max_median": m["rd_max"].median(), "n_min_median": m["n_min"].median(), "intercept": t[0], "intercept_se": np.sqrt(V[0, 0]), "slope": t[1], "slope_se": np.sqrt(V[1, 1])})
+            t, V, Hi = cox(m)
+            rows.append({"speed": tc, "stratum_type": k, "stratum": v, "n": m.height, "rd_max_median": m["rd_max"].median(), "n_min_median": m["n_min"].median(), "intercept": t[0], "intercept_se": np.sqrt(V[0, 0]), "slope": t[1], "slope_se": np.sqrt(V[1, 1]), "slope_se_iid": np.sqrt(Hi[1, 1])})
     print(tc, "done")
 cx = pl.DataFrame(rows)
 cx.write_csv("outputs/tables/novice_period_cox.csv")
