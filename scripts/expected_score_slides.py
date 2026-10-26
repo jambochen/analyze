@@ -130,25 +130,20 @@ ax.legend(frameon=False, fontsize=8, loc="upper left")
 fig.tight_layout()
 fig.savefig("outputs/figures/expected_score_slides_calfit.svg")
 
-# 勢均力敵時的和局率與白方得分，點為描述值，線為有序模型的配適值
+# 勢均力敵時的和局率，點為描述值，線為有序模型的配適值。白方優勢已由 alpha 呈現，不另畫
 lv, im = T("calibration_level"), T("calibration_implied")
-fig, axes = plt.subplots(1, 2, figsize=(9, 3.2))
+fig, ax = plt.subplots(figsize=(5, 3.2))
 for tc in CLASSES:
     c = lv.filter(pl.col("speed") == tc, pl.col("n") >= 1000)
     # 模型曲線只畫到有描述值的等級分範圍，不外推
     m = im.filter(pl.col("speed") == tc, pl.col("rbar").is_between(c["r_bin"].min(), c["r_bin"].max()))
-    axes[0].plot(c["r_bin"], c["draw_rate"], MARK[tc], color=COLOR[tc], ms=5)
-    axes[0].plot(m["rbar"], m["p_draw_d0"], color=COLOR[tc], lw=2, label=tc)
-    axes[1].plot(c["r_bin"], c["white_score"], MARK[tc], color=COLOR[tc], ms=5)
-    axes[1].plot(m["rbar"], m["white_score_d0"], color=COLOR[tc], lw=2, label=tc)
-axes[1].axhline(0.5, color=INK, lw=0.8, ls="--")
-axes[0].set_ylabel("draw rate")
-axes[1].set_ylabel("mean score of White")
-for ax in axes:
-    ax.set_xlabel("mean rating of the two players")
-    ax.grid(axis="y", color=GRID, lw=0.6)
-    ax.spines[["top", "right"]].set_visible(False)
-axes[0].legend(frameon=False, fontsize=8)
+    ax.plot(c["r_bin"], c["draw_rate"], MARK[tc], color=COLOR[tc], ms=5)
+    ax.plot(m["rbar"], m["p_draw_d0"], color=COLOR[tc], lw=2, label=tc)
+ax.set_ylabel("draw rate")
+ax.set_xlabel("mean rating of the two players")
+ax.grid(axis="y", color=GRID, lw=0.6)
+ax.spines[["top", "right"]].set_visible(False)
+ax.legend(frameon=False, fontsize=8)
 fig.tight_layout()
 fig.savefig("outputs/figures/expected_score_slides_level.svg")
 

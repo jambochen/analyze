@@ -30,9 +30,6 @@
 #let cal-imp = tab("calibration_implied")
 #let cox = tab("calibration_cox")
 #let pred = tab("calibration_prediction")
-#let era = tab("glicko_replay_era")
-#let cross = tab("expected_score_slides_rd_cross")
-#let share = tab("novice_period_share")
 #let base-tests = tab("expected_score_baselines_tests")
 
 #title-slide()
@@ -58,7 +55,7 @@
   [配對方式], [誰決定對手], [等級分的作用],
   rule-mid,
   [大廳], [玩家自列表選擇], [可設等級分範圍],
-  [指定邀戰], [玩家指定], [不適用],
+  [好友對戰], [玩家指定], [不適用],
   [arena], [系統指派], [不看等級分],
   rule-top,
 )
@@ -225,6 +222,18 @@ Lichess 賽後更新等級分用的是考慮 RD 的 Glicko 公式。
 
 截距皆大於 0、斜率皆明顯低於 1：白方有優勢，強方被高估。
 
+== 和局率與等級
+
+#figure(
+  fig("expected_score_slides_level", width: 42%),
+  caption: [分差 25 分以內、雙方皆已下滿 30 局的對局；點為描述值，線為有序模型],
+)
+
+#let draw-at(s, r) = pct(cal-imp.find(x => x.speed == s and x.rbar == r).p_draw_d0)
+- 勢均力敵的和局率，1200 → 2100 分：#speeds.map(s => [#s #draw-at(s, "1200") → #draw-at(s, "2100")]).join[；]
+
+和局率隨等級上升：須對三類結果建模，且和局率隨等級變化。
+
 == 三類結果的有序模型
 
 #grid(
@@ -264,20 +273,6 @@ Lichess 賽後更新等級分用的是考慮 RD 的 Glicko 公式。
 
 白方優勢由 $eta$ 承擔，和局由 $w$ 承擔，可分開檢定。
 
-== 和局與白方優勢
-
-#figure(
-  fig("expected_score_slides_level", width: 74%),
-  caption: [分差 25 分以內、雙方皆已下滿 30 局的對局；點為描述值，線為有序模型],
-)
-
-#let draw-at(s, r) = pct(cal-imp.find(x => x.speed == s and x.rbar == r).p_draw_d0)
-#let adv = cal-imp.filter(x => x.rbar in ("1200", "1500", "1800", "2100")).map(x => float(x.white_adv_rating_points))
-- 勢均力敵的和局率，1200 → 2100 分：#speeds.map(s => [#s #draw-at(s, "1200") → #draw-at(s, "2100")]).join[；]
-- 白方先手約當 #calc.round(calc.min(..adv)) 至 #calc.round(calc.max(..adv)) 分
-
-和局率隨等級上升：$w$ 須隨 $macron(r)$ 變化。
-
 == 斜率 $beta$ 與累計局數
 
 #grid(
@@ -298,87 +293,7 @@ Lichess 賽後更新等級分用的是考慮 RD 的 Glicko 公式。
   )),
 )
 
-第 0 局偏得最多；數十局後趨穩，仍低於 1。兩者分開處理。
-
-== 依 Glicko-2 重算 RD
-
-#grid(
-  columns: (1fr, 1.2fr),
-  gutter: 1.2em,
-  align: horizon,
-  stack(
-    spacing: 0.8em,
-    text(size: 14pt, diagram(
-      ..flow,
-      spacing: (1em, 1.2em),
-      node((0, 0), [月檔表頭的等級分]),
-      edge("-|>"),
-      node((0, 1), [依 lila 原始碼逐局重算]),
-      edge("-|>"),
-      node((0, 2), [每局對局前的 RD], stroke: 1.2pt + sq-dark),
-    )),
-    [表頭不連續處以表頭校正],
-  ),
-  fig("expected_score_slides_replay", width: 100%),
-)
-
-#let e14 = era.filter(r => r.era.starts-with("recomputed") or r.era.starts-with("online (2014-08"))
-雙方歷史皆完整時，相符比例逾 #pct(calc.min(..e14.map(r => float(r.share_point_both_clean))))；重算的 RD 可用。
-
-== 新手期的界定
-
-新手對局：任一方對局前 RD ≥ 110
-
-#text(size: 0.7em, fill: mute)[門檻：Lichess 自 2015 年 6 月起標示 provisional 的值；2014 年尚無此標示，此處為事後套用]
-
-#grid(
-  columns: (1.3fr, 1fr),
-  gutter: 1em,
-  align: horizon,
-  figure(
-    fig("expected_score_slides_rdslope", width: 100%),
-    caption: [Elo 的 $E$；排除含 2014 年以前已有對局之帳號的對局；區間把各局當成獨立],
-  ),
-  text(size: 0.75em, table(
-    columns: (auto, auto, auto, auto),
-    rule-top,
-    table.header([], [半數跌破 110], table.cell(colspan: 2)[新手對局占比]),
-    [], [的局數], [arena], [大廳],
-    rule-mid,
-    ..speeds.map(s => {
-      let nov(src) = pct(share.find(r => r.speed == s and r.source == src).nov_main)
-      ([#s], [#cross.find(r => r.speed == s).games], [#nov("arena")], [#nov("lobby")])
-    }).flatten(),
-    rule-top,
-  )),
-)
-
-斜率隨 RD 連續上升，110 處未見跳躍：新手對局不排除，模型加入 RD 項。
-
-== 老手的斜率為何低於 1
-
-#grid(
-  columns: (1fr, 1.5fr),
-  gutter: 1em,
-  align: horizon,
-  stack(
-    spacing: 0.8em,
-    text(size: 0.8em, table(
-      columns: (auto, auto, auto),
-      rule-top,
-      [誤差], [關係], [斜率],
-      rule-mid,
-      [古典量測誤差], [$r = theta + e$], [衰減],
-      [Berkson 型，線性], [$theta = r + u$], [不衰減],
-      [Berkson 型，logistic], [$theta = r + u$], [約乘上 $g(sigma)$],
-      rule-top,
-    )),
-    text(size: 0.75em, fill: mute)[$theta$：真實實力；$r$：等級分；$sigma = sqrt("RD"_W^2 + "RD"_B^2)$],
-  ),
-  figure(fig("expected_score_slides_elo_vs_glicko", width: 100%), caption: [老手對局：雙方 RD < 110]),
-)
-
-Glicko 的 $E$ 已含 $g(sigma)$，斜率仍低於 1：RD 項之外，分差的斜率仍須保留。
+第 0 局偏得最多，數十局後趨穩：新帳號的偏差由 RD 項處理。
 
 == 三個模型
 
@@ -453,11 +368,10 @@ $eta = beta_1 d + beta_3 d macron(r) + beta_4 g(sigma) d + beta_2 macron(r)$，$
   rule-top,
   [項], [對應的錯],
   rule-mid,
-  [$beta_1 d + beta_3 d macron(r)$], [高估強方，各分層方向一致],
+  [$beta_1 d + beta_3 d macron(r)$], [高估強方],
   [三類結果、$w$ 隨 $macron(r)$], [和局隨等級上升],
-  [$eta$ 的先手項], [白方的固定優勢],
-  [$beta_4 g(sigma) d$], [新帳號偏差最大，隨 RD 連續收斂],
-  [$beta_1 d$ 與 $beta_4 g(sigma) d$ 並存], [老手乘上 $g(sigma)$ 後斜率仍低於 1],
+  [$eta$ 的先手項], [白方的先手優勢],
+  [$beta_4 g(sigma) d$], [新帳號偏差最大，隨局數連續收斂],
   rule-top,
 )
 
@@ -471,7 +385,7 @@ $eta = beta_1 d + beta_3 d macron(r) + beta_4 g(sigma) d + beta_2 macron(r)$，$
   [], [本次], [下一次],
   rule-mid,
   [對局間的相依], [當成獨立], [處理相依後重新檢定],
-  [大廳的對局來源], [未區分指定邀戰], [以 API 的 `source` 分開後重估],
+  [大廳的對局來源], [未區分好友對戰], [以 API 的 `source` 分開後重估],
   rule-top,
 )
 
@@ -486,7 +400,7 @@ $eta = beta_1 d + beta_3 d macron(r) + beta_4 g(sigma) d + beta_2 macron(r)$，$
   rule-mid,
   [剛被分到強對手之後，下一局是否低於期望], [加入 RD 的有序 logistic],
   [剛輸的人較少續下，下一局的樣本經過選擇], [加入 RD 的有序 logistic],
-  [剛輸、剛贏之後等級分是否失準], [老手的斜率低於 1],
+  [剛輸、剛贏之後等級分是否失準], [加入 RD 的有序 logistic],
   rule-top,
 ))
 
