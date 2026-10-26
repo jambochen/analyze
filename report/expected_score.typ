@@ -20,10 +20,13 @@
 #let rule-mid = table.hline(stroke: 0.5pt + rule)
 #let speeds = ("Bullet", "Blitz", "Classical")
 #let logit = math.op("logit")
+#let sigmoid = math.op("sigmoid")
+#let two(a, b) = stack(spacing: 0.35em, a, b)
 
 #let speed-n = tab("data_overview_speed")
 #let y2014 = tab("data_overview_scale").find(r => r.year == "2014")
 #let implied = tab("expected_score_slides_implied")
+#let cal-score = tab("expected_score_baselines_calibration_score")
 #let cal-imp = tab("calibration_implied")
 #let cox = tab("calibration_cox")
 #let pred = tab("calibration_prediction")
@@ -34,7 +37,7 @@
 
 #title-slide()
 
-== 資料回顧
+== 資料來源
 
 #grid(
   columns: (1fr, auto),
@@ -61,53 +64,6 @@
 )
 
 arena 的對手與玩家當下的狀態無關。
-
-== 配對前的期望勝率
-
-#let two(a, b) = stack(spacing: 0.35em, a, b)
-#figure(text(size: 15pt, diagram(
-  ..flow,
-  spacing: (1.6em, 1.4em),
-  node((0, 0), text(fill: mute)[排隊]),
-  edge("-|>", stroke: mute),
-  node((1, 0), two[依雙方等級分][算出期望勝率], stroke: 1.2pt + sq-dark),
-  edge("-|>", stroke: mute),
-  node((2, 0), text(fill: mute, two[勝率近一半][才配對]), stroke: mute),
-  edge("-|>", stroke: mute),
-  node((3, 0), text(fill: mute)[對局], stroke: mute),
-  edge("-|>", stroke: mute),
-  node((4, 0), text(fill: mute)[輸了], stroke: mute),
-  edge("-|>", stroke: mute),
-  node((5, 0), text(fill: mute)[停下], stroke: mute),
-  node((1, 1), text(fill: sq-dark)[對局條件], stroke: none),
-  node((4.5, 1), text(fill: mute)[玩家狀態], stroke: none),
-)))
-
-#table(
-  columns: (auto, auto),
-  rule-top,
-  [條件], [例],
-  rule-mid,
-  [對局條件], [分差、先手、等級分的不確定性],
-  [玩家狀態], [剛輸、連輸、已連下幾局],
-  rule-top,
-)
-
-錯可能出在對局條件，也可能出在玩家狀態。
-
-== 停手何時有用
-
-#figure(text(size: 17pt, diagram(
-  ..flow,
-  spacing: (1.4em, 1em),
-  node((0, 0), stack(spacing: 0.35em)[期望勝率準][下一局與上一局無關]),
-  edge("-|>"),
-  node((1, 0), stack(spacing: 0.35em)[任何停手規則][皆不改變期望]),
-  edge("-|>"),
-  node((2, 0), stack(spacing: 0.35em)[停手有用，僅當][某些狀態下期望勝率錯], stroke: 1.2pt + sq-dark),
-)))
-
-本次逐項修正依對局條件的錯，拼出剛輸之後要比對的期望。
 
 == 資料與樣本
 
@@ -160,14 +116,25 @@ arena 的對手與玩家當下的狀態無關。
   [], [雙方帳號], [累計局數、重算的 RD],
   rule-mid,
   [對照], [`Result`], [實際得分 $S$],
-  rule-mid,
-  text(fill: mute)[不用], text(fill: mute)[`WhiteRatingDiff`、`BlackRatingDiff`], text(fill: mute)[賽後的加減分],
   rule-top,
 ))
 
-計算只用開打前已知的欄位；`Result` 只拿來和算出的期望得分比對。
+== Glicko 的期望得分
 
-== Elo 與 Glicko 的期望得分
+#v(1fr)
+#align(center, text(size: 1.2em)[$E = 1 / (1 + 10^(-g(sigma) d \/ 400)) = sigmoid(q g(sigma) d)$])
+#v(0.8em)
+#align(center, stack(
+  spacing: 0.7em,
+  [$d$：白方減黑方的等級分差；$q = ln 10 \/ 400$],
+  [$g(sigma) = 1 \/ sqrt(1 + 3 q^2 sigma^2 \/ pi^2) <= 1$；$sigma = sqrt("RD"_W^2 + "RD"_B^2)$],
+  text(size: 0.8em, fill: mute)[RD（rating deviation）：等級分的不確定程度；新帳號 1500、RD 350],
+))
+#v(1fr)
+
+Lichess 賽後更新等級分用的是考慮 RD 的 Glicko 公式。
+
+== Elo 的期望得分
 
 #grid(
   columns: (1fr, 1.1fr),
@@ -175,22 +142,22 @@ arena 的對手與玩家當下的狀態無關。
   align: horizon,
   stack(
     spacing: 0.9em,
-    $E = 1 / (1 + 10^(-d \/ 400))$,
-    [$d$：白方減黑方的等級分差],
-    [$S$：白方得分，勝 1、和 0.5、負 0],
-    [配對與玩家看得到的：等級分 → Elo 的 $E$],
-    [系統另外知道的：RD → Glicko 的 $E$，$d$ 乘上 $g(sigma) <= 1$，往 0.5 收縮],
-    text(size: 0.8em, fill: mute)[RD（rating deviation）：等級分的不確定程度；新帳號 1500、RD 350],
+    $E = 1 / (1 + 10^(-d \/ 400)) = sigmoid(q d)$,
+    [Glicko 取 RD = 0],
+    text(size: 0.8em, table(
+      columns: (auto, auto, auto),
+      rule-top,
+      [], [用到], [用在],
+      rule-mid,
+      [Glicko], [分差、RD], [賽後更新等級分],
+      [Elo], [分差], [配對、玩家判斷對手],
+      rule-top,
+    )),
   ),
   fig("expected_score_slides_elo_glicko", width: 100%),
 )
 
-- 逐項檢驗：強弱、和局、白方優勢、新帳號、老手
-- 每找到一種錯，基準模型加入對應的一項
-
-Elo 的公式假設和局與白方優勢不隨等級變化。
-
-== 實際減期望
+== 得分偏差
 
 #grid(
   columns: (1.1fr, 1fr),
@@ -200,14 +167,31 @@ Elo 的公式假設和局與白方優勢不隨等級變化。
   stack(
     spacing: 0.8em,
     [依 $E$ 每 0.05 一組，平均的 $S - E$],
-    [0：實際 = 期望],
-    [老手對局：雙方 RD < 110，門檻的由來見後],
-    v(0.3em),
-    [弱方得分高於期望，強方低於期望；三種速度形狀相同。],
+    [],
+    [弱方得分高於期望，強方低於期望。],
   ),
 )
 
-== 得分對期望的迴歸
+== 以 logistic 迴歸估計 Elo 的參數
+
+#align(center, stack(
+  spacing: 0.7em,
+  [$p_i = EE[S_i] = sigmoid(alpha + beta q d_i)$；Elo 正確即 $alpha = 0$、$beta = 1$],
+))
+
+#v(0.3em)
+有和局，$S_i in {0, 0.5, 1}$ 不是 0、1，故用 quasi-likelihood @wedderburn1974 @papke1996：
+
+#align(center, $Q(alpha, beta) = sum_i [S_i log p_i + (1 - S_i) log(1 - p_i)]$)
+
+#v(0.3em)
+#stack(
+  spacing: 0.7em,
+  [最大化：$partial Q \/ partial (alpha, beta) = sum_i (S_i - p_i)(1, q d_i) = 0$，以牛頓法數值求解],
+  [檢定：score test，$U^top I^(-1) U$ 對照卡方；$U$、$I$ 為虛無假設下 $Q$ 的梯度與 Fisher information],
+)
+
+== 估計的 $alpha$ 與 $beta$
 
 #grid(
   columns: (1fr, 1.1fr),
@@ -215,39 +199,31 @@ Elo 的公式假設和局與白方優勢不隨等級變化。
   align: horizon,
   stack(
     spacing: 0.8em,
-    $logit EE[S] = alpha + beta logit E$,
     [$alpha$：白方優勢；$beta$：斜率],
     [期望正確：$alpha = 0$、$beta = 1$],
-    [quasi-likelihood，和局記 0.5],
-    [淡點：前頁的分組平均；線：配適值],
-    v(0.3em),
-    text(size: 0.85em, table(
-      columns: (auto, auto, auto, auto),
-      rule-top,
-      [], [$hat(beta)$], [$d = 200$], [$d = 400$],
-      rule-mid,
-      ..speeds.map(s => {
-        let a = implied.find(r => r.speed == s and r.d == "200")
-        let b = implied.find(r => r.speed == s and r.d == "400")
-        ([#s], [#f3(a.beta)], [#f2(a.calibrated)], [#f2(b.calibrated)])
-      }).flatten(),
-      [Elo 的 $E$], [1], [#f2(implied.first().elo)], [#f2(implied.find(r => r.d == "400").elo)],
-      rule-top,
-    )),
+    text(size: 0.8em, fill: mute)[老手對局：雙方 RD < 110],
+    text(size: 0.8em, {
+      let row(f) = speeds.map(s => f(cal-score.find(r => r.speed == s)))
+      let ci(a, k) = text(size: 0.85em, fill: mute)[[#f3(a.at(k + "_lo")), #f3(a.at(k + "_hi"))]]
+      table(
+        columns: (auto, auto, auto, auto),
+        align: (left, right, right, right),
+        rule-top,
+        [], ..speeds.map(s => [#s]),
+        rule-mid,
+        [$hat(alpha)$], ..row(a => [#f3(a.alpha)]),
+        [], ..row(a => ci(a, "alpha")),
+        [$hat(beta)$], ..row(a => [#f3(a.beta)]),
+        [], ..row(a => ci(a, "beta")),
+        table.cell(colspan: 4, text(size: 0.85em, fill: mute)[score test 的 95% 區間]),
+        rule-top,
+      )
+    }),
   ),
   fig("expected_score_slides_calfit", width: 100%),
 )
 
-斜率皆明顯低於 1：分差的斜率須自由估計。
-
-== 分層的斜率 $beta$
-
-#figure(
-  fig("expected_score_slides_strata", height: 13em),
-  caption: [Elo 的 $E$；分層：等級分區間、對局來源、2014 年 7 月底重算前後；雙方 RD < 110；區間把各局當成獨立],
-)
-
-各分層的斜率皆低於 1，偏差方向一致。
+截距皆大於 0、斜率皆明顯低於 1：白方有優勢，強方被高估。
 
 == 三類結果的有序模型
 
@@ -517,3 +493,7 @@ $eta = beta_1 d + beta_3 d macron(r) + beta_4 g(sigma) d + beta_2 macron(r)$，$
 前提：arena 的對手隨機指派，下一次先驗證。
 
 之後：修正後的勝和負機率、停止規則的回測、以 2015 年 arena 驗證。
+
+== 參考文獻
+
+#text(size: 11pt, bibliography("refs.bib", title: none, style: "apa"))

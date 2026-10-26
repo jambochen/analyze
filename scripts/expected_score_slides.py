@@ -95,35 +95,38 @@ axes[0].legend(frameon=False, fontsize=8)
 fig.tight_layout()
 fig.savefig("outputs/figures/expected_score_slides_baselines.svg")
 
-# 校準曲線；各等級分區間是否相同留給分層的斜率
-# 三種速度疊在同一張，相同的形狀一眼可比
+# 橫軸用分差：Elo 的 E 是分差的單調函數，聽眾讀分差比讀 E 容易
+logit_e = lambda e: np.log(e / (1 - e))
+dd = np.linspace(-650, 650, 300)
+
+# 校準曲線，只有資料：各組平均的 S - E 與 95% 區間，看偏差是否遠超出抽樣誤差。
+# 三種速度疊在同一張，相同的形狀一眼可比；各等級分區間是否相同留給分層的斜率
 fig, ax = plt.subplots(figsize=(5.2, 3.6))
-for tc in CLASSES:
+for j, tc in enumerate(CLASSES):
     c = bc.filter(pl.col("speed") == tc, pl.col("expected_score") == "elo").sort("e_bin")
-    ax.plot(c["e_mean"], c["resid_mean"], MARK[tc], color=COLOR[tc], ms=5, ls="-", lw=2, label=tc)
+    x = logit_e(c["e_mean"]) / q + (j - 1) * 12
+    ax.errorbar(x, c["resid_mean"], yerr=1.96 * c["resid_se_iid"], fmt=MARK[tc] + "-", color=COLOR[tc], ms=3.5, lw=1, capsize=0, label=tc)
 ax.axhline(0, color=INK, lw=0.8)
-ax.set_xlabel("Elo expected score of White")
-ax.set_ylabel("mean score minus expected score")
+ax.set_xlabel("rating difference (White minus Black)")
+ax.set_ylabel("mean score minus Elo expected score")
 ax.grid(axis="y", color=GRID, lw=0.6)
 ax.spines[["top", "right"]].set_visible(False)
 ax.legend(frameon=False, fontsize=8, loc="upper right")
 fig.tight_layout()
 fig.savefig("outputs/figures/expected_score_slides_calcurve.svg")
 
-# 校準迴歸的配適線疊在同一組座標的資料點上，看 logit 尺度的直線配不配得上
-e = np.linspace(0.01, 0.99, 200)
+# 校準迴歸的配適值畫回得分的尺度：斜率小於 1 即比 Elo 的 sigmoid 平
 fig, ax = plt.subplots(figsize=(5.2, 3.6))
+ax.plot(dd, elo(dd), color=INK, lw=1.5, label="Elo expected score")
 for tc in CLASSES:
-    c = bc.filter(pl.col("speed") == tc, pl.col("expected_score") == "elo").sort("e_bin")
     r = allg.filter(pl.col("speed") == tc).row(0, named=True)
-    ax.plot(c["e_mean"], c["resid_mean"], MARK[tc], color=COLOR[tc], ms=4, alpha=0.4)
-    ax.plot(e, expit(r["intercept"] + r["slope"] * np.log(e / (1 - e))) - e, color=COLOR[tc], lw=2, label=tc)
-ax.axhline(0, color=INK, lw=0.8)
-ax.set_xlabel("Elo expected score of White")
-ax.set_ylabel("mean score minus expected score")
+    ax.plot(dd, expit(r["intercept"] + r["slope"] * q * dd), color=COLOR[tc], lw=1.5, label=tc)
+ax.set_ylim(0, 1)
+ax.set_xlabel("rating difference (White minus Black)")
+ax.set_ylabel("fitted mean score of White")
 ax.grid(axis="y", color=GRID, lw=0.6)
 ax.spines[["top", "right"]].set_visible(False)
-ax.legend(frameon=False, fontsize=8, loc="upper right")
+ax.legend(frameon=False, fontsize=8, loc="upper left")
 fig.tight_layout()
 fig.savefig("outputs/figures/expected_score_slides_calfit.svg")
 

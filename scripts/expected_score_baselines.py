@@ -13,6 +13,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import polars as pl
+from scipy import optimize, stats
 
 import likelihood as lk
 import novice
@@ -97,7 +98,7 @@ MODELS = {
 T0_GLICKO = np.zeros(9)
 T0_GLICKO[[0, 5, 8]] = [0.1, -2.5, 2 * 100 * Q]
 
-coef_rows, test_rows, cox_rows, pred_rows, curve_parts, strata_rows = [], [], [], [], [], []
+coef_rows, test_rows, cox_rows, pred_rows, curve_parts, strata_rows, score_rows = [], [], [], [], [], [], []
 for tc in CLASSES:
     dt = d.filter(pl.col("speed") == tc)
     for variant, keep in [("all", pl.lit(True)), ("no_left_truncated", ~pl.col("lt_any"))]:
@@ -120,18 +121,59 @@ for tc in CLASSES:
     for nm in ["L_elo", "L_glicko"]:
         for grp, keep in [("all", pl.lit(True)), ("novice", pl.col("novice_rd")), ("established", ~pl.col("novice_rd"))]:
             m = dt.filter(keep)
-            th, _, V, *_ = lk.fit(ll_frac, [0.0, 1.0], np.arange(2), (m[nm].to_numpy(), m["score"].to_numpy()), m["w"].to_numpy(), m["b"].to_numpy())
-            cox_rows.append({"speed": tc, "expected_score": nm.removeprefix("L_"), "group": grp, "n": m.height, "intercept": th[0], "intercept_se": np.sqrt(V[0, 0]), "slope": th[1], "slope_se": np.sqrt(V[1, 1])})
+            th, _, V, Hi, *_ = lk.fit(ll_frac, [0.0, 1.0], np.arange(2), (m[nm].to_numpy(), m["score"].to_numpy()), m["w"].to_numpy(), m["b"].to_numpy())
+            cox_rows.append({"speed": tc, "expected_score": nm.removeprefix("L_"), "group": grp, "n": m.height, "intercept": th[0], "intercept_se": np.sqrt(V[0, 0]), "intercept_se_iid": np.sqrt(Hi[0, 0]), "slope": th[1], "slope_se": np.sqrt(V[1, 1]), "slope_se_iid": np.sqrt(Hi[1, 1])})
 
-    # 老手對局依兩種期望得分分組的平均殘差，分組與 calibration.py 的校準曲線相同
+    # 老手對局的 Elo 期望得分：score test 檢定 alpha = 0、beta = 1 與 Elo 本身（兩者皆是），區間為反轉 score test。
+    # 只需在虛無假設下計算，Elo 本身不用估計。各局當成獨立，quasi-likelihood 取 phi = 1；和局使 phi < 1，統計量偏小、區間偏寬
+    m = dt.filter(~pl.col("novice_rd"))
+    L, S = m["L_elo"].to_numpy(), m["score"].to_numpy()
+    X = np.column_stack([np.ones_like(L), L])
+
+    def score_stat(t):
+        p = 1 / (1 + np.exp(-(t[0] + t[1] * L)))
+        U = X.T @ (S - p)
+        return U @ np.linalg.solve(X.T @ (X * (p * (1 - p))[:, None]), U)
+
+    # 固定第 j 個參數為 v，另一個以牛頓法解虛無假設下的估計，再算 score 統計量
+    def score_at(j, v, t0):
+        t = np.array(t0, dtype=float)
+        t[j] = v
+        k = 1 - j
+        for _ in range(50):
+            p = 1 / (1 + np.exp(-(t[0] + t[1] * L)))
+            step = (X[:, k] @ (S - p)) / (X[:, k] ** 2 @ (p * (1 - p)))
+            t[k] += step
+            if abs(step) < 1e-12:
+                break
+        return score_stat(t)
+
+    th, _, _, Hi, *_ = lk.fit(ll_frac, [0.0, 1.0], np.arange(2), (L, S), m["w"].to_numpy(), m["b"].to_numpy())
+    crit = stats.chi2.ppf(0.95, 1)
+    row = {"speed": tc, "n": m.height, "score_elo": score_stat([0.0, 1.0])}
+    for j, nm, h0 in [(0, "alpha", 0.0), (1, "beta", 1.0)]:
+        se = np.sqrt(Hi[j, j])
+        f = lambda v: score_at(j, v, th) - crit
+        row |= {nm: th[j], f"{nm}_lo": optimize.brentq(f, th[j] - 4 * se, th[j]), f"{nm}_hi": optimize.brentq(f, th[j], th[j] + 4 * se), f"score_{nm}_h0": score_at(j, h0, th)}
+    score_rows.append(row)
+    print(row)
+
+    # 老手對局依兩種期望得分分組的平均殘差，分組與 calibration.py 的校準曲線相同。
+    # 標準誤另列 dyadic：同一位玩家的多局、同一局的兩位玩家都相關
     for nm in ["L_elo", "L_glicko"]:
-        curve_parts.append(
+        m = (
             dt.filter(~pl.col("novice_rd"))
             .with_columns(E=1 / (1 + (-pl.col(nm)).exp()))
-            .group_by(e_bin=(pl.col("E") * 20).floor().clip(0, 19) / 20 + 0.025)
-            .agg(n=pl.len(), e_mean=pl.col("E").mean(), resid_mean=(pl.col("score") - pl.col("E")).mean())
-            .with_columns(speed=pl.lit(tc), expected_score=pl.lit(nm.removeprefix("L_")))
+            .with_columns(e_bin=(pl.col("E") * 20).floor().clip(0, 19) / 20 + 0.025, r=pl.col("score") - pl.col("E"))
         )
+        for c in m.partition_by("e_bin"):
+            r = c["r"].to_numpy()
+            curve_parts.append({
+                "e_bin": c["e_bin"][0], "n": len(r), "e_mean": c["E"].mean(), "resid_mean": r.mean(),
+                "resid_se_iid": r.std(ddof=1) / np.sqrt(len(r)),
+                "resid_se_dyadic": np.sqrt(lk.dyad_meat(r - r.mean(), c["w"].to_numpy(), c["b"].to_numpy())[0, 0]) / len(r),
+                "speed": tc, "expected_score": nm.removeprefix("L_"),
+            })
 
     # 老手對局的 Elo 期望得分依分層估截距與斜率，看偏差是否只出在某些子樣本
     for k in ["band", "source", "period"]:
@@ -176,8 +218,9 @@ tests = tests.with_columns(p_holm=adj)
 tests.write_csv("outputs/tables/expected_score_baselines_tests.csv")
 cox = pl.DataFrame(cox_rows)
 cox.write_csv("outputs/tables/expected_score_baselines_cox.csv")
-pl.concat(curve_parts).sort("speed", "expected_score", "e_bin").write_csv("outputs/tables/expected_score_baselines_curve.csv")
+pl.DataFrame(curve_parts).sort("speed", "expected_score", "e_bin").write_csv("outputs/tables/expected_score_baselines_curve.csv")
 pl.DataFrame(strata_rows).write_csv("outputs/tables/expected_score_baselines_strata.csv")
+pl.DataFrame(score_rows).write_csv("outputs/tables/expected_score_baselines_calibration_score.csv")
 pred = pl.DataFrame(pred_rows)
 pred.write_csv("outputs/tables/expected_score_baselines_prediction.csv")
 print(coef.filter(pl.col("sample") == "all"))
