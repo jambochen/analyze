@@ -110,7 +110,7 @@ def diff_row(spd, a, b, la, lb, msk, wg, bg, group):
     rows = []
     for metric in ["log_loss", "rps"]:
         dlt = la[metric][msk] - lb[metric][msk]
-        se = np.sqrt(lk.dyad_meat((dlt - dlt.mean())[:, None], wg[msk], bg[msk])[0, 0]) / msk.sum()
+        se = lk.dyad_se((dlt - dlt.mean()) / msk.sum(), wg[msk], bg[msk])
         rows.append({"speed": spd, "group": group, "model": a, "vs": b, "metric": metric, "n": int(msk.sum()), "mean": la[metric][msk].mean(), "diff": dlt.mean(), "diff_se_dyadic": se})
     return rows
 

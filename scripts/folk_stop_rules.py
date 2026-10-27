@@ -12,6 +12,7 @@ import numpy as np
 import polars as pl
 from scipy.stats import norm
 
+import likelihood as lk
 from arena_batches import STOP_RULES, stop_rule_sample
 
 SPEEDS = ["Bullet", "Blitz", "Classical"]
@@ -91,12 +92,7 @@ for r in RULES:
             rows.append(row)
 res = pl.DataFrame(rows)
 fam = (res["group"] == "all") & res["speed"].is_in(["Bullet", "Blitz"])
-p = res["p"].to_numpy()
-ph = np.full(len(p), np.nan)
-fi = np.flatnonzero(fam.to_numpy())
-o = fi[np.argsort(p[fi])]
-ph[o] = np.minimum(1, np.maximum.accumulate(p[o] * (len(o) - np.arange(len(o)))))
-res = res.with_columns(p_holm=pl.Series(ph))
+res = res.with_columns(p_holm=lk.holm(res["p"], fam))
 
 reset = pl.DataFrame([
     summarize(rcol[(r, s, "next_day_first")], rcol[(r, s, "deleted")], {

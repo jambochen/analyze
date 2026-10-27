@@ -171,7 +171,7 @@ for tc in CLASSES:
             curve_parts.append({
                 "e_bin": c["e_bin"][0], "n": len(r), "e_mean": c["E"].mean(), "resid_mean": r.mean(),
                 "resid_se_iid": r.std(ddof=1) / np.sqrt(len(r)),
-                "resid_se_dyadic": np.sqrt(lk.dyad_meat(r - r.mean(), c["w"].to_numpy(), c["b"].to_numpy())[0, 0]) / len(r),
+                "resid_se_dyadic": lk.dyad_se((r - r.mean()) / len(r), c["w"].to_numpy(), c["b"].to_numpy()),
                 "speed": tc, "expected_score": nm.removeprefix("L_"),
             })
 
@@ -202,7 +202,7 @@ for tc in CLASSES:
             for metric in ["log_loss", "rps"]:
                 x = loss[nm][metric][msk]
                 dlt = x - loss["ordinal"][metric][msk]
-                se = np.sqrt(lk.dyad_meat((dlt - dlt.mean())[:, None], wg, bg)[0, 0]) / len(dlt)
+                se = lk.dyad_se((dlt - dlt.mean()) / len(dlt), wg, bg)
                 pred_rows.append({"speed": tc, "group": grp, "model": nm, "metric": metric, "n": int(msk.sum()), "mean": x.mean(), "diff_vs_ordinal": dlt.mean(), "diff_se_dyadic": se})
     print(tc, "prediction done")
 
@@ -210,11 +210,7 @@ coef = pl.DataFrame(coef_rows)
 coef.write_csv("outputs/tables/expected_score_baselines_coef.csv")
 tests = pl.DataFrame(test_rows)
 # Holm 法對全部修正的概似比檢定控制族錯誤率
-pv = tests["p"].to_numpy()
-order = np.argsort(pv)
-adj = np.empty(len(pv))
-adj[order] = np.minimum(np.maximum.accumulate(pv[order] * (len(pv) - np.arange(len(pv)))), 1)
-tests = tests.with_columns(p_holm=adj)
+tests = tests.with_columns(p_holm=lk.holm(tests["p"]))
 tests.write_csv("outputs/tables/expected_score_baselines_tests.csv")
 cox = pl.DataFrame(cox_rows)
 cox.write_csv("outputs/tables/expected_score_baselines_cox.csv")

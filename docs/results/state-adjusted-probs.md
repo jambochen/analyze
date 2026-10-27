@@ -1,6 +1,6 @@
 # 依狀態調整的勝率
 
-腳本：`scripts/state_adjusted_probs.py`。共用 module：`scripts/arena_batches.py`（`player_sample_rd`）、`scripts/likelihood.py`（`fit`、`dyad_meat`）。表在 `outputs/tables/state_adjusted_probs_*.csv`，圖在 `outputs/figures/state_adjusted_probs_curve.png`。規格見 `docs/methods.md`「依狀態調整的勝率」。本文件只寫定性結論，數值一律見對應的輸出檔。
+腳本：`scripts/state_adjusted_probs.py`。共用 module：`scripts/arena_batches.py`（`player_sample_rd`）、`scripts/likelihood.py`（`fit`、`dyad_se`）。表在 `outputs/tables/state_adjusted_probs_*.csv`，圖在 `outputs/figures/state_adjusted_probs_curve.png`。規格見 `docs/methods.md`「依狀態調整的勝率」。本文件只寫定性結論，數值一律見對應的輸出檔。
 
 ## 問題
 

@@ -39,13 +39,6 @@ BAL = ["elo_c", "log_games_in_tour", "novice_games", "rd"]
 C_GRID = np.round(np.arange(-0.5, 0.5001, 0.001), 3)
 
 
-def holm(p):
-    o = np.argsort(p)
-    out = np.empty(len(p))
-    out[o] = np.minimum(1, np.maximum.accumulate(p[o] * (len(p) - np.arange(len(p)))))
-    return out
-
-
 d = player_sample_rd().with_columns(
     y=pl.col("result").replace_strict({"loss": 0, "draw": 1, "win": 2}, return_dtype=pl.Int8),
     sp=pl.col("speed").replace_strict({s: i for i, s in enumerate(SPEEDS)}, return_dtype=pl.Int64),
@@ -223,11 +216,10 @@ for nl in pairing_null.NULLS:
 ri = pl.DataFrame(ri_rows)
 # 總效果的主要假設：Bullet 與 Blitz 的第一至三局 carryover（主虛無分布、以玩家加權、全部兩局以上的批），Holm 法
 main_sel = (pl.col("null") == "main") & (pl.col("weighting") == "player") & (pl.col("batches") == "all") & pl.col("stat").str.starts_with("beta_lag") & pl.col("speed").is_in(["Bullet", "Blitz"])
-fam = ri.filter(main_sel)
-ri = ri.join(fam.select("null", "weighting", "batches", "stat", "speed", p_holm=pl.Series(holm(fam["p"].to_numpy()))), on=["null", "weighting", "batches", "stat", "speed"], how="left")
+ri = ri.with_columns(p_holm=pl.Series(lk.holm(ri["p"], ri.select(main_sel).to_series())).fill_nan(None))
 # 平衡檢驗為一族（主虛無分布、Bullet 與 Blitz、全部加權與批的組合），以 Holm 法校正後仍拒絕才觸發調整
-bal = ri.filter(pl.col("null") == "main", pl.col("stat").str.starts_with("balance_"), pl.col("speed").is_in(["Bullet", "Blitz"]))
-ri = ri.join(bal.select("null", "weighting", "batches", "stat", "speed", p_holm_diag=pl.Series(holm(bal["p"].to_numpy()))), on=["null", "weighting", "batches", "stat", "speed"], how="left")
+bal = (pl.col("null") == "main") & pl.col("stat").str.starts_with("balance_") & pl.col("speed").is_in(["Bullet", "Blitz"])
+ri = ri.with_columns(p_holm_diag=pl.Series(lk.holm(ri["p"], ri.select(bal).to_series())).fill_nan(None))
 # 換算：h 增加 0.1 的效果相當於自身等級分高多少分（以主基準的分差斜率換算）
 ri = ri.with_columns(
     elo_per_0_1=pl.when(pl.col("stat").str.starts_with("beta_")).then(pl.col("est_centered") * 0.1 / pl.col("speed").replace_strict(slope_elo, return_dtype=pl.Float64))
@@ -393,15 +385,13 @@ for j, spd in enumerate(SPEEDS):
     den = (wv * hc * dl).sum()
     c = (wv * hc * rd_).sum() / den
     phi = (wv * hc * (rd_ - c * dl) / den)[:, None]
-    se = max(np.sqrt(lk.dyad_meat(phi, s["player"].to_numpy(), s["opp_lag1"].to_numpy())[0, 0]), np.sqrt(lk.dyad_meat(phi, s["player"].to_numpy(), s["opponent"].to_numpy())[0, 0]))
+    se = max(lk.dyad_se(phi, s["player"].to_numpy(), s["opp_lag1"].to_numpy()), lk.dyad_se(phi, s["player"].to_numpy(), s["opponent"].to_numpy()))
     ratio_rows.append({"speed": spd, "ratio": c, "se_delta": se, "lo": c - 1.96 * se, "hi": c + 1.96 * se})
 
 con = pl.DataFrame(con_rows)
 # 直接效果的主要假設：Bullet 與 Blitz 的第一至三局（兩局以上的批），Holm 法
 msk = con.select((pl.col("effect") == "direct") & (pl.col("sample") == "multi") & pl.col("speed").is_in(["Bullet", "Blitz"])).to_series().to_numpy()
-ph = np.full(con.height, np.nan)
-ph[msk] = holm(con["p"].to_numpy()[msk])
-con = con.with_columns(p_holm=pl.Series(ph))
+con = con.with_columns(p_holm=lk.holm(con["p"], msk))
 with pl.Config(tbl_rows=-1, tbl_cols=-1, tbl_width_chars=250):
     print(con)
 con.write_csv("outputs/tables/arena_crossover_contrast.csv")
@@ -411,9 +401,7 @@ game.write_csv("outputs/tables/arena_crossover_game_weighted.csv")
 spec = pl.DataFrame(spec_rows)
 # 設定檢定為一族，以 Holm 法校正；依序加入 lag 是效果的檢定，不在族內
 diag = spec["check"].is_in(["elo_cubic", "ebar_x_diff", "h_x_ebar", "partial_po"]).to_numpy()
-pd_ = np.full(spec.height, np.nan)
-pd_[diag] = holm(spec["p"].to_numpy()[diag])
-spec = spec.with_columns(p_holm_diag=pl.Series(pd_))
+spec = spec.with_columns(p_holm_diag=lk.holm(spec["p"], diag))
 spec.write_csv("outputs/tables/arena_crossover_spec.csv")
 pl.DataFrame(ratio_rows).write_csv("outputs/tables/arena_crossover_ratio_direct.csv")
 dose = pl.concat(dose_rows)

@@ -26,13 +26,6 @@ RESULTS = ["loss", "draw", "win"]
 NQ = 5
 
 
-def holm(p):
-    o = np.argsort(p)
-    out = np.empty(len(p))
-    out[o] = np.minimum(1, np.maximum.accumulate(p[o] * (len(p) - np.arange(len(p)))))
-    return out
-
-
 t = rating_filter_sample(NQ)
 sample = t.group_by("speed", "rdq", "prev_result").agg(n=pl.len(), players=pl.col("player").n_unique(), rd_min=pl.col("rd").min(), rd_max=pl.col("rd").max(), dr_mean=pl.col("dr").mean(), resid_mean=pl.col("resid").mean()).sort("speed", "rdq", "prev_result")
 print(sample)
@@ -81,14 +74,10 @@ for spd in SPEEDS:
 
 cells = pl.DataFrame(cell_rows)
 fam = cells["speed"].is_in(["Bullet", "Blitz"]).to_numpy()
-ph = np.full(cells.height, np.nan)
-ph[fam] = holm(cells["p"].to_numpy()[fam])
-cells = cells.with_columns(p_holm=pl.Series(ph))
+cells = cells.with_columns(p_holm=lk.holm(cells["p"], fam))
 tests = pl.DataFrame(test_rows)
 fam = tests["speed"].is_in(["Bullet", "Blitz"]).to_numpy()
-ph = np.full(tests.height, np.nan)
-ph[fam] = holm(tests["p"].to_numpy()[fam])
-tests = tests.with_columns(p_holm=pl.Series(ph))
+tests = tests.with_columns(p_holm=lk.holm(tests["p"], fam))
 # 換算：dr 每 100 分的 logit 偏移，相當於等級分差多少分（以校準後的 logit 斜率 beta Q 換算）；
 # 再除以 100 即「上一局的更新中有多少比例是多調的」，負號使降過頭為正
 coef = pl.DataFrame(coef_rows).with_columns(

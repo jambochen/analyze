@@ -17,13 +17,6 @@ from arena_batches import STOP_RULES, continuation_sample, player_sample_rd, pla
 SPEEDS = ["Bullet", "Blitz", "Classical"]
 
 
-def holm(p):
-    o = np.argsort(p)
-    out = np.empty(len(p))
-    out[o] = np.minimum(1, np.maximum.accumulate(p[o] * (len(p) - np.arange(len(p)))))
-    return out
-
-
 # c == 1 的平均減 c == 0 的平均；沒有 c == 0 的列時為一樣本的平均。回傳點估計、課內方法、玩家分群與 dyadic 的標準誤。
 # 每列的影響函數 phi 依玩家加總即玩家層級的偏差，平方和是玩家分群的 sandwich；dyad_meat 另計共有對局的玩家之間的共變數
 def compare(y, c, player, opp, weighting):
@@ -61,7 +54,7 @@ def compare(y, c, player, opp, weighting):
         df = m - 1
     z = np.bincount(inv[keep], phi[keep], M)
     se_cluster = np.sqrt((z**2).sum())
-    se_dyadic = np.sqrt(lk.dyad_meat(phi[keep][:, None], player[keep], opp[keep])[0, 0])
+    se_dyadic = lk.dyad_se(phi[keep], player[keep], opp[keep])
     share = np.bincount(inv[keep], None, M)[used] / keep.sum()
     return {
         "weighting": weighting, "n": int(keep.sum()), "players": int(used.sum()),
@@ -156,11 +149,7 @@ res = pl.DataFrame(rows, infer_schema_length=None).with_columns(
 # Holm 的族沿用現行做法的族；彙總做法依加權各自校正
 out = []
 for (an, wt), g in res.group_by("analysis", "weighting", maintain_order=True):
-    ph = np.full(g.height, np.nan)
-    f = g["family"].to_numpy()
-    if f.any():
-        ph[f] = holm(g["p_course"].to_numpy()[f])
-    out.append(g.with_columns(p_holm_course=pl.Series(ph)))
+    out.append(g.with_columns(p_holm_course=lk.holm(g["p_course"], g["family"])))
 res = pl.concat(out).with_columns(
     reject_course=pl.col("p_holm_course") < 0.05,
     reject_current=pl.col("p_holm_current") < 0.05,

@@ -13,6 +13,7 @@ import polars as pl
 import pyfixest as pf
 
 sys.path.insert(0, "scripts")
+import likelihood as lk
 import pairing_null
 from arena_batches import player_sample
 from clogit import fit
@@ -122,9 +123,7 @@ for null in pairing_null.NULLS:
 ri = pl.DataFrame(ri_rows)
 # 主要假設事先指定為三個主反應變數的 q 總效果（主虛無分布、全部批次），以 Holm 法控制族錯誤率
 main_sel = (pl.col("null") == "main") & (pl.col("var") == "q") & (pl.col("subgroup") == "all") & pl.col("response").is_in(MAIN)
-pm = ri.filter(main_sel).sort("p")
-holm = np.minimum(1, np.maximum.accumulate(pm["p"].to_numpy() * (len(pm) - np.arange(len(pm)))))
-ri = ri.join(pm.select("response").with_columns(p_holm=holm, null=pl.lit("main"), var=pl.lit("q"), subgroup=pl.lit("all")), on=["null", "var", "response", "subgroup"], how="left")
+ri = ri.with_columns(p_holm=pl.Series(lk.holm(ri["p"], ri.select(main_sel).to_series())).fill_nan(None))
 with pl.Config(tbl_rows=-1, tbl_cols=-1, tbl_width_chars=250):
     print(ri.filter(pl.col("subgroup") == "all"))
 ri.write_csv("outputs/tables/match_quality_leave_ri.csv")

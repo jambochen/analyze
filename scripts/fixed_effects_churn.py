@@ -354,12 +354,11 @@ for spec in ["raw_stage", "ecal_stage"]:
         for x in (EXP_RAW if spec == "raw_stage" else EXP_ECAL):
             ii = [names.index(f"{x}_x_{g}") for g in STAGES]
             R = np.diff(np.eye(len(names))[ii], axis=0)
-            dlt = R @ m.coef().to_numpy()
-            w = float(dlt @ np.linalg.solve(R @ Vc @ R.T, dlt))
+            w, _, pw = lk.wald(m.coef().to_numpy(), Vc, R, 0)
             m0 = fe_fit(d, [c for c in SPECS[spec] if c not in [f"{x}_x_{g}" for g in STAGES]] + [x], "logit")
             # binary logit 的 deviance 即 -2 倍對數概似；兩模型的固定效應相同
             r = lk.adjusted_lrt(m0.deviance - m.deviance, lk.lr_weights_linear(Hi, Vc, R))
-            stage_tests.append({"spec": spec, "sample": SAMPLE_NAME[a], "variable": x, **r, "wald": w, "p_wald": stats.chi2.sf(w, 4), "n_full": m._N, "n_restricted": m0._N})
+            stage_tests.append({"spec": spec, "sample": SAMPLE_NAME[a], "variable": x, **r, "wald": w, "p_wald": pw, "n_full": m._N, "n_restricted": m0._N})
 stage_tests = pl.DataFrame(stage_tests)
 print(stage_tests)
 stage_tests.write_csv("outputs/tables/fixed_effects_churn_stage_tests.csv")
@@ -419,10 +418,9 @@ for spec in ["raw", "ecal"]:
                 m = pf.feglm(fml, data=pdf, family="logit", vcov={"CRV1": "player"})
             names = list(m.coef().index)
             ii = [names.index(f"{x}_bar") for x in xs]
-            bb = m.coef().to_numpy()[ii]
             Vc = m._vcov.copy()
-            w = float(bb @ np.linalg.solve(Vc[np.ix_(ii, ii)], bb))
-            row = {"spec": spec, "sample": SAMPLE_NAME[a], "test": est, "df": len(xs), "wald": w, "p_wald": stats.chi2.sf(w, len(xs))}
+            w, _, pw = lk.wald(m.coef().to_numpy(), Vc, np.eye(len(names))[ii], 0)
+            row = {"spec": spec, "sample": SAMPLE_NAME[a], "test": est, "df": len(xs), "wald": w, "p_wald": pw}
             if est == "logit_mundlak":
                 Hi = m.vcov("iid")._vcov
                 dev1, n1 = m.deviance, m._N

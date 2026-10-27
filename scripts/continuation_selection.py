@@ -31,13 +31,6 @@ NQ = 5
 GAMMAS = np.round(np.linspace(-40, 40, 81), 1)
 
 
-def holm(p):
-    o = np.argsort(p)
-    out = np.empty(len(p))
-    out[o] = np.minimum(1, np.maximum.accumulate(p[o] * (len(p) - np.arange(len(p)))))
-    return out
-
-
 d = continuation_sample(LAGS)
 
 sample = pl.concat([
@@ -82,9 +75,7 @@ for spd in SPEEDS:
 tests = pl.DataFrame(test_rows)
 # 升級規則的診斷：總效果模型中 h 一項，Bullet 與 Blitz 的兩層為一族
 fam = tests.select((pl.col("model") == "total") & pl.col("speed").is_in(["Bullet", "Blitz"])).to_series().to_numpy()
-ph = np.full(tests.height, np.nan)
-ph[fam] = holm(tests["p"].to_numpy()[fam])
-tests = tests.with_columns(p_holm=pl.Series(ph))
+tests = tests.with_columns(p_holm=lk.holm(tests["p"], fam))
 coef = pl.DataFrame(coef_rows)
 with pl.Config(tbl_rows=-1, tbl_cols=-1, tbl_width_chars=250):
     print(tests)
@@ -149,7 +140,7 @@ for spd in SPEEDS:
                 dif, dif_b = np.diff(rate), np.diff(rate_b, axis=1)
                 z = -sg * dif / dif_b.std(0)
                 p_rev = stats.norm.sf(z)
-                p_rev_h = holm(p_rev)
+                p_rev_h = lk.holm(p_rev)
                 for j in range(NQ - 1):
                     mono_rows.append({"speed": spd, "layer": layer, "lag": k, "weighting": wt, "pair": f"{j + 1}-{j + 2}", "diff": dif[j], "se": dif_b[:, j].std(), "expected_sign": sg, "p_reversal": p_rev[j], "p_holm": p_rev_h[j]})
                 monotone = bool((p_rev_h >= 0.05).all())

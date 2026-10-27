@@ -1,4 +1,4 @@
-# 對局資料的概似推論：逐塊最大概似、dyadic 的 sandwich 共變異、修正的概似比檢定。
+# 對局資料的推論：逐塊最大概似、dyadic 的 sandwich 共變異與標準誤、修正的概似比檢定、Wald 檢定、Holm 校正。
 # 一局有兩位玩家，同一玩家又下很多局，觀察值不獨立，一般概似比統計量的虛無分布不是卡方。
 
 import functools
@@ -22,6 +22,29 @@ CHUNK = 2**18
 # scripts/likelihood_rust_matches_python.py
 def dyad_meat(S, w, b):
     return likelihood_rs.dyad_meat(np.ascontiguousarray(np.reshape(S, (len(w), -1)), dtype=np.float64), np.asarray(w, dtype=np.int64), np.asarray(b, dtype=np.int64))
+
+
+# 純量估計量的 dyadic 標準誤，phi 為逐局的影響函數。平均的影響函數是 (x - 平均) / n
+def dyad_se(phi, w, b):
+    return float(np.sqrt(dyad_meat(phi, w, b)[0, 0]))
+
+
+# 線性限制 R theta = r 的 Wald 檢定，回傳 (統計量, 自由度, p 值)
+def wald(theta, V, R, r):
+    R = np.atleast_2d(R)
+    diff = R @ theta - r
+    stat = float(diff @ np.linalg.solve(R @ V @ R.T, diff))
+    return stat, len(diff), stats.chi2.sf(stat, len(diff))
+
+
+# Holm 法控制族錯誤率。family 為布林遮罩時只校正族內，族外為 NaN；不給即全部為一族
+def holm(p, family=None):
+    p = np.asarray(p, dtype=float)
+    fi = np.arange(len(p)) if family is None else np.flatnonzero(family)
+    o = fi[np.argsort(p[fi])]
+    out = np.full(len(p), np.nan)
+    out[o] = np.minimum(1, np.maximum.accumulate(p[o] * (len(o) - np.arange(len(o)))))
+    return out
 
 
 # 以得分為反應、線性預測式 X theta 的 logistic 迴歸（fractional logit）的逐局準對數概似。

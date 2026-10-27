@@ -14,7 +14,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 import pyfixest as pf
-from scipy.stats import chi2
 
 sys.path.insert(0, "scripts")
 import likelihood as lk
@@ -183,9 +182,8 @@ for layer in ["multi", "single"]:
                     Xr = np.delete(X, ix, axis=1)
                     ll0 = logit_ll(yv, Xr, logit_fit(yv, Xr, np.ones(len(yv))))
                     del Xr
-                    rb = b[ix]
-                    stat = float(rb @ np.linalg.solve(V[np.ix_(ix, ix)], rb))
-                    test_rows.append(dict(layer=layer, response=r, model=mname, estimator="logit", test=test_name, **lk.adjusted_lrt(2 * (ll1 - ll0), lk.lr_weights(Hinv, V, ix)), wald=stat, p_wald=float(chi2.sf(stat, len(terms))), n=s.height))
+                    stat, _, pw = lk.wald(b, V, np.eye(len(b))[ix], 0)
+                    test_rows.append(dict(layer=layer, response=r, model=mname, estimator="logit", test=test_name, **lk.adjusted_lrt(2 * (ll1 - ll0), lk.lr_weights(Hinv, V, ix)), wald=stat, p_wald=pw, n=s.height))
             del X
             # c(o)：把本局結果設為 o、其他變數取觀察值的平均預測離開機率；Δ 與各 c 的標準誤以 delta method 由玩家聚類的共變數求得
             cs_, gs_ = {}, {}
@@ -217,9 +215,8 @@ for layer in ["multi", "single"]:
             cr = [c for c in cols if c not in QT]
             f0 = fit(s[r].to_numpy(), s.select(cr).to_numpy(), s["bid"].to_numpy(), s["tournament_id"].to_numpy(), cr)
             ix = [cols.index(t) for t in QT]
-            bq = fr["coef"][ix]
-            stat = float(bq @ np.linalg.solve(fr["cov"][np.ix_(ix, ix)], bq))
-            test_rows.append(dict(layer=layer, response=r, model="eomm_q", estimator="clogit_batch_cluster_tournament", test="q_and_interactions", **lk.adjusted_lrt(2 * (fr["ll"] - f0["ll"]), lk.lr_weights(fr["cov_naive"], fr["cov"], ix)), wald=stat, p_wald=float(chi2.sf(stat, 3)), n=fr["n_used"]))
+            stat, _, pw = lk.wald(fr["coef"], fr["cov"], np.eye(len(fr["coef"]))[ix], 0)
+            test_rows.append(dict(layer=layer, response=r, model="eomm_q", estimator="clogit_batch_cluster_tournament", test="q_and_interactions", **lk.adjusted_lrt(2 * (fr["ll"] - f0["ll"]), lk.lr_weights(fr["cov_naive"], fr["cov"], ix)), wald=stat, p_wald=pw, n=fr["n_used"]))
             for j, t in zip(ix, QT):
                 coef_rows.append(dict(layer=layer, response=r, model="eomm_q_clogit", term=t, coef=fr["coef"][j], se_cluster_player=np.nan, se_cluster_tournament=np.sqrt(fr["cov"][j, j]), n=fr["n_used"]))
         else:
@@ -230,12 +227,11 @@ for layer in ["multi", "single"]:
             del pdf
             t = fe.tidy()
             ix = [list(t.index).index(x) for x in QT]
-            bq = t.loc[QT, "Estimate"].to_numpy()
             Vc = fe._vcov.copy()
-            stat = float(bq @ np.linalg.solve(Vc[np.ix_(ix, ix)], bq))
+            stat, _, pw = lk.wald(t["Estimate"].to_numpy(), Vc, np.eye(len(t))[ix], 0)
             # binary logit 的 deviance 即 -2 倍對數概似，兩模型的固定效應相同，相減即概似比統計量
             Hi_fe = fe.vcov("iid")._vcov
-            test_rows.append(dict(layer=layer, response=r, model="eomm_q", estimator="fe_logit_tour5m_cluster_player", test="q_and_interactions", **lk.adjusted_lrt(fe0.deviance - fe.deviance, lk.lr_weights(Hi_fe, Vc, ix)), wald=stat, p_wald=float(chi2.sf(stat, 3)), n=fe._N, n_restricted=fe0._N))
+            test_rows.append(dict(layer=layer, response=r, model="eomm_q", estimator="fe_logit_tour5m_cluster_player", test="q_and_interactions", **lk.adjusted_lrt(fe0.deviance - fe.deviance, lk.lr_weights(Hi_fe, Vc, ix)), wald=stat, p_wald=pw, n=fe._N, n_restricted=fe0._N))
             fe.vcov({"CRV1": "player"})
             for x in QT:
                 coef_rows.append(dict(layer=layer, response=r, model="eomm_q_fe", term=x, coef=t.loc[x, "Estimate"], se_cluster_player=t.loc[x, "Std. Error"], n=fe._N))

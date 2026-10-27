@@ -12,7 +12,7 @@ import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
-from scipy import optimize, stats
+from scipy import optimize
 
 import likelihood as lk
 import novice
@@ -162,13 +162,6 @@ def ll_ppo(t, xr, xd, y):
     return ordinal.ll(eta, jnp.exp(t[5] + t[6] * xr + t[7] * xr**2), y, shift=(t[8] + t[9] * xr) * xd)
 
 
-def wald(theta, V, R, r):
-    R = np.atleast_2d(R)
-    diff = R @ theta - r
-    stat = float(diff @ np.linalg.solve(R @ V @ R.T, diff))
-    return stat, len(r), stats.chi2.sf(stat, len(r))
-
-
 ORD = ["white_adv", "white_adv_x_rating", "white_adv_x_rating2", "slope_diff", "slope_diff_x_rating", "log_draw_width", "log_draw_width_x_rating", "log_draw_width_x_rating2"]
 T0 = [0.1, 0, 0, 0.6, 0, -2.5, 0, 0]
 IDX = np.arange(8)
@@ -196,12 +189,12 @@ for tc in CLASSES:
         t0 = np.array(T0, dtype=float)
         t0[idx] = val
         _, ll0, *_ = lk.fit(ll_ord, t0, np.setdiff1d(IDX, idx), (xr, xd, y), w, b)
-        ws, _, wp = wald(th, V, np.eye(8)[idx], np.array(val, dtype=float))
+        ws, _, wp = lk.wald(th, V, np.eye(8)[idx], np.array(val, dtype=float))
         test_rows.append({"speed": tc, "model": "ordinal", "test": name, **lk.adjusted_lrt(2 * (ll1 - ll0), lk.lr_weights(Hi, V, idx)), "wald_dyadic": ws, "p_wald_dyadic": wp})
 
     # proportional odds：對立模型讓勝的門檻上的分差斜率另有位移，概似比檢定位移為 0
     tp, llp, Vp, Hip, *_ = lk.fit(ll_ppo, T0 + [0, 0], np.arange(10), (xr, xd, y), w, b)
-    ws, _, wp = wald(tp, Vp, np.eye(10)[[8, 9]], np.zeros(2))
+    ws, _, wp = lk.wald(tp, Vp, np.eye(10)[[8, 9]], np.zeros(2))
     test_rows.append({"speed": tc, "model": "partial_po", "test": "proportional_odds_in_diff", **lk.adjusted_lrt(2 * (llp - ll1), lk.lr_weights(Hip, Vp, [8, 9])), "wald_dyadic": ws, "p_wald_dyadic": wp})
     for k, nm in enumerate(["slope_diff_shift_win", "slope_diff_x_rating_shift_win"]):
         coef_rows.append({"speed": tc, "model": "partial_po", "param": nm, "est": tp[8 + k], "se_dyadic": np.sqrt(Vp[8 + k, 8 + k]), "se_iid": np.sqrt(Hip[8 + k, 8 + k])})
@@ -222,7 +215,7 @@ for tc in CLASSES:
         t0f = np.array([0, 0, 1, 0], dtype=float)
         t0f[idx] = val
         _, ll0f, *_ = lk.fit(ll_frac, t0f, np.setdiff1d(np.arange(4), idx), af, wf, bf)
-        ws, _, wp = wald(tf, Vf, np.eye(4)[idx], np.array(val, dtype=float))
+        ws, _, wp = lk.wald(tf, Vf, np.eye(4)[idx], np.array(val, dtype=float))
         test_rows.append({"speed": tc, "model": "frac_logit", "test": name, **lk.adjusted_lrt(2 * (llf - ll0f), lk.lr_weights(Hf, Vf, idx)), "wald_dyadic": ws, "p_wald_dyadic": wp})
     del mf, af
 
@@ -290,7 +283,7 @@ for tc in CLASSES:
             for metric in ["log_loss", "rps", "score_sq_err"]:
                 x = loss[nm][metric][msk]
                 dlt = x - loss["elo_draw_split"][metric][msk]
-                se = np.sqrt(lk.dyad_meat((dlt - dlt.mean())[:, None], wg, bg)[0, 0]) / len(dlt)
+                se = lk.dyad_se((dlt - dlt.mean()) / len(dlt), wg, bg)
                 pred_rows.append({"speed": tc, "exp_group": grp, "model": nm, "metric": metric, "n": int(msk.sum()), "mean": x.mean(), "diff_vs_elo": dlt.mean(), "diff_se_dyadic": se, "nu_train": nu})
     print(tc, "done")
 
@@ -298,11 +291,7 @@ coef = pl.DataFrame(coef_rows)
 coef.write_csv("outputs/tables/calibration_coef.csv")
 tests = pl.DataFrame(test_rows, infer_schema_length=None)
 # Holm 法對全部修正的概似比檢定控制族錯誤率
-order = np.argsort(tests["p"].to_numpy())
-pm = tests["p"].to_numpy()[order] * (len(order) - np.arange(len(order)))
-adj = np.empty(len(order))
-adj[order] = np.minimum(np.maximum.accumulate(pm), 1)
-tests = tests.with_columns(p_holm=adj)
+tests = tests.with_columns(p_holm=lk.holm(tests["p"]))
 tests.write_csv("outputs/tables/calibration_tests.csv")
 implied = pl.DataFrame(implied_rows)
 implied.write_csv("outputs/tables/calibration_implied.csv")
