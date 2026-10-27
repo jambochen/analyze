@@ -61,4 +61,10 @@
 | `report-language.md` | 報告與簡報如何介紹新術語、資料特徵及方法文獻？ |
 | `slides.md` | 簡報文字的體例，與投影片和口稿的分工 |
 
+`internal/blog/` 是效能與工程問題的覆盤紀錄，依時間順序寫過程、走錯的路與實測耗時，是文件規範中「只寫現況」「不寫估計量」的例外；現行做法以 `computing.md` 為準。
+
+| 文件 | 回答 |
+|---|---|
+| `blog/continuation-selection-profiling.md` | 怎麼用 py-spy、perf 找出熱點？哪些推論被實測推翻？有哪些坑？ |
+
 術語見根目錄 `GLOSSARY.md`。文件不寫估計值，所有數值在 `outputs/tables/`、`outputs/figures/` 與腳本輸出。

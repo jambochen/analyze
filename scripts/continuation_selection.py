@@ -9,14 +9,14 @@
 import os
 import sys
 
-# 先於 import jax 設定：float64 在這張 GPU 上很慢
+# 先於 likelihood import jax 設定：float64 在這張 GPU 上很慢
 os.environ["JAX_PLATFORMS"] = "cpu"
 sys.path.insert(0, "scripts")
 
-import jax
 import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
+import weighted_trim_rs
 from scipy import optimize, stats
 
 import likelihood as lk
@@ -57,11 +57,6 @@ HX = ["h_win", "h_draw"]
 XCOLS = BASE + ["h"] + RES + HX
 
 
-def ll(th, X, y):
-    eta = X @ th
-    return y * jax.nn.log_sigmoid(eta) + (1 - y) * jax.nn.log_sigmoid(-eta)
-
-
 def free_of(cols):
     return np.array([XCOLS.index(c) for c in cols])
 
@@ -76,7 +71,7 @@ for spd in SPEEDS:
         a = (X, s["cont1"].cast(pl.Float64).to_numpy())
         w_, b_ = s["player"].to_numpy(), s["opponent"].to_numpy()
         for model, c0, c1 in [("total", BASE, BASE + ["h"]), ("given_result", BASE + RES, BASE + ["h"] + RES + HX)]:
-            th1, V, res = lk.lrt_player_dyad(ll, T0, free_of(c0), free_of(c1), a, w_, b_)
+            th1, V, res = lk.lrt_player_dyad(lk.logit_ll, T0, free_of(c0), free_of(c1), a, w_, b_)
             test_rows.append({"speed": spd, "layer": layer, "model": model, "n": s.height, **res})
             f1 = free_of(c1)
             for i, j in enumerate(f1):
@@ -104,34 +99,11 @@ rng = np.random.default_rng(1)
 C = rng.multinomial(len(players), np.full(len(players), 1 / len(players)), size=B).astype(np.float64)
 
 
-# 加權後的修剪平均：y 已排序，W 的每一列是一組權重（實際資料為一列），保留下端 share 的比例
-def trim_low(y, W, share):
-    tot = W.sum(1)
-    target = share * tot
-    cw = np.cumsum(W, 1)
-    take = np.clip(target[:, None] - (cw - W), 0, W)
-    return (take * y).sum(1) / target
-
-
-def trim_high(y, W, share):
-    return trim_low(y[::-1], W[:, ::-1], share)
-
-
 # Imbens–Manski（2004）的區間：涵蓋部分識別的參數本身
 def im_ci(lo, hi, se_lo, se_hi):
     sd = max(se_lo, se_hi)
     c = optimize.brentq(lambda c: stats.norm.cdf(c + (hi - lo) / sd) - stats.norm.cdf(-c) - 0.95, 1e-6, 10) if sd > 0 else 1.96
     return lo - c * se_lo, hi + c * se_hi
-
-
-# 選擇上的有參數模型：續下者屬於「兩組都會續下」的機率為 expit(alpha + gamma y)，平均等於 share
-def tilt_mean(y, w, share, gamma):
-    if gamma == 0 or share == 1:
-        return (w * y).sum() / w.sum()
-    f = lambda a: (w / (1 + np.exp(-(a + gamma * y)))).sum() / w.sum() - share
-    a = optimize.brentq(f, -60 - abs(gamma), 60 + abs(gamma))
-    pi = w / (1 + np.exp(-(a + gamma * y)))
-    return (pi * y).sum() / pi.sum()
 
 
 rate_rows, mono_rows, bound_rows, sens_rows, cell_rows = [], [], [], [], []
@@ -157,9 +129,11 @@ for spd in SPEEDS:
             for wt in WEIGHTINGS:
                 wr = 1 / n_p if wt == "player" else np.ones(len(cont))
 
-                # 每次重抽的加權和：先依玩家加總再乘重抽次數，不展開成「重抽 × 列」的矩陣
-                def bsum(msk, v):
-                    return C @ np.bincount(pi_[msk], (wr * v)[msk], len(players))
+                # 每次重抽在各（格, 等分）的加權和：先依玩家加總再乘重抽次數，不展開成「重抽 × 列」的矩陣。
+                # 全部組合疊成一個矩陣一次相乘：逐次的矩陣乘向量每次都從記憶體重讀整個 C，受頻寬限制
+                gp = (cell * NQ + arm) * len(players) + pi_
+                V = np.vstack([np.bincount(gp, wr * v, NQ * NQ * len(players)).reshape(NQ * NQ, len(players)) for v in [cont, np.ones(len(cont))]])
+                Sc, Sn = np.split(C @ V.T, 2, axis=1)
 
                 # 各等分的續下率，以格的權重平均
                 cw = np.array([wr[cell == c].sum() for c in range(NQ)])
@@ -168,7 +142,7 @@ for spd in SPEEDS:
                     for c in range(NQ):
                         kk = (cell == c) & (arm == q)
                         rate[q] += cw[c] / cw.sum() * (wr[kk] * cont[kk]).sum() / wr[kk].sum()
-                        rate_b[:, q] += cw[c] / cw.sum() * bsum(kk, cont) / bsum(kk, 1.0)
+                        rate_b[:, q] += cw[c] / cw.sum() * Sc[:, c * NQ + q] / Sn[:, c * NQ + q]
                     rate_rows.append({"speed": spd, "layer": layer, "lag": k, "weighting": wt, "arm": q + 1, "rate": rate[q], "se": rate_b[:, q].std()})
                 # 單調性：相鄰差中方向與總效果模型 h 係數相反者，單尾檢定、Holm 校正
                 sg = h_sign[(spd, layer)]
@@ -186,32 +160,35 @@ for spd in SPEEDS:
                 sens = np.zeros(len(GAMMAS))
                 for c in range(NQ):
                     A, Bm = (cell == c) & (arm == NQ - 1), (cell == c) & (arm == 0)
-                    pa_b = bsum(A, cont) / bsum(A, 1.0)
-                    pb_b = bsum(Bm, cont) / bsum(Bm, 1.0)
+                    ia, ib = c * NQ + NQ - 1, c * NQ
+                    pa_b = Sc[:, ia] / Sn[:, ia]
+                    pb_b = Sc[:, ib] / Sn[:, ib]
                     pa, pb = (wr[A] * cont[A]).sum() / wr[A].sum(), (wr[Bm] * cont[Bm]).sum() / wr[Bm].sum()
                     # 實際資料放在第 0 列，bootstrap 接在其後
                     P_a, P_b = np.r_[pa, pa_b], np.r_[pb, pb_b]
-                    grp_ = {}
-                    for nm, msk in [("A", A), ("B", Bm)]:
-                        kk = msk & cont
-                        o = np.argsort(y[kk])
-                        grp_[nm] = (y[kk][o], np.vstack([wr[kk][o][None, :], C[:, pi_[kk][o]] * wr[kk][o]]))
-                    (ya, Wa), (yb, Wbb) = grp_["A"], grp_["B"]
-                    ma, mb = (Wa * ya).sum(1) / Wa.sum(1), (Wbb * yb).sum(1) / Wbb.sum(1)
-                    res["continuers"].append(ma - mb)
                     # Lee：續下率較高的一組修剪 1 - p_低 / p_高；方向逐列（含每次重抽）判斷
                     trim_a = P_a > P_b
                     sh = np.minimum(P_a, P_b) / np.maximum(P_a, P_b)
-                    lo = np.where(trim_a, trim_low(ya, Wa, sh) - mb, ma - trim_high(yb, Wbb, sh))
-                    hi = np.where(trim_a, trim_high(ya, Wa, sh) - mb, ma - trim_low(yb, Wbb, sh))
-                    res["lee_lo"].append(lo)
-                    res["lee_hi"].append(hi)
                     # 不假設單調性：兩組都會續下者占一組續下者的比例至少為 (p_a + p_b - 1) / p_a
                     # p_a + p_b <= 1 時這一層可能是空的，界限退化為反應變數的極值；比例取極小的正數即得極值
                     sa, sb = np.maximum((P_a + P_b - 1) / P_a, 1e-9), np.maximum((P_a + P_b - 1) / P_b, 1e-9)
-                    res["wc_lo"].append(trim_low(ya, Wa, sa) - trim_high(yb, Wbb, sb))
-                    res["wc_hi"].append(trim_high(ya, Wa, sa) - trim_low(yb, Wbb, sb))
-                    wcell = np.r_[wr[A | Bm].sum(), bsum(A | Bm, 1.0)]
+                    # 續下者依 y 排序後，每列權重為玩家權重乘該次重抽的次數，取加權平均與兩端的修剪平均；
+                    # 第 0 欄為 Lee 的比例 sh，第 1 欄為 worst-case 的比例
+                    grp_ = {}
+                    for nm, msk, s_wc in [("A", A, sa), ("B", Bm, sb)]:
+                        ix = np.flatnonzero(msk & cont)
+                        ix = ix[np.argsort(y[ix])]
+                        ys, ws = y[ix], wr[ix]
+                        grp_[nm] = (ys, ws, *weighted_trim_rs.trim_means(ys, pi_[ix], ws, C, np.column_stack([sh, s_wc])))
+                    (ya, wa, ma, lo_a, hi_a), (yb, wb, mb, lo_b, hi_b) = grp_["A"], grp_["B"]
+                    res["continuers"].append(ma - mb)
+                    lo = np.where(trim_a, lo_a[:, 0] - mb, ma - hi_b[:, 0])
+                    hi = np.where(trim_a, hi_a[:, 0] - mb, ma - lo_b[:, 0])
+                    res["lee_lo"].append(lo)
+                    res["lee_hi"].append(hi)
+                    res["wc_lo"].append(lo_a[:, 1] - hi_b[:, 1])
+                    res["wc_hi"].append(hi_a[:, 1] - lo_b[:, 1])
+                    wcell = np.r_[wr[A | Bm].sum(), Sn[:, ia] + Sn[:, ib]]
                     wts.append(wcell * np.minimum(P_a, P_b))
                     wts_ipw.append(wcell)
                     cell_rows.append({"speed": spd, "layer": layer, "lag": k, "weighting": wt, "cell": c + 1, "p_strong": pa, "p_weak": pb, "continuers": res["continuers"][-1][0], "lee_lo": lo[0], "lee_hi": hi[0]})
@@ -219,17 +196,17 @@ for spd in SPEEDS:
                         mi = []
                         for msk in [A, Bm]:
                             kk = msk & cont
-                            wi = np.vstack([wr[kk][None, :], C[:, pi_[kk]] * wr[kk]]) / p_cont[kk]
-                            mi.append((wi * y[kk]).sum(1) / wi.sum(1))
-                            ess.append(wi[0].sum() ** 2 / (wi[0] ** 2).sum())
+                            wi = wr[kk] / p_cont[kk]
+                            mi.append(weighted_trim_rs.trim_means(y[kk], pi_[kk], wi, C, np.zeros((B + 1, 0)))[0])
+                            ess.append(wi.sum() ** 2 / (wi**2).sum())
                             # 只看續下機率倒數的部分：玩家權重本身的差異不是 inverse probability weighting 造成的
                             wmax.append((1 / p_cont[kk]).max() / (1 / p_cont[kk]).mean())
                         res["ipw"].append(mi[0] - mi[1])
-                    yh, wh, ylo, wl = (ya, Wa[0], yb, Wbb[0]) if trim_a[0] else (yb, Wbb[0], ya, Wa[0])
+                    yh, wh, ylo, wl = (ya, wa, yb, wb) if trim_a[0] else (yb, wb, ya, wa)
                     ml = (wl * ylo).sum() / wl.sum()
-                    for gi, gm in enumerate(GAMMAS):
-                        mh = tilt_mean(yh, wh, sh[0], gm)
-                        sens[gi] += wts[-1][0] * ((ml - mh) if not trim_a[0] else (mh - ml))
+                    # 選擇上的有參數模型：續下者屬於「兩組都會續下」的機率為 expit(alpha + gamma y)，平均等於 sh
+                    mh = weighted_trim_rs.tilt_means(yh, wh, sh[0], GAMMAS)
+                    sens += wts[-1][0] * ((ml - mh) if not trim_a[0] else (mh - ml))
                 Wt, Wi = np.array(wts), np.array(wts_ipw)
                 sens /= Wt[:, 0].sum()
                 out = {m: (np.array(v) * (Wi if m == "ipw" else Wt)).sum(0) / (Wi if m == "ipw" else Wt).sum(0) for m, v in res.items() if v}

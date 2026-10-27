@@ -9,11 +9,10 @@
 import os
 import sys
 
-# 先於 import jax 設定：float64 在這張 GPU 上很慢
+# 先於 likelihood import jax 設定：float64 在這張 GPU 上很慢
 os.environ["JAX_PLATFORMS"] = "cpu"
 sys.path.insert(0, "scripts")
 
-import jax
 import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
@@ -44,11 +43,6 @@ DRQ = [f"dr_q{q}" for q in range(1, NQ)]
 XCOLS = ["const", "L", "dr"] + QD + DRQ
 
 
-def ll(th, X, s):
-    z = X @ th
-    return s * jax.nn.log_sigmoid(z) + (1 - s) * jax.nn.log_sigmoid(-z)
-
-
 def free_of(cols):
     return np.array([XCOLS.index(c) for c in cols], dtype=int)
 
@@ -63,17 +57,17 @@ for spd in SPEEDS:
         for res in RESULTS:
             s = ts.filter(pl.col("rdq") == q, pl.col("prev_result") == res)
             a = (s.select(XCOLS).to_numpy().astype(np.float64), s["score"].to_numpy().astype(np.float64))
-            th, V, r = lk.lrt_player_dyad(ll, T0, free_of([]), free_of(["const", "L"]), a, s["player"].to_numpy(), s["opponent"].to_numpy())
+            th, V, r = lk.lrt_player_dyad(lk.logit_ll, T0, free_of([]), free_of(["const", "L"]), a, s["player"].to_numpy(), s["opponent"].to_numpy())
             cell_rows.append({"speed": spd, "rdq": q + 1, "prev_result": res, "n": s.height, "alpha": th[0], "alpha_se": np.sqrt(V[0, 0]), "beta": th[1], "beta_se": np.sqrt(V[1, 1]), **r})
     a = (ts.select(XCOLS).to_numpy().astype(np.float64), ts["score"].to_numpy().astype(np.float64))
     w_, b_ = ts["player"].to_numpy(), ts["opponent"].to_numpy()
-    th, V, r = lk.lrt_player_dyad(ll, T0, free_of(["const", "L"]), free_of(["const", "L", "dr"]), a, w_, b_)
+    th, V, r = lk.lrt_player_dyad(lk.logit_ll, T0, free_of(["const", "L"]), free_of(["const", "L", "dr"]), a, w_, b_)
     test_rows.append({"speed": spd, "test": "dr", "n": ts.height, **r})
     coef_rows.append({"speed": spd, "model": "dr", "rdq": 0, "gamma": th[2], "gamma_se": np.sqrt(V[2, 2]), "beta": th[1]})
     # RD 各等分的截距另外估計，dr 的交互作用才不會吸收各等分本身的校準偏差
     f0 = free_of(["const", "L", "dr"] + QD)
     f1 = free_of(["const", "L", "dr"] + QD + DRQ)
-    th, V, r = lk.lrt_player_dyad(ll, T0, f0, f1, a, w_, b_)
+    th, V, r = lk.lrt_player_dyad(lk.logit_ll, T0, f0, f1, a, w_, b_)
     test_rows.append({"speed": spd, "test": "dr_x_rd", "n": ts.height, **r})
     # 各等分的 dr 係數：第一等分為 dr 本身，其餘為 dr 加對應的交互作用；共變異取完整模型的 dyadic sandwich
     pos = {c: i for i, c in enumerate(XCOLS[j] for j in f1)}
