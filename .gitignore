@@ -15,5 +15,6 @@ report/*.html
 # 憑證與 token，絕不入版控
 .env
 
-# 根目錄的暫存 PDF
-/*.pdf
+*.csv
+*.log
+logs/*
