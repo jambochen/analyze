@@ -1,6 +1,8 @@
 # 依狀態調整的勝率：主基準加近況的有序 logistic（規格見 docs/methods.md「依狀態調整的勝率」）。
 # 主基準的 eta、w 作 offset，各速度類別在 2014 上半年估計、下半年評估。
 # arena 的整體校正與事先寫定的近況候選項（上一局結果、上一局等級分的變動 dr）依序加入，
+# 再加入對手的同一組近況，雙方共用係數、以差的形式進入。每局以雙方的視角各出現一次、結果互為鏡像，
+# 對手的近況另給一組係數時，最大概似估計因對稱而落在共用係數上，兩者等價，所以只估共用的形式。
 # 下半年的對數分數改善且 dyadic 區間不含 0 才保留。LightGBM、XGBoost 與 MLP 輸入相同，只作參照。
 
 import os
@@ -29,7 +31,7 @@ RESULTS = ["loss", "draw", "win"]
 
 grp = ["player", "tournament_id"]
 code = pl.col("result").replace_strict({"loss": 0, "draw": 1, "win": 2}, return_dtype=pl.Float64)
-t = (
+base = (
     player_sample_rd()
     .sort("player", "tournament_id", "start", "game_id")
     .with_columns(
@@ -39,24 +41,39 @@ t = (
         prev1=code.shift(1).over(grp),
         dr=((pl.col("elo") - pl.col("elo").shift(1).over(grp)) / 100).cast(pl.Float64),
     )
+)
+# 對手的近況取自對手在同一局的那一列；對手在這場沒有上一局時 opp_missing 為 1，近況項記為 0
+opp = base.select("game_id", opponent="player", opp_prev_result="prev_result", opp_prev1="prev1", opp_dr="dr")
+t = (
+    base.join(opp, on=["game_id", "opponent"], how="left")
     .filter(pl.col("prev_result").is_not_null())
     .with_columns(
         y=(pl.col("score") * 2).cast(pl.Int64),
         prev_draw=(pl.col("prev_result") == "draw").cast(pl.Float64),
         prev_win=(pl.col("prev_result") == "win").cast(pl.Float64),
+        opp_missing=pl.col("opp_prev_result").is_null().cast(pl.Float64),
+        opp_prev_draw=(pl.col("opp_prev_result") == "draw").fill_null(False).cast(pl.Float64),
+        opp_prev_win=(pl.col("opp_prev_result") == "win").fill_null(False).cast(pl.Float64),
+        opp_dr=pl.col("opp_dr").fill_null(0.0),
         novice_rd=novice.novice_rd("rd", "opp_rd"),
         train=pl.col("start") < pl.datetime(2014, 7, 1, time_zone=UTC),
         # 梯度提升的 early stopping 用上半年的最後一個月，下半年完全不碰
         valid=pl.col("start") >= pl.datetime(2014, 6, 1, time_zone=UTC),
         white=(pl.col("color") == "white").cast(pl.Float64),
     )
+    .with_columns(
+        d_prev_draw=pl.col("prev_draw") - pl.col("opp_prev_draw"),
+        d_prev_win=pl.col("prev_win") - pl.col("opp_prev_win"),
+        d_dr=pl.col("dr") - pl.col("opp_dr"),
+    )
 )
-sample = t.group_by("speed", "train", "prev_result").agg(n=pl.len(), players=pl.col("player").n_unique()).sort("speed", "train", "prev_result")
+sample = t.group_by("speed", "train", "prev_result").agg(n=pl.len(), players=pl.col("player").n_unique(), opp_missing=pl.col("opp_missing").mean()).sort("speed", "train", "prev_result")
 print(sample)
 sample.write_csv("outputs/tables/state_adjusted_probs_sample.csv")
 
-PARAMS = ["arena_shift", "arena_log_draw_width", "prev_draw", "prev_win", "dr"]
-XCOLS = ["prev_draw", "prev_win", "dr"]
+# sym_* 乘雙方之差，即兩人共用的係數
+PARAMS = ["arena_shift", "arena_log_draw_width", "prev_draw", "prev_win", "dr", "sym_prev_draw", "sym_prev_win", "sym_dr", "opp_missing"]
+XCOLS = ["prev_draw", "prev_win", "dr", "d_prev_draw", "d_prev_win", "d_dr", "opp_missing"]
 
 
 # 主基準的 eta、w 為 offset。t0 平移 eta、t1 縮放和局帶寬：主基準在全站對局上估計，
@@ -94,9 +111,9 @@ mlp_val = jax.jit(mlp_nll)
 
 
 def mlp_x(d):
-    cont = d.select("elo", "opp_elo", "rd", "opp_rd", "eta", "w", "dr", pl.col("games_in_tour").log1p()).to_numpy().astype(np.float32)
+    cont = d.select("elo", "opp_elo", "rd", "opp_rd", "eta", "w", "dr", "opp_dr", pl.col("games_in_tour").log1p()).to_numpy().astype(np.float32)
     # 前幾局不存在時歸入第四類，不以 0 或平均填補
-    cat = np.concatenate([np.eye(4, dtype=np.float32)[d[c].fill_null(3).cast(pl.Int64).to_numpy()] for c in ["prev1", "prev2", "prev3"]], 1)
+    cat = np.concatenate([np.eye(4, dtype=np.float32)[d[c].fill_null(3).cast(pl.Int64).to_numpy()] for c in ["prev1", "prev2", "prev3", "opp_prev1"]], 1)
     return cont, np.c_[d["white"].to_numpy().astype(np.float32), cat]
 
 
@@ -140,13 +157,22 @@ for spd in SPEEDS:
         step_rows.append({"speed": spd, "step": nm, "vs": cur, "diff": r["diff"], "diff_se_dyadic": r["diff_se_dyadic"], "kept": keep})
         if keep:
             kept, cur = kept + idx, nm
+    # 對手的近況只取自身已保留的項
+    own = [j for j in kept if 2 <= j <= 4]
+    sym = [j for j in kept if j < 2] + [j + 3 for j in own] + [8]
+    run("opp_sym", sym)
+    r = diff_row(spd, "opp_sym", cur, loss["opp_sym"], loss[cur], np.ones(te.height, bool), wte, bte, "all")[0]
+    keep = r["diff"] + 1.96 * r["diff_se_dyadic"] < 0
+    step_rows.append({"speed": spd, "step": "opp_sym", "vs": cur, "diff": r["diff"], "diff_se_dyadic": r["diff_se_dyadic"], "kept": keep})
+    if keep:
+        kept, cur = sym, "opp_sym"
     final = cur
     th, llk, V, Hi, *_ = fits[final]
     for k, j in enumerate(kept):
         coef_rows.append({"speed": spd, "model": final, "param": PARAMS[j], "est": th[j], "se_dyadic": np.sqrt(V[k, k]), "se_iid": np.sqrt(Hi[k, k]), "n": tr.height})
 
     # 預測上限的參照：主基準的輸入加近況，全為對局前的資訊
-    F = ["elo", "opp_elo", "rd", "opp_rd", "white", "eta", "w", "prev1", "prev2", "prev3", "dr", "games_in_tour"]
+    F = ["elo", "opp_elo", "rd", "opp_rd", "white", "eta", "w", "prev1", "prev2", "prev3", "dr", "opp_prev1", "opp_dr", "games_in_tour"]
     fit_, val_ = tr.filter(~pl.col("valid")), tr.filter(pl.col("valid"))
     Xf, Xv, Xt = (d.select(F).to_numpy().astype(np.float64) for d in [fit_, val_, te])
     gbm = lightgbm.train(
@@ -198,7 +224,7 @@ for spd in SPEEDS:
 
     nov = te["novice_rd"].to_numpy()
     for group, msk in [("all", np.ones(te.height, bool)), ("novice", nov), ("established", ~nov)]:
-        for nm in ["baseline", "arena", "prev_result", "dr", "lightgbm", "xgboost", "mlp"]:
+        for nm in ["baseline", "arena", "prev_result", "dr", "opp_sym", "lightgbm", "xgboost", "mlp"]:
             pred_rows += diff_row(spd, nm, "baseline", loss[nm], loss["baseline"], msk, wte, bte, group)
         for nm in ["lightgbm", "xgboost", "mlp"]:
             pred_rows += diff_row(spd, nm, final, loss[nm], loss[final], msk, wte, bte, group)
@@ -208,7 +234,7 @@ for spd in SPEEDS:
     e_adj = p[:, 2] + p[:, 1] / 2
     te = te.with_columns(e_adj=pl.Series(e_adj)).with_columns(gap=pl.col("e_adj") - pl.col("e_base"))
     gap_rows.append(
-        te.group_by("prev_result", "novice_rd")
+        te.group_by("prev_result", "opp_prev_result", "novice_rd")
         .agg(n=pl.len(), e_base=pl.col("e_base").mean(), e_adj=pl.col("e_adj").mean(), score=pl.col("score").mean(), gap=pl.col("gap").mean(), gap_elo=(pl.col("gap") / pl.col("score_per_elo")).mean())
         .with_columns(speed=pl.lit(spd), model=pl.lit(final))
     )
@@ -227,7 +253,7 @@ for spd in SPEEDS:
 steps = pl.DataFrame(step_rows)
 coef = pl.DataFrame(coef_rows)
 pred = pl.DataFrame(pred_rows)
-gap = pl.concat(gap_rows, how="diagonal").sort("speed", "novice_rd", "prev_result")
+gap = pl.concat(gap_rows, how="diagonal").sort("speed", "novice_rd", "prev_result", "opp_prev_result")
 curve = pl.concat(curve_parts).sort("speed", "model", "prev_result", "ebin")
 with pl.Config(tbl_rows=-1, tbl_cols=-1, tbl_width_chars=250):
     print(steps)
