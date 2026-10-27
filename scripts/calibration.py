@@ -242,8 +242,11 @@ for tc in CLASSES:
             if ms.height < 2000:
                 continue
             Ls = np.log(ms["E"].to_numpy() / (1 - ms["E"].to_numpy()))
-            tc_, _, Vc, Hic, *_ = lk.fit(ll_frac, [0, 0, 1, 0], np.array([0, 2]), (np.zeros(ms.height), Ls, ms["score"].to_numpy()), ms["w"].to_numpy(), ms["b"].to_numpy())
-            cox_rows.append({"speed": tc, "stratum_type": k, "stratum": str(v), "n": ms.height, "intercept": tc_[0], "intercept_se": np.sqrt(Vc[0, 0]), "slope": tc_[2], "slope_se": np.sqrt(Vc[1, 1]), "slope_se_iid": np.sqrt(Hic[1, 1])})
+            Ss = ms["score"].to_numpy()
+            tc_, _, Vc, Hic, *_ = lk.fit(ll_frac, [0, 0, 1, 0], np.array([0, 2]), (np.zeros(ms.height), Ls, Ss), ms["w"].to_numpy(), ms["b"].to_numpy())
+            # 區間與老手對局的 alpha、beta 同為反轉 score test
+            lo, hi = lk.frac_score_ci(Ls, Ss, 1, tc_[[0, 2]], np.sqrt(Hic[1, 1]))
+            cox_rows.append({"speed": tc, "stratum_type": k, "stratum": str(v), "n": ms.height, "intercept": tc_[0], "intercept_se": np.sqrt(Vc[0, 0]), "slope": tc_[2], "slope_se": np.sqrt(Vc[1, 1]), "slope_se_iid": np.sqrt(Hic[1, 1]), "slope_lo": lo, "slope_hi": hi})
 
     # 時間切分的預測評估：1-6 月估計，7-12 月評估
     tr = d.filter(pl.col("speed") == tc, pl.col("est"), pl.col("train")).sample(N_FIT, seed=2)

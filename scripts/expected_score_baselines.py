@@ -13,7 +13,6 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import polars as pl
-from scipy import optimize, stats
 
 import likelihood as lk
 import novice
@@ -23,6 +22,7 @@ UTC = "UTC"
 CLASSES = ["Bullet", "Blitz", "Classical"]
 Q = ordinal.Q
 N_FIT = 1_000_000
+EXP = ["0", "1-2", "3-5", "6-10", "11-20", "21-50", "51-100", "101-200", ">200"]
 
 g_ = (
     pl.scan_parquet("data/processed/lichess_games.parquet")
@@ -39,7 +39,7 @@ g_ = (
     )
     .filter(pl.col("y").is_not_null())
 )
-rp = pl.scan_parquet("data/processed/glicko_replay.parquet").select("game_id", "perf", "white_rd", "black_rd", "white_left_truncated", "black_left_truncated")
+rp = pl.scan_parquet("data/processed/glicko_replay.parquet").select("game_id", "perf", "white_rd", "black_rd", "white_left_truncated", "black_left_truncated", "white_prior_games", "black_prior_games")
 d = (
     g_.join(rp, on="game_id")
     .filter(pl.col("perf") == pl.col("speed"))
@@ -61,11 +61,13 @@ d = (
         # 分層與 calibration.py 相同；重算前後以 8 月 1 日為界
         source=pl.when(pl.col("arena")).then(pl.lit("arena")).otherwise(pl.lit("lobby")),
         period=pl.when(pl.col("start") < pl.datetime(2014, 8, 1, time_zone=UTC)).then(pl.lit("Jan-Jul")).otherwise(pl.lit("Aug-Dec")),
+        # 分組與 calibration.py 相同；局數取自重放，從帳號在該速度類別的第一局起算
+        exp_bin=pl.min_horizontal("white_prior_games", "black_prior_games").cut([0, 2, 5, 10, 20, 50, 100, 200], labels=EXP, left_closed=False).cast(pl.String),
         band=((pl.col("white_elo") + pl.col("black_elo")) / 2).cut([1200, 1400, 1600, 1800, 2000], labels=["<1200", "1200-1400", "1400-1600", "1600-1800", "1800-2000", ">=2000"]).cast(pl.String),
     )
     # streaming 的 join 輸出列序每個行程不同，sample 的種子固定也抽到不同的局；先排序才可重現
     .sort("game_id")
-    .select("speed", "w", "b", "y", "score", "xr", "xd", "gxd", "L_elo", "L_glicko", "rd_max", "novice_rd", "lt_any", "train", "source", "period", "band")
+    .select("speed", "w", "b", "y", "score", "xr", "xd", "gxd", "L_elo", "L_glicko", "rd_max", "novice_rd", "lt_any", "train", "source", "period", "band", "exp_bin")
     .collect(engine="streaming")
 )
 print(d.group_by("speed").agg(n=pl.len(), novice_rd=pl.col("novice_rd").mean(), lt_any=pl.col("lt_any").mean()).sort("speed"))
@@ -100,7 +102,7 @@ MODELS = {
 T0_GLICKO = np.zeros(9)
 T0_GLICKO[[0, 5, 8]] = [0.1, -2.5, 2 * 100 * Q]
 
-coef_rows, test_rows, cox_rows, pred_rows, curve_parts, strata_rows, score_rows = [], [], [], [], [], [], []
+coef_rows, test_rows, cox_rows, pred_rows, curve_parts, strata_rows, score_rows, hold_rows, hold_cox_rows = [], [], [], [], [], [], [], [], []
 for tc in CLASSES:
     dt = d.filter(pl.col("speed") == tc)
     for variant, keep in [("all", pl.lit(True)), ("no_left_truncated", ~pl.col("lt_any"))]:
@@ -127,36 +129,14 @@ for tc in CLASSES:
             cox_rows.append({"speed": tc, "expected_score": nm.removeprefix("L_"), "group": grp, "n": m.height, "intercept": th[0], "intercept_se": np.sqrt(V[0, 0]), "intercept_se_iid": np.sqrt(Hi[0, 0]), "slope": th[1], "slope_se": np.sqrt(V[1, 1]), "slope_se_iid": np.sqrt(Hi[1, 1])})
 
     # 老手對局的 Elo 期望得分：score test 檢定 alpha = 0、beta = 1 與 Elo 本身（兩者皆是），區間為反轉 score test。
-    # 只需在虛無假設下計算，Elo 本身不用估計。各局當成獨立，quasi-likelihood 取 phi = 1；和局使 phi < 1，統計量偏小、區間偏寬
+    # 只需在虛無假設下計算，Elo 本身不用估計
     m = dt.filter(~pl.col("novice_rd"))
     L, S = m["L_elo"].to_numpy(), m["score"].to_numpy()
-    X = np.column_stack([np.ones_like(L), L])
-
-    def score_stat(t):
-        p = 1 / (1 + np.exp(-(t[0] + t[1] * L)))
-        U = X.T @ (S - p)
-        return U @ np.linalg.solve(X.T @ (X * (p * (1 - p))[:, None]), U)
-
-    # 固定第 j 個參數為 v，另一個以牛頓法解虛無假設下的估計，再算 score 統計量
-    def score_at(j, v, t0):
-        t = np.array(t0, dtype=float)
-        t[j] = v
-        k = 1 - j
-        for _ in range(50):
-            p = 1 / (1 + np.exp(-(t[0] + t[1] * L)))
-            step = (X[:, k] @ (S - p)) / (X[:, k] ** 2 @ (p * (1 - p)))
-            t[k] += step
-            if abs(step) < 1e-12:
-                break
-        return score_stat(t)
-
     th, _, _, Hi, *_ = lk.fit(ll_frac, [0.0, 1.0], np.arange(2), (L, S), m["w"].to_numpy(), m["b"].to_numpy())
-    crit = stats.chi2.ppf(0.95, 1)
-    row = {"speed": tc, "n": m.height, "score_elo": score_stat([0.0, 1.0])}
+    row = {"speed": tc, "n": m.height, "score_elo": lk.frac_score(L, S, [0.0, 1.0])}
     for j, nm, h0 in [(0, "alpha", 0.0), (1, "beta", 1.0)]:
-        se = np.sqrt(Hi[j, j])
-        f = lambda v: score_at(j, v, th) - crit
-        row |= {nm: th[j], f"{nm}_lo": optimize.brentq(f, th[j] - 4 * se, th[j]), f"{nm}_hi": optimize.brentq(f, th[j], th[j] + 4 * se), f"score_{nm}_h0": score_at(j, h0, th)}
+        lo, hi = lk.frac_score_ci(L, S, j, th, np.sqrt(Hi[j, j]))
+        row |= {nm: th[j], f"{nm}_lo": lo, f"{nm}_hi": hi, f"score_{nm}_h0": lk.frac_score_at(L, S, j, h0, th)}
     score_rows.append(row)
     print(row)
 
@@ -191,10 +171,11 @@ for tc in CLASSES:
     xte = [te[c].to_numpy() for c in ["xr", "xd", "gxd"]]
     yte = te["y"].to_numpy()
     O = np.eye(3)[yte]
-    loss = {}
+    loss, P = {}, {}
     for nm, free in MODELS.items():
         th, *_ = lk.fit(ll_ord, T0_GLICKO if nm == "glicko" else T0, free, a, tr["w"].to_numpy(), tr["b"].to_numpy())
         p = probs(th, *xte)
+        P[nm] = p
         C, Co = np.cumsum(p, 1)[:, :2], np.cumsum(O, 1)[:, :2]
         loss[nm] = {"log_loss": -np.log(p[np.arange(len(yte)), yte]), "rps": ((C - Co) ** 2).sum(1) / 2}
     for grp in ["all", "novice", "established"]:
@@ -206,10 +187,42 @@ for tc in CLASSES:
                 dlt = x - loss["ordinal"][metric][msk]
                 se = lk.dyad_se((dlt - dlt.mean()) / len(dlt), wg, bg)
                 pred_rows.append({"speed": tc, "group": grp, "model": nm, "metric": metric, "n": int(msk.sum()), "mean": x.mean(), "diff_vs_ordinal": dlt.mean(), "diff_se_dyadic": se})
+
+    # 選出的模型在 7-12 月是否校準，對照 Elo：得分殘差依期望得分分組，Cox 斜率依累計局數分組。
+    # 區間與本次其餘推論相同，各局當成獨立
+    s_te = te["score"].to_numpy()
+    eb_te = te["exp_bin"].to_numpy()
+    for nm, E in [("elo", 1 / (1 + np.exp(-te["L_elo"].to_numpy()))), ("rd_ordinal", P["rd_ordinal"][:, 2] + 0.5 * P["rd_ordinal"][:, 1])]:
+        k = np.clip(np.floor(E * 20), 0, 19)
+        for j in np.unique(k):
+            r = (s_te - E)[k == j]
+            hold_rows.append({"speed": tc, "model": nm, "kind": "score", "bin": j, "n": len(r), "pred_mean": E[k == j].mean(), "resid_mean": r.mean(), "resid_se_iid": r.std(ddof=1) / np.sqrt(len(r))})
+        L = np.log(E / (1 - E))
+        for v in EXP:
+            msk = eb_te == v
+            th, _, H, _ = lk.frac_newton(np.column_stack([np.ones(msk.sum()), L[msk]]), s_te[msk], [0.0, 1.0])
+            lo, hi = lk.frac_score_ci(L[msk], s_te[msk], 1, th, np.sqrt(np.linalg.inv(H)[1, 1]))
+            hold_cox_rows.append({"speed": tc, "model": nm, "exp_bin": v, "n": int(msk.sum()), "intercept": th[0], "slope": th[1], "slope_lo": lo, "slope_hi": hi})
+    # 和局機率依預測值的 20 分位分組；Elo 沒有和局機率，只看選出的模型
+    pd_ = P["rd_ordinal"][:, 1]
+    k = np.clip(np.searchsorted(np.quantile(pd_, np.linspace(0, 1, 21)), pd_, side="right") - 1, 0, 19)
+    for j in range(20):
+        r = (yte == 1)[k == j] - pd_[k == j]
+        hold_rows.append({"speed": tc, "model": "rd_ordinal", "kind": "draw", "bin": j, "n": len(r), "pred_mean": pd_[k == j].mean(), "resid_mean": r.mean(), "resid_se_iid": r.std(ddof=1) / np.sqrt(len(r))})
     print(tc, "prediction done")
 
 coef = pl.DataFrame(coef_rows)
 coef.write_csv("outputs/tables/expected_score_baselines_coef.csv")
+# 有序 logistic 與 Glicko 形式彼此不巢狀，概似比檢定只能各自對完整模型，兩者之間以 AIC 直接比較。
+# 懲罰項 2k 假設各局獨立，與本次其餘推論相同
+aic = (
+    coef.group_by("speed", "sample", "model")
+    .agg(k=pl.len(), loglik=pl.col("loglik").first(), n=pl.col("n").first())
+    .with_columns(aic=2 * pl.col("k") - 2 * pl.col("loglik"))
+    .sort("speed", "sample", "aic")
+)
+aic.write_csv("outputs/tables/expected_score_baselines_aic.csv")
+print(aic)
 tests = pl.DataFrame(test_rows)
 # Holm 法對全部修正的概似比檢定控制族錯誤率
 tests = tests.with_columns(p_holm=lk.holm(tests["p"]))
@@ -221,6 +234,10 @@ pl.DataFrame(strata_rows).write_csv("outputs/tables/expected_score_baselines_str
 pl.DataFrame(score_rows).write_csv("outputs/tables/expected_score_baselines_calibration_score.csv")
 pred = pl.DataFrame(pred_rows)
 pred.write_csv("outputs/tables/expected_score_baselines_prediction.csv")
+pl.DataFrame(hold_rows).write_csv("outputs/tables/expected_score_baselines_holdout_curve.csv")
+hold_cox = pl.DataFrame(hold_cox_rows)
+hold_cox.write_csv("outputs/tables/expected_score_baselines_holdout_cox.csv")
+print(hold_cox)
 print(coef.filter(pl.col("sample") == "all"))
 print(tests)
 print(cox)

@@ -27,10 +27,12 @@
 #let y2014 = tab("data_overview_scale").find(r => r.year == "2014")
 #let implied = tab("expected_score_slides_implied")
 #let cal-score = tab("expected_score_baselines_calibration_score")
-#let cal-imp = tab("calibration_implied")
 #let cox = tab("calibration_cox")
 #let pred = tab("calibration_prediction")
 #let base-tests = tab("expected_score_baselines_tests")
+#let base-aic = tab("expected_score_baselines_aic")
+#let leave = tab("descriptive_slides_streak_leave")
+#let leave-at(s, r, k) = leave.find(x => x.speed == s and x.result == r and x.streak == str(k)).leave_rate
 
 #title-slide()
 
@@ -109,8 +111,8 @@ arena 的對手與玩家當下的狀態無關。
   rule-mid,
   [計算], [`WhiteElo`、`BlackElo`], [分差 $d$、雙方平均等級分],
   [], [`TimeControl`], [速度類別],
-  [], [`Event`], [是否為 arena],
-  [], [雙方帳號], [累計局數、重算的 RD],
+  [], [`Event`], [是否為 arena、屬於哪一場],
+  [], [雙方帳號、開局時間], [累計局數、重算的 RD、上一局結果、是否續下],
   rule-mid,
   [對照], [`Result`], [實際得分 $S$],
   rule-top,
@@ -118,7 +120,6 @@ arena 的對手與玩家當下的狀態無關。
 
 == Glicko 的期望得分
 
-#v(1fr)
 #align(center, text(size: 1.2em)[$E = 1 / (1 + 10^(-g(sigma) d \/ 400)) = sigmoid(q g(sigma) d)$])
 #v(0.8em)
 #align(center, stack(
@@ -127,47 +128,8 @@ arena 的對手與玩家當下的狀態無關。
   [$g(sigma) = 1 \/ sqrt(1 + 3 q^2 sigma^2 \/ pi^2) <= 1$；$sigma = sqrt("RD"_W^2 + "RD"_B^2)$],
   text(size: 0.8em, fill: mute)[RD（rating deviation）：等級分的不確定程度；新帳號 1500、RD 350],
 ))
-#v(1fr)
 
-Lichess 賽後更新等級分用的是考慮 RD 的 Glicko 公式。
-
-== Elo 的期望得分
-
-#grid(
-  columns: (1fr, 1.1fr),
-  gutter: 1.2em,
-  align: horizon,
-  stack(
-    spacing: 0.9em,
-    $E = 1 / (1 + 10^(-d \/ 400)) = sigmoid(q d)$,
-    [Glicko 取 RD = 0],
-    text(size: 0.8em, table(
-      columns: (auto, auto, auto),
-      rule-top,
-      [], [用到], [用在],
-      rule-mid,
-      [Glicko], [分差、RD], [賽後更新等級分],
-      [Elo], [分差], [配對、玩家判斷對手],
-      rule-top,
-    )),
-  ),
-  fig("expected_score_slides_elo_glicko", width: 100%),
-)
-
-== 得分偏差
-
-#grid(
-  columns: (1.1fr, 1fr),
-  gutter: 1.2em,
-  align: horizon,
-  fig("expected_score_slides_calcurve", width: 100%),
-  stack(
-    spacing: 0.8em,
-    [依 $E$ 每 0.05 一組，平均的 $S - E$],
-    [],
-    [弱方得分高於期望，強方低於期望。],
-  ),
-)
+RD 取 0 即 Elo 的 $E = sigmoid(q d)$，配對只看分差。
 
 == 以 logistic 迴歸估計 Elo 的參數
 
@@ -222,36 +184,25 @@ Lichess 賽後更新等級分用的是考慮 RD 的 Glicko 公式。
 
 截距皆大於 0、斜率皆明顯低於 1：白方有優勢，強方被高估。
 
-== 和局率與等級
-
-#figure(
-  fig("expected_score_slides_level", width: 42%),
-  caption: [分差 25 分以內、雙方皆已下滿 30 局的對局；點為描述值，線為有序模型],
-)
-
-#let draw-at(s, r) = pct(cal-imp.find(x => x.speed == s and x.rbar == r).p_draw_d0)
-- 勢均力敵的和局率，1200 → 2100 分：#speeds.map(s => [#s #draw-at(s, "1200") → #draw-at(s, "2100")]).join[；]
-
-和局率隨等級上升：須對三類結果建模，且和局率隨等級變化。
-
 == 三類結果的有序模型
 
+白方視角的結果 $Y$：白負 $(j = 1)$、和 $(j = 2)$、白勝 $(j = 3)$
+
+$ P(Y <= j) & = pi_1 + dots.c + pi_j \
+  logit P(Y <= j) & = log P(Y <= j) / (1 - P(Y <= j)) = theta_j (macron(r)) - eta, quad j = 1, 2 $
+
 #grid(
-  columns: (1fr, 1fr),
-  gutter: 1.5em,
+  columns: (1.2fr, 1fr),
+  gutter: 1em,
   align: horizon,
-  stack(
-    spacing: 0.8em,
-    $P("白勝") = F(eta - w)$,
-    $P("白不輸") = F(eta + w)$,
-    [$eta$：白方的潛在優勢；$w$：判為和局的區間半寬],
-    [$F$：logistic 分布函數],
-    [$eta$、$w$ 皆隨雙方平均等級分 $macron(r)$ 變化],
-    text(size: 0.8em, fill: mute)[檢定皆為概似比檢定，同一表內以 Holm 法校正],
-  ),
+  text(size: 0.9em)[
+    $eta = beta_1 d + beta_2 d macron(r)$：分差帶來的潛在優勢 \
+    $theta_1 < theta_2$：切點，隨雙方平均等級分 $macron(r)$ 變化 \
+    $theta_2 - theta_1$ 決定和局率；兩切點一起平移即先手優勢
+  ],
   text(size: 14pt, cetz.canvas({
     import cetz.draw: *
-    // 潛在優勢 η + ε，ε 為 logistic；門檻在 ±w
+    // 潛在優勢 η + ε，ε 為 logistic；切點 θ1、θ2 畫在 ±w
     let (m, w, h) = (0.8, 0.9, 12)
     let f(x) = h * calc.exp(-(x - m)) / calc.pow(1 + calc.exp(-(x - m)), 2)
     let seg(a, b) = range(0, 31).map(i => { let x = a + (b - a) * i / 30; (x, f(x)) })
@@ -266,12 +217,10 @@ Lichess 賽後更新等級分用的是考慮 RD 的 Glicko 公式。
     content((-2.5, -0.5), [白負])
     content((0, -0.5), [和])
     content((3, -0.5), [白勝])
-    content((-w, -1.1), text(fill: mute)[$-w$])
-    content((w, -1.1), text(fill: mute)[$w$])
+    content((-w, -1.1), text(fill: mute)[$theta_1$])
+    content((w, -1.1), text(fill: mute)[$theta_2$])
   })),
 )
-
-白方優勢由 $eta$ 承擔，和局由 $w$ 承擔，可分開檢定。
 
 == 斜率 $beta$ 與累計局數
 
@@ -279,134 +228,155 @@ Lichess 賽後更新等級分用的是考慮 RD 的 Glicko 公式。
   columns: (1.4fr, 1fr),
   gutter: 1.2em,
   align: horizon,
-  figure(fig("expected_score_slides_experience", width: 100%), caption: [Elo 的 $E$]),
-  text(size: 0.85em, table(
-    columns: (auto, auto, auto),
-    rule-top,
-    [$hat(beta)$], [第 0 局], [200 局以上],
-    rule-mid,
-    ..speeds.map(s => {
-      let g(v) = cox.find(r => r.speed == s and r.stratum_type == "experience" and r.stratum == v).slope
-      ([#s], [#f2(g("0"))], [#f2(g(">200"))])
-    }).flatten(),
-    rule-top,
-  )),
+  figure(fig("expected_score_slides_experience", width: 100%), caption: [Elo's $E$. Bars: score-test 95% intervals]),
+  stack(
+    spacing: 0.8em,
+    [各組分別估 $p_i = sigmoid(alpha + beta q d_i)$],
+    text(size: 0.8em, fill: mute)[quasi-likelihood、score test 區間同前；不限 RD],
+    text(size: 0.8em, {
+      let g(s, v) = cox.find(r => r.speed == s and r.stratum_type == "experience" and r.stratum == v)
+      let ci(a) = text(size: 0.85em, fill: mute)[[#f2(a.slope_lo), #f2(a.slope_hi)]]
+      table(
+        columns: (auto, auto, auto),
+        align: (left, right, right),
+        rule-top,
+        [$hat(beta)$], [第 0 局], [200 局以上],
+        rule-mid,
+        ..speeds.map(s => ([#s], [#f2(g(s, "0").slope)], [#f2(g(s, ">200").slope)], [], ci(g(s, "0")), ci(g(s, ">200")))).flatten(),
+        table.cell(colspan: 3, text(size: 0.85em, fill: mute)[score test 的 95% 區間]),
+        rule-top,
+      )
+    }),
+  ),
 )
-
-第 0 局偏得最多，數十局後趨穩：新帳號的偏差由 RD 項處理。
 
 == 三個模型
 
 #text(size: 0.9em, table(
-  columns: (auto, auto),
+  columns: (auto, auto, auto),
   rule-top,
-  [模型], [線性預測式],
+  [模型], [線性預測式], [納入 Elo 沒考慮的],
   rule-mid,
-  [有序 logistic], [$beta_1 d + beta_2 macron(r) + beta_3 d macron(r)$],
-  [Glicko 形式], [$beta_4 g(sigma) d$],
-  [加入 RD 的有序 logistic], [$beta_1 d + beta_4 g(sigma) d + beta_2 macron(r) + beta_3 d macron(r)$],
+  [有序 logistic], [$beta_1 d + beta_2 d macron(r)$], [先手、和局],
+  [Glicko 形式], [$beta_3 g(sigma) d$], [水平波動],
+  [加入 RD 的有序 logistic], [$beta_1 d + beta_2 d macron(r) + beta_3 g(sigma) d$], [兩者],
   rule-top,
 ))
 
 #grid(
-  columns: (1fr, 1fr),
-  gutter: 1em,
+  columns: (1fr, 1.3fr),
+  gutter: 1.5em,
   align: horizon,
-  text(size: 0.85em)[$g(sigma) = 1 \/ sqrt(1 + 3 q^2 sigma^2 \/ pi^2)$ \ $sigma = sqrt("RD"_W^2 + "RD"_B^2)$；$q = ln 10 \/ 400$],
-  text(size: 13pt, diagram(
+  text(size: 0.85em, stack(
+    spacing: 1em,
+    [$g(sigma) = 1 \/ sqrt(1 + 3 q^2 sigma^2 \/ pi^2)$],
+    [$sigma = sqrt("RD"_W^2 + "RD"_B^2)$；$q = ln 10 \/ 400$],
+    text(fill: mute)[Glicko 形式的切點 $theta_j$ 不隨 $macron(r)$],
+  )),
+  align(center, text(size: 13pt, diagram(
     ..flow,
-    spacing: (1.2em, 2em),
+    spacing: (1em, 3.2em),
     node((1, 0), [加入 RD 的有序 logistic], stroke: 1.2pt + sq-dark),
-    edge((1, 0), (0, 1), "-|>", text(fill: mute)[$beta_4 = 0$], label-side: right),
-    edge((1, 0), (2, 1), "-|>", text(fill: mute)[$beta_1 = beta_2 = beta_3 = 0$], label-side: left),
+    edge((1, 0), (0, 1), "-|>", text(fill: mute)[$beta_3 = 0$], label-side: right, label-sep: 0.5em),
+    edge((1, 0), (2, 1), "-|>", text(fill: mute)[$beta_1 = beta_2 = 0$], label-side: left, label-sep: 0.5em),
     node((0, 1), [有序 logistic]),
     node((2, 1), [Glicko 形式]),
-  )),
+  ))),
 )
 
-前兩者皆為第三者的特例，以巢狀概似比檢定比較。
+前兩個模型是第三個把部分係數設為 0 的特例，以概似比檢定比較。
 
 == 三個模型的比較
 
 #let elo-gain(s) = strfmt("{:.4}", -float(pred.find(r => r.speed == s and r.exp_group == "all" and r.model == "ordinal_rating" and r.metric == "log_loss").diff_vs_elo))
-#grid(
-  columns: (auto, 1fr),
-  gutter: 1.2em,
-  align: horizon,
-  stack(
-    spacing: 0.7em,
-    $"LS" = -1/n sum_i log hat(p)(y_i)$,
-    text(size: 0.8em)[越小越好],
-    text(size: 0.8em)[1–6 月估計、7–12 月評估],
-    text(size: 0.8em)[新手對局：任一方 RD ≥ 110],
-    text(size: 0.8em, table(
-    columns: (auto, auto, auto),
+#align(center, text(size: 0.9em, table(
+    columns: (auto, auto, auto, auto),
     rule-top,
-    [對完整模型], [有序 logistic], [Glicko 形式],
+    [$H_0$], [有序 logistic], [Glicko 形式], [AIC 差],
     rule-mid,
     ..speeds.map(s => {
       let g(m) = base-tests.find(r => r.speed == s and r.sample == "all" and r.restricted == m)
-      ([#s], [#num(g("ordinal").lr)（#g("ordinal").df）], [#num(g("glicko").lr)（#g("glicko").df）])
+      let a(m) = float(base-aic.find(r => r.speed == s and r.sample == "all" and r.model == m).aic)
+      let pv(m) = { let x = float(g(m).p_naive); if x < 0.001 [< 0.001] else [#f3(x)] }
+      ([#s], pv("ordinal"), pv("glicko"), [#num(a("glicko") - a("ordinal"))])
     }).flatten(),
     rule-top,
-    table.cell(colspan: 3, text(size: 0.85em, fill: mute)[概似比統計量（自由度）]),
-  )),
-  ),
-  fig("expected_score_slides_baselines", width: 100%),
-)
+  )))
+
+#text(size: 0.7em, fill: mute)[表：LRT $p$ 值，對立假設為加入 RD 的有序 logistic；AIC 差為 Glicko 形式減有序 logistic。]
 
 #text(size: 0.7em, fill: mute)[有序 logistic 相對 Elo，每局 LS 減少：#speeds.map(s => [#s #elo-gain(s)]).join[、]]
 
-兩個受限模型皆被拒絕；之後的期望勝率以加入 RD 的有序 logistic 計算。
+有序 logistic 與 Glicko 形式皆被拒絕；之後的期望勝率以加入 RD 的有序 logistic 計算。
 
-== 本次的結論
+== 樣本外的校準
 
-$eta = beta_1 d + beta_3 d macron(r) + beta_4 g(sigma) d + beta_2 macron(r)$，$w$ 隨 $macron(r)$ 變化
-
-#table(
-  columns: (auto, auto),
-  rule-top,
-  [項], [對應的錯],
-  rule-mid,
-  [$beta_1 d + beta_3 d macron(r)$], [高估強方],
-  [三類結果、$w$ 隨 $macron(r)$], [和局隨等級上升],
-  [$eta$ 的先手項], [白方的先手優勢],
-  [$beta_4 g(sigma) d$], [新帳號偏差最大，隨局數連續收斂],
-  rule-top,
+#figure(
+  fig("expected_score_slides_holdout", width: 100%),
+  caption: [Games from Jul–Dec 2014. Solid: ordinal logistic with RD; faded dashed: Elo. Bars: 95% intervals],
 )
 
-兩個受限模型皆被拒；拼成的模型即之後的期望勝率。
+期望得分已貼近實際；但帳號的前幾局仍不準，和局機率也略低於實際。
 
-== 本次的限制
+== 上一局與本局的轉移
 
-#table(
-  columns: (auto, auto, auto),
+#stack(
+  spacing: 0.7em,
+  [一階 Markov：本局結果的分布只依上一局；$Y$：負、和、勝],
+  [$p_(i j) = P(Y_t = j | Y_(t - 1) = i)$，估計為 $hat(p)_(i j) = n_(i j) \/ n_(i +)$：轉移次數除以列和],
+  text(size: 0.8em, fill: mute)[出處：@anderson1957],
+)
+
+#figure(
+  fig("descriptive_slides_markov", height: 52%),
+  caption: [2014 arena games with a previous game in the same arena; each bar is one row of the transition matrix],
+)
+
+輸後較常再輸，贏後較常再贏；這也包含玩家本身的強弱。
+
+== 連輸、連贏之後的離開
+
+#grid(
+  columns: (1.3fr, 1fr),
+  gutter: 1.2em,
+  align: horizon,
+  figure(fig("descriptive_slides_streak_leave", width: 100%), caption: [2014 arena games after which the arena still had time for another game; draws excluded]),
+  text(size: 0.85em, stack(
+    spacing: 0.9em,
+    [離開：錦標賽仍有時間，同一場內不再下],
+    [連輸 $k$ 局：到本局為止連續輸 $k$ 局，和局中斷],
+    table(
+      columns: (auto, auto, auto),
+      align: (left, right, right),
+      rule-top,
+      [Blitz 離開], [輸], [贏],
+      rule-mid,
+      ..(1, 3).map(k => ([連續 #k 局], [#pct(leave-at("Blitz", "loss", k))], [#pct(leave-at("Blitz", "win", k))])).flatten(),
+      rule-top,
+    ),
+    text(size: 0.9em, fill: mute)[連輸 $k$ 局的人，都是前 $k - 1$ 次輸後留下的人],
+  )),
+)
+
+輸了的玩家較常離開；上一頁的轉移只含續下者。
+
+== 本次的結論與限制
+
+加入 RD 的有序 logistic 能根據雙方賽前的等級分與 RD，比 Elo 更準地估計勝、和、負的機率。
+
+#text(size: 0.9em, table(
+  columns: (auto, auto, 1fr),
   rule-top,
-  [], [本次], [下一次],
+  [限制], [本次], [下一次],
   rule-mid,
   [對局間的相依], [當成獨立], [處理相依後重新檢定],
-  [大廳的對局來源], [未區分好友對戰], [以 API 的 `source` 分開後重估],
-  rule-top,
-)
-
-受影響的是檢定與區間；模型的選擇另有樣本外的依據。
-
-== 下一次的問題
-
-#text(size: 0.85em, table(
-  columns: (auto, auto),
-  rule-top,
-  [問題], [用到本次的],
   rule-mid,
-  [剛被分到強對手之後，下一局是否低於期望], [加入 RD 的有序 logistic],
-  [剛輸的人較少續下，下一局的樣本經過選擇], [加入 RD 的有序 logistic],
-  [剛輸、剛贏之後等級分是否失準], [加入 RD 的有序 logistic],
+  [新帳號的最初幾局], [沿用系統的 RD 算法], [放寬 RD 項，以另一段時間驗證],
+  [上一局的影響], [一階 Markov 轉移，只含續下者], [比較上一局隨機分到強、弱對手的玩家，往前看一至三局；續下的選擇以上下界處理],
   rule-top,
 ))
 
-前提：arena 的對手隨機指派，下一次先驗證。
-
-之後：修正後的勝和負機率、停止規則的回測、以 2015 年 arena 驗證。
+#text(size: 0.7em, fill: mute)[多局的前局效果：@jones2003；續下的上下界：@zhang2003、@lee2009]
 
 == 參考文獻
 

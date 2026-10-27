@@ -36,24 +36,7 @@ cross = rd.filter(pl.col("prov_main") < 0.5).group_by("speed").agg(games=pl.col(
 print(cross)
 cross.write_csv("outputs/tables/expected_score_slides_rd_cross.csv")
 
-# Elo 與 Glicko 的期望得分：公式的圖，不是資料。RD 取新帳號的 350 與新手門檻 110
 q = np.log(10) / 400
-fig, ax = plt.subplots(figsize=(5.2, 3.6))
-d = np.linspace(0, 600, 200)
-ax.plot(d, elo(d), color=INK, lw=2, label="Elo (RD ignored)")
-for rdv, ls in [(110, "--"), (350, ":")]:
-    g = 1 / np.sqrt(1 + 3 * q**2 * 2 * rdv**2 / np.pi**2)
-    ax.plot(d, elo(g * d), color=INK, lw=1.5, ls=ls, label=f"Glicko, both RD = {rdv}")
-for dv in [200, 400]:
-    ax.axvline(dv, color=MUTE, lw=0.6, ls=":")
-ax.set_xlabel("rating difference (stronger minus weaker)")
-ax.set_ylabel("expected score of the stronger player")
-ax.set_ylim(0.5, 1)
-ax.grid(axis="y", color=GRID, lw=0.6)
-ax.spines[["top", "right"]].set_visible(False)
-ax.legend(frameon=False, fontsize=8, loc="lower right")
-fig.tight_layout()
-fig.savefig("outputs/figures/expected_score_slides_elo_glicko.svg")
 
 # 各分層的校準斜率
 order = [("band", ["<1200", "1200-1400", "1400-1600", "1600-1800", "1800-2000", ">=2000"]), ("source", ["arena", "lobby"]), ("period", ["Jan-Jul", "Aug-Dec"])]
@@ -77,43 +60,7 @@ ax.legend(frameon=False, fontsize=8, loc="upper center", bbox_to_anchor=(0.5, -0
 fig.tight_layout()
 fig.savefig("outputs/figures/expected_score_slides_strata.svg")
 
-# 三個模型的樣本外對數分數，相對有序 logistic
-b = T("expected_score_baselines_prediction").filter(pl.col("metric") == "log_loss")
-groups = ["all", "novice", "established"]
-fig, axes = plt.subplots(1, 2, figsize=(8, 3.4), sharey=True)
-for ax, (model, title) in zip(axes, [("rd_ordinal", "ordinal logistic with RD"), ("glicko", "Glicko form")]):
-    for j, tc in enumerate(CLASSES):
-        v = [-b.filter(pl.col("speed") == tc, pl.col("group") == g, pl.col("model") == model)["diff_vs_ordinal"][0] for g in groups]
-        ax.bar(np.arange(3) + (j - 1) * 0.26, v, width=0.24, color=COLOR[tc], label=tc)
-    ax.axhline(0, color=INK, lw=0.8)
-    ax.set_xticks(range(3), ["all", "novice", "established"])
-    ax.set_title(title, color=INK, fontsize=10)
-    ax.grid(axis="y", color=GRID, lw=0.6)
-    ax.spines[["top", "right"]].set_visible(False)
-axes[0].set_ylabel("log-score improvement over\nordinal logistic per game")
-axes[0].legend(frameon=False, fontsize=8)
-fig.tight_layout()
-fig.savefig("outputs/figures/expected_score_slides_baselines.svg")
-
-# 橫軸用分差：Elo 的 E 是分差的單調函數，聽眾讀分差比讀 E 容易
-logit_e = lambda e: np.log(e / (1 - e))
 dd = np.linspace(-650, 650, 300)
-
-# 校準曲線，只有資料：各組平均的 S - E 與 95% 區間，看偏差是否遠超出抽樣誤差。
-# 三種速度疊在同一張，相同的形狀一眼可比；各等級分區間是否相同留給分層的斜率
-fig, ax = plt.subplots(figsize=(5.2, 3.6))
-for j, tc in enumerate(CLASSES):
-    c = bc.filter(pl.col("speed") == tc, pl.col("expected_score") == "elo").sort("e_bin")
-    x = logit_e(c["e_mean"]) / q + (j - 1) * 12
-    ax.errorbar(x, c["resid_mean"], yerr=1.96 * c["resid_se_iid"], fmt=MARK[tc] + "-", color=COLOR[tc], ms=3.5, lw=1, capsize=0, label=tc)
-ax.axhline(0, color=INK, lw=0.8)
-ax.set_xlabel("rating difference (White minus Black)")
-ax.set_ylabel("mean score minus Elo expected score")
-ax.grid(axis="y", color=GRID, lw=0.6)
-ax.spines[["top", "right"]].set_visible(False)
-ax.legend(frameon=False, fontsize=8, loc="upper right")
-fig.tight_layout()
-fig.savefig("outputs/figures/expected_score_slides_calcurve.svg")
 
 # 校準迴歸的配適值畫回得分的尺度：斜率小於 1 即比 Elo 的 sigmoid 平
 fig, ax = plt.subplots(figsize=(5.2, 3.6))
@@ -130,23 +77,6 @@ ax.legend(frameon=False, fontsize=8, loc="upper left")
 fig.tight_layout()
 fig.savefig("outputs/figures/expected_score_slides_calfit.svg")
 
-# 勢均力敵時的和局率，點為描述值，線為有序模型的配適值。白方優勢已由 alpha 呈現，不另畫
-lv, im = T("calibration_level"), T("calibration_implied")
-fig, ax = plt.subplots(figsize=(5, 3.2))
-for tc in CLASSES:
-    c = lv.filter(pl.col("speed") == tc, pl.col("n") >= 1000)
-    # 模型曲線只畫到有描述值的等級分範圍，不外推
-    m = im.filter(pl.col("speed") == tc, pl.col("rbar").is_between(c["r_bin"].min(), c["r_bin"].max()))
-    ax.plot(c["r_bin"], c["draw_rate"], MARK[tc], color=COLOR[tc], ms=5)
-    ax.plot(m["rbar"], m["p_draw_d0"], color=COLOR[tc], lw=2, label=tc)
-ax.set_ylabel("draw rate")
-ax.set_xlabel("mean rating of the two players")
-ax.grid(axis="y", color=GRID, lw=0.6)
-ax.spines[["top", "right"]].set_visible(False)
-ax.legend(frameon=False, fontsize=8)
-fig.tight_layout()
-fig.savefig("outputs/figures/expected_score_slides_level.svg")
-
 # 校準斜率依累計局數
 EXP = ["0", "1-2", "3-5", "6-10", "11-20", "21-50", "51-100", "101-200", ">200"]
 fig, ax = plt.subplots(figsize=(6.4, 3.4))
@@ -154,7 +84,7 @@ for j, tc in enumerate(CLASSES):
     c = cox.filter(pl.col("speed") == tc, pl.col("stratum_type") == "experience")
     r = [c.filter(pl.col("stratum") == v).row(0, named=True) for v in EXP]
     x = np.arange(len(EXP)) + (j - 1) * 0.15
-    ax.errorbar(x, [q["slope"] for q in r], yerr=[1.96 * q["slope_se_iid"] for q in r], fmt=MARK[tc] + "-", color=COLOR[tc], ms=5, lw=1.5, capsize=0, label=tc)
+    ax.errorbar(x, [q["slope"] for q in r], yerr=[[q["slope"] - q["slope_lo"] for q in r], [q["slope_hi"] - q["slope"] for q in r]], fmt=MARK[tc] + "-", color=COLOR[tc], ms=3, lw=1, capsize=3, label=tc)
 ax.axhline(1, color=INK, lw=0.8, ls="--")
 ax.set_xticks(range(len(EXP)), EXP)
 ax.set_xlabel("games played before, fewer of the two players")
@@ -243,3 +173,55 @@ ax.spines[["top", "right", "left"]].set_visible(False)
 ax.legend(frameon=False, fontsize=8, loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=2)
 fig.tight_layout()
 fig.savefig("outputs/figures/expected_score_slides_pairing.svg")
+
+# 選出的模型在 7-12 月的校準，淡色虛線為 Elo：得分殘差、和局機率、依累計局數的 Cox 斜率
+hc = T("expected_score_baselines_holdout_curve")
+hx = T("expected_score_baselines_holdout_cox")
+fig, axes = plt.subplots(1, 3, figsize=(11, 3.4))
+for j, tc in enumerate(CLASSES):
+    for nm, style in [("elo", dict(ls="--", alpha=0.45)), ("rd_ordinal", dict(ls="-"))]:
+        c = hc.filter(pl.col("speed") == tc, pl.col("model") == nm, pl.col("kind") == "score").sort("bin")
+        axes[0].errorbar(c["pred_mean"] + (j - 1) * 0.006, c["resid_mean"], yerr=1.96 * c["resid_se_iid"], fmt=MARK[tc], color=COLOR[tc], ms=3, lw=1, capsize=0, **style, label=tc if nm == "rd_ordinal" else None)
+        c = hx.filter(pl.col("speed") == tc, pl.col("model") == nm)
+        r = [c.filter(pl.col("exp_bin") == v).row(0, named=True) for v in EXP]
+        x = np.arange(len(EXP)) + (j - 1) * 0.15
+        axes[2].errorbar(x, [q["slope"] for q in r], yerr=[[q["slope"] - q["slope_lo"] for q in r], [q["slope_hi"] - q["slope"] for q in r]], fmt=MARK[tc], color=COLOR[tc], ms=3, lw=1, capsize=3, **style)
+    # 和局的 20 分位兩兩合併成 10 分位，三種速度疊在窄範圍內才看得清；合併的標準誤含組間差
+    c = (
+        hc.filter(pl.col("speed") == tc, pl.col("kind") == "draw")
+        .with_columns(g=pl.col("bin") // 2, ss=(pl.col("n") - 1) * pl.col("n") * pl.col("resid_se_iid") ** 2)
+        .group_by("g")
+        .agg(
+            pred_mean=(pl.col("pred_mean") * pl.col("n")).sum() / pl.col("n").sum(),
+            resid_mean=(pl.col("resid_mean") * pl.col("n")).sum() / pl.col("n").sum(),
+            ss=pl.col("ss").sum() + (pl.col("n") * (pl.col("resid_mean") - (pl.col("resid_mean") * pl.col("n")).sum() / pl.col("n").sum()) ** 2).sum(),
+            n=pl.col("n").sum(),
+        )
+        .with_columns(se=(pl.col("ss") / (pl.col("n") - 1) / pl.col("n")).sqrt())
+        .sort("g")
+    )
+    axes[1].errorbar(c["pred_mean"], c["resid_mean"], yerr=1.96 * c["se"], fmt=MARK[tc] + "-", color=COLOR[tc], ms=3, lw=1, capsize=3)
+axes[0].axhline(0, color=INK, lw=0.8)
+axes[0].set_xlabel("predicted expected score (White)")
+axes[0].set_ylabel("mean score minus predicted")
+axes[0].set_title("observed minus predicted score", color=INK, fontsize=10)
+axes[1].set_title("observed minus predicted draw rate\n(ordinal logistic with RD only)", color=INK, fontsize=10)
+axes[2].set_title("calibration slope (1 = calibrated)", color=INK, fontsize=10)
+# 速度以顏色、模型以線型區分，兩組圖例分開放
+axes[0].legend(frameon=False, fontsize=8, loc="upper right")
+axes[2].legend(handles=[
+    plt.Line2D([], [], color=MUTE, ls="-", marker="o", ms=3, label="ordinal logistic with RD"),
+    plt.Line2D([], [], color=MUTE, ls="--", marker="o", ms=3, alpha=0.45, label="Elo"),
+], frameon=False, fontsize=8, loc="lower right")
+axes[1].axhline(0, color=INK, lw=0.8)
+axes[1].set_xlabel("predicted draw probability")
+axes[1].set_ylabel("draw rate minus predicted")
+axes[2].axhline(1, color=INK, lw=0.8, ls="--")
+axes[2].set_xticks(range(len(EXP)), EXP, rotation=45)
+axes[2].set_xlabel("games played before (fewer side)")
+axes[2].set_ylabel("calibration slope")
+for ax in axes:
+    ax.grid(axis="y", color=GRID, lw=0.6)
+    ax.spines[["top", "right"]].set_visible(False)
+fig.tight_layout()
+fig.savefig("outputs/figures/expected_score_slides_holdout.svg")

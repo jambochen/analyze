@@ -131,6 +131,36 @@ def frac_newton(X, s, t):
     return t, p, X.T @ (X * (p * (1 - p))[:, None]), float(np.sum(s * np.log(p) + (1 - s) * np.log1p(-p)))
 
 
+# sigmoid(alpha + beta L) 的 score 統計量 U' I^-1 U，只需在虛無假設下計算。各局當成獨立、quasi-likelihood 取 phi = 1；
+# 和局使 phi < 1，統計量偏小、區間偏寬
+def frac_score(L, s, t):
+    X = np.column_stack([np.ones_like(L), L])
+    p = 1 / (1 + np.exp(-(t[0] + t[1] * L)))
+    U = X.T @ (s - p)
+    return U @ np.linalg.solve(X.T @ (X * (p * (1 - p))[:, None]), U)
+
+
+# 固定第 j 個參數為 v，另一個以牛頓法解虛無假設下的估計，再算 score 統計量
+def frac_score_at(L, s, j, v, t0):
+    X = np.column_stack([np.ones_like(L), L])
+    t = np.array(t0, dtype=float)
+    t[j] = v
+    k = 1 - j
+    for _ in range(50):
+        p = 1 / (1 + np.exp(-(t[0] + t[1] * L)))
+        step = (X[:, k] @ (s - p)) / (X[:, k] ** 2 @ (p * (1 - p)))
+        t[k] += step
+        if abs(step) < 1e-12:
+            break
+    return frac_score(L, s, t)
+
+
+# 反轉 score test 的 95% 區間；th 為估計值，se 只用來框出 brentq 的搜尋範圍
+def frac_score_ci(L, s, j, th, se):
+    f = lambda v: frac_score_at(L, s, j, v, th) - stats.chi2.ppf(0.95, 1)
+    return optimize.brentq(f, th[j] - 4 * se, th[j]), optimize.brentq(f, th[j], th[j] + 4 * se)
+
+
 # 工作概似下，受檢參數 psi 的概似比統計量漸近為 sum_j lambda_j chi2_1，
 # lambda 為 [H^-1]_psi^-1 [V]_psi 的特徵值（Rotnitzky、Jewell 1990）。idx 是受檢參數在 free 中的位置
 def lr_weights(Hi, V, idx):
