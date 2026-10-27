@@ -183,6 +183,19 @@ for spd in SPEEDS:
         callbacks=[lightgbm.early_stopping(50, verbose=False)],
     )
     loss["lightgbm"] = losses(gbm.predict(Xt, num_iteration=gbm.best_iteration), ate[3])
+    # 以主基準的對數機率為起點，樹只學主基準之外的部分
+    init = lambda d: np.log(ordinal.probs(d["eta"].to_numpy(), d["w"].to_numpy()))
+    gbm_o = lightgbm.train(
+        {"objective": "multiclass", "num_class": 3, "learning_rate": 0.05, "num_leaves": 63, "min_data_in_leaf": 500, "verbose": -1, "num_threads": 8},
+        lightgbm.Dataset(Xf, fit_["y"].to_numpy(), init_score=init(fit_)),
+        num_boost_round=2000,
+        valid_sets=[lightgbm.Dataset(Xv, val_["y"].to_numpy(), init_score=init(val_))],
+        callbacks=[lightgbm.early_stopping(50, verbose=False)],
+    )
+    z = gbm_o.predict(Xt, num_iteration=gbm_o.best_iteration, raw_score=True) + init(te)
+    z = np.exp(z - z.max(1, keepdims=True))
+    loss["lightgbm_offset"] = losses(z / z.sum(1, keepdims=True), ate[3])
+    print(spd, "lightgbm_offset rounds", gbm_o.best_iteration, flush=True)
     xgb = xgboost.train(
         {"objective": "multi:softprob", "num_class": 3, "eval_metric": "mlogloss", "eta": 0.05, "max_depth": 6, "min_child_weight": 500, "tree_method": "hist", "nthread": 8},
         xgboost.DMatrix(Xf, fit_["y"].to_numpy()),
@@ -224,9 +237,9 @@ for spd in SPEEDS:
 
     nov = te["novice_rd"].to_numpy()
     for group, msk in [("all", np.ones(te.height, bool)), ("novice", nov), ("established", ~nov)]:
-        for nm in ["baseline", "arena", "prev_result", "dr", "opp_sym", "lightgbm", "xgboost", "mlp"]:
+        for nm in ["baseline", "arena", "prev_result", "dr", "opp_sym", "lightgbm", "lightgbm_offset", "xgboost", "mlp"]:
             pred_rows += diff_row(spd, nm, "baseline", loss[nm], loss["baseline"], msk, wte, bte, group)
-        for nm in ["lightgbm", "xgboost", "mlp"]:
+        for nm in ["lightgbm", "lightgbm_offset", "xgboost", "mlp"]:
             pred_rows += diff_row(spd, nm, final, loss[nm], loss[final], msk, wte, bte, group)
 
     # 「再開一局，預期比系統的期望低多少」：修正後與主基準的期望得分之差，以主基準的斜率換算成等級分
