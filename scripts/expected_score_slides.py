@@ -225,3 +225,30 @@ for ax in axes:
     ax.spines[["top", "right"]].set_visible(False)
 fig.tight_layout()
 fig.savefig("outputs/figures/expected_score_slides_holdout.svg")
+
+# 附錄：切點的兩個成分依平均等級分分組各自估計，對照線性與二次；區間同本次報告用 iid 標準誤
+tb = T("threshold_rating_form_bins")
+tv = T("threshold_rating_form_curve")
+fig, axes = plt.subplots(2, 3, figsize=(11, 5.2), sharex="col")
+for i, (part, lab) in enumerate([("a", "white advantage a"), ("log_w", "log draw width log w")]):
+    for j, tc in enumerate(CLASSES):
+        ax = axes[i, j]
+        b = tb.filter(pl.col("speed") == tc, pl.col("part") == part)
+        ax.errorbar(b["rbar"], b["est"], yerr=1.96 * b["se_iid"], fmt=MARK[tc], color=COLOR[tc], ms=3, lw=1, capsize=0)
+        for nm, ls in [("linear", "--"), ("quad", "-")]:
+            c = tv.filter(pl.col("speed") == tc, pl.col("part") == part, pl.col("model") == nm)
+            ax.plot(c["rbar"], c["est"], ls, color=INK if nm == "quad" else MUTE, lw=1)
+        if i == 0:
+            ax.set_title(tc, color=INK, fontsize=10)
+        else:
+            ax.set_xlabel("mean rating of the two players")
+        if j == 0:
+            ax.set_ylabel(lab)
+        ax.grid(axis="y", color=GRID, lw=0.6)
+        ax.spines[["top", "right"]].set_visible(False)
+axes[0, 2].legend(handles=[
+    plt.Line2D([], [], color=MUTE, ls="--", label="linear"),
+    plt.Line2D([], [], color=INK, ls="-", label="quadratic"),
+], frameon=False, fontsize=8, loc="upper right")
+fig.tight_layout()
+fig.savefig("outputs/figures/expected_score_slides_threshold.svg")

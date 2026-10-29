@@ -1,6 +1,6 @@
 # 期望勝率的三個基準
 
-腳本：`scripts/expected_score_baselines.py`；修正的概似比檢定在共用的 `scripts/likelihood.py`，其檢定水準以 `scripts/adjusted_lrt_size.py` 的模擬核對。表在 `outputs/tables/expected_score_baselines_*.csv` 與 `outputs/tables/adjusted_lrt_size.csv`。本文件只寫定性結論，數值一律見對應的輸出檔。
+腳本：`scripts/expected_score_baselines.py`，切點形式的診斷在 `scripts/threshold_rating_form.py`；修正的概似比檢定在共用的 `scripts/likelihood.py`，其檢定水準以 `scripts/adjusted_lrt_size.py` 的模擬核對。表在 `outputs/tables/expected_score_baselines_*.csv`、`outputs/tables/threshold_rating_form_*.csv` 與 `outputs/tables/adjusted_lrt_size.csv`。本文件只寫定性結論，數值一律見對應的輸出檔。
 
 ## 問題
 
@@ -35,6 +35,10 @@
 
 Glicko 只給期望得分，有序 logistic 的寫法需要自由估計尺度（有和局時累積 logit 的斜率較陡）。為了直接檢驗 Glicko 原式，另以得分為反應的 logistic 迴歸估 Elo 與 Glicko 期望得分的校準迴歸的截距與斜率，依新手與否分層。
 
+### 切點對平均等級分的形式
+
+有序模型的切點由白方優勢 $a$ 與和局帶寬 $w$ 組成，兩者都設為平均等級分的二次式（$w$ 經指數）。為檢查這個形式，把平均等級分分成 20 個等量組，每組各自估 $a$ 與 $\log w$，不預設形式，其餘項與加入 RD 的有序 logistic 相同，再與線性、二次的擬合對照。檢定兩件事：二次項是否需要（二次對線性），二次是否足夠（二次加上分組虛擬變數對二次）。四個檢定 × 三個速度類別為一族，以修正的概似比檢定與 Holm 法判定。
+
 ### 樣本外評估
 
 三類結果的對數分數與 ranked probability score，與有序 logistic 的差值以 dyadic sandwich 求標準誤。
@@ -61,6 +65,10 @@ Glicko 只給期望得分，有序 logistic 的寫法需要自由估計尺度（
 ### 樣本外：加入 RD 的模型在每一組都最好
 
 7 至 12 月的評估中，加入 RD 的有序 logistic 在全部、新手、老手三組的對數分數與 ranked probability score 都優於有序 logistic（`expected_score_baselines_prediction.csv`）。改善主要來自新手對局，老手對局的改善小但仍在標準誤之外。Glicko 形式在新手對局上優於有序 logistic，在老手對局上反而較差，全體與有序 logistic 相近：它的收縮幫了新手，但沒有 Elo 式的斜率修正與等級分項，老手吃虧。
+
+### 和局帶寬需要二次，白方優勢不需要
+
+和局帶寬的對數在 Classical 低等級段持平、之後上升，彎曲明顯，Blitz 也有，二次項校正後拒絕為 0；Bullet 近乎直線，二次項不需要。二次加分組的檢定在 Bullet 與 Classical 也拒絕，但分組估計與二次曲線的偏離相對於整體趨勢很小，百萬局的樣本下小偏離也會被偵測（`threshold_rating_form_tests.csv`）。白方優勢的分組估計大致沿直線，Classical 隨等級下降；二次項在三個速度類別校正後都不拒絕為 0，Bullet 的彎曲只來自最高兩組。二次式在兩端外推時翹起，那裡資料少，不作解讀。
 
 ## 對後續分析的意涵
 

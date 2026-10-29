@@ -45,7 +45,6 @@
   stack(
     spacing: 0.8em,
     [Lichess：非營利組織經營的免費、開源線上西洋棋平台],
-    [官方資料庫的月檔：每局一筆，含局前等級分與結果],
     [等級分系統為 Glicko-2，規則與原始碼公開],
   ),
   image("assets/lichess-logo.svg", height: 3.5em),
@@ -61,8 +60,6 @@
   [arena], [系統指派], [不看等級分],
   rule-top,
 )
-
-arena 的對手與玩家當下的狀態無關。
 
 == 資料與樣本
 
@@ -109,7 +106,7 @@ arena 的對手與玩家當下的狀態無關。
   rule-top,
   [用途], [欄位], [取出的量],
   rule-mid,
-  [計算], [`WhiteElo`、`BlackElo`], [分差 $d$、雙方平均等級分],
+  [計算], [`WhiteElo`、`BlackElo`], [分差 $d$、雙方平均等級分 $macron(r)$],
   [], [`TimeControl`], [速度類別],
   [], [`Event`], [是否為 arena、屬於哪一場],
   [], [雙方帳號、開局時間], [累計局數、重算的 RD、上一局結果、是否續下],
@@ -188,18 +185,27 @@ RD 取 0 即 Elo 的 $E = sigmoid(q d)$，配對只看分差。
 
 白方視角的結果 $Y$：白負 $(j = 1)$、和 $(j = 2)$、白勝 $(j = 3)$
 
-$ P(Y <= j) & = pi_1 + dots.c + pi_j \
-  logit P(Y <= j) & = log P(Y <= j) / (1 - P(Y <= j)) = theta_j (macron(r)) - eta, quad j = 1, 2 $
+$ logit P(Y <= j) = log P(Y <= j) / (1 - P(Y <= j)) = theta_j (macron(r)) - eta, quad j = 1, 2 $
 
 #grid(
-  columns: (1.2fr, 1fr),
+  columns: (1.3fr, 1fr),
   gutter: 1em,
   align: horizon,
-  text(size: 0.9em)[
-    $eta = beta_1 d + beta_2 d macron(r)$：分差帶來的潛在優勢 \
-    $theta_1 < theta_2$：切點，隨雙方平均等級分 $macron(r)$ 變化 \
-    $theta_2 - theta_1$ 決定和局率；兩切點一起平移即先手優勢
-  ],
+  stack(
+    spacing: 0.6em,
+    text(size: 0.9em, grid(
+      columns: 2,
+      align: (right, left),
+      column-gutter: 0.8em,
+      row-gutter: 0.75em,
+      [$macron(r)$], [雙方的平均等級分],
+      [$eta = a(macron(r)) + (beta_1 + beta_2 macron(r)) d$], [白方的潛在優勢],
+      [$a$], [先手優勢：同分時的 $eta$],
+      [$theta_(1, 2) = minus.plus w(macron(r))$], [切點],
+      [$w > 0$], [和局帶寬：$2 w$ 決定和局率],
+    )),
+    text(size: 0.75em, fill: mute)[每分的效果隨 $macron(r)$ 變化；$a$、$log w$ 皆為 $macron(r)$ 的二次式],
+  ),
   text(size: 14pt, cetz.canvas({
     import cetz.draw: *
     // 潛在優勢 η + ε，ε 為 logistic；切點 θ1、θ2 畫在 ±w
@@ -219,6 +225,8 @@ $ P(Y <= j) & = pi_1 + dots.c + pi_j \
     content((3, -0.5), [白勝])
     content((-w, -1.1), text(fill: mute)[$theta_1$])
     content((w, -1.1), text(fill: mute)[$theta_2$])
+    line((-w, -1.7), (w, -1.7), stroke: 0.6pt + mute, mark: (start: ">", end: ">"))
+    content((0, -2.1), text(fill: mute)[$2 w$])
   })),
 )
 
@@ -257,34 +265,25 @@ $ P(Y <= j) & = pi_1 + dots.c + pi_j \
   rule-top,
   [模型], [線性預測式], [納入 Elo 沒考慮的],
   rule-mid,
-  [有序 logistic], [$beta_1 d + beta_2 d macron(r)$], [先手、和局],
-  [Glicko 形式], [$beta_3 g(sigma) d$], [水平波動],
-  [加入 RD 的有序 logistic], [$beta_1 d + beta_2 d macron(r) + beta_3 g(sigma) d$], [兩者],
+  [有序 logistic], [$a(macron(r)) + beta_1 d + beta_2 d macron(r)$], [先手、和局],
+  [Glicko 形式], [$a + beta_3 g(sigma) d$], [水平波動],
+  [加入 RD 的有序 logistic], [$a(macron(r)) + beta_1 d + beta_2 d macron(r) + beta_3 g(sigma) d$], [兩者],
   rule-top,
 ))
 
-#grid(
-  columns: (1fr, 1.3fr),
-  gutter: 1.5em,
-  align: horizon,
-  text(size: 0.85em, stack(
-    spacing: 1em,
-    [$g(sigma) = 1 \/ sqrt(1 + 3 q^2 sigma^2 \/ pi^2)$],
-    [$sigma = sqrt("RD"_W^2 + "RD"_B^2)$；$q = ln 10 \/ 400$],
-    text(fill: mute)[Glicko 形式的切點 $theta_j$ 不隨 $macron(r)$],
-  )),
-  align(center, text(size: 13pt, diagram(
-    ..flow,
-    spacing: (1em, 3.2em),
-    node((1, 0), [加入 RD 的有序 logistic], stroke: 1.2pt + sq-dark),
-    edge((1, 0), (0, 1), "-|>", text(fill: mute)[$beta_3 = 0$], label-side: right, label-sep: 0.5em),
-    edge((1, 0), (2, 1), "-|>", text(fill: mute)[$beta_1 = beta_2 = 0$], label-side: left, label-sep: 0.5em),
-    node((0, 1), [有序 logistic]),
-    node((2, 1), [Glicko 形式]),
-  ))),
-)
+#v(0.6em)
+#align(center, text(size: 15pt, diagram(
+  ..flow,
+  spacing: (2.5em, 3em),
+  node((1, 0), [加入 RD 的有序 logistic], stroke: 1.2pt + sq-dark),
+  edge((1, 0), (0, 1), "-|>", text(fill: mute)[$beta_3 = 0$], label-side: right, label-sep: 1em),
+  edge((1, 0), (2, 1), "-|>", text(fill: mute, two[$beta_1 = beta_2 = 0$][$a$、$w$ 不隨 $macron(r)$]), label-side: left, label-sep: 1em),
+  node((0, 1), [有序 logistic]),
+  node((2, 1), [Glicko 形式]),
+)))
+#v(0.6em)
 
-前兩個模型是第三個把部分係數設為 0 的特例，以概似比檢定比較。
+兩個特例各與加入 RD 的有序 logistic 以概似比檢定比較。
 
 == 三個模型的比較
 
@@ -304,8 +303,6 @@ $ P(Y <= j) & = pi_1 + dots.c + pi_j \
   )))
 
 #text(size: 0.7em, fill: mute)[表：LRT $p$ 值，對立假設為加入 RD 的有序 logistic；AIC 差為 Glicko 形式減有序 logistic。]
-
-#text(size: 0.7em, fill: mute)[有序 logistic 相對 Elo，每局 LS 減少：#speeds.map(s => [#s #elo-gain(s)]).join[、]]
 
 有序 logistic 與 Glicko 形式皆被拒絕；之後的期望勝率以加入 RD 的有序 logistic 計算。
 
@@ -364,20 +361,23 @@ $ P(Y <= j) & = pi_1 + dots.c + pi_j \
 
 加入 RD 的有序 logistic 能根據雙方賽前的等級分與 RD，比 Elo 更準地估計勝、和、負的機率。
 
-#text(size: 0.9em, table(
-  columns: (auto, auto, 1fr),
-  rule-top,
-  [限制], [本次], [下一次],
-  rule-mid,
-  [對局間的相依], [當成獨立], [處理相依後重新檢定],
-  rule-mid,
-  [新帳號的最初幾局], [沿用系統的 RD 算法], [放寬 RD 項，以另一段時間驗證],
-  [上一局的影響], [一階 Markov 轉移，只含續下者], [比較上一局隨機分到強、弱對手的玩家，往前看一至三局；續下的選擇以上下界處理],
-  rule-top,
-))
+限制：
 
-#text(size: 0.7em, fill: mute)[多局的前局效果：@jones2003；續下的上下界：@zhang2003、@lee2009]
+- 檢定與區間假設各局獨立，同一玩家的多局可能彼此相關
+- 新帳號的最初幾局仍不準
+- 上一局的影響只往前看一局，且只含續下者
+
+#show: appendix
 
 == 參考文獻
 
 #text(size: 11pt, bibliography("refs.bib", title: none, style: "apa"))
+
+
+== 切點隨平均等級分的形式
+
+#figure(
+  fig("expected_score_slides_threshold", height: 68%),
+  caption: [$a$ and $log w$ estimated separately in 20 equal-count bins of mean rating. Bars: iid 95% intervals],
+)
+
