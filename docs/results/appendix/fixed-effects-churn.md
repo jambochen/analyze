@@ -1,6 +1,6 @@
 # Heliyon 2024 固定效應模型的複製與大廳、arena 的比較
 
-腳本：`scripts/player_days.py`（玩家日彙整，產出 `data/processed/player_days.parquet`）、`scripts/fixed_effects_churn.py`（模型）。共用 module：`scripts/calibrated.py`。表在 `outputs/tables/player_days_*.csv`、`outputs/tables/fixed_effects_churn_*.csv`，圖在 `outputs/figures/fixed_effects_churn_*.png`。本文件只寫定性結論，數值一律見對應的輸出檔。
+腳本：`scripts/player_days.py`（玩家日彙整，產出 `data/processed/player_days.parquet`）、`scripts/fixed_effects_churn.py`（模型）、`scripts/fixed_effects_churn_bootstrap.py`（bootstrap 檢查）。共用 module：`scripts/calibrated.py`、`scripts/fixed_effects.py`（玩家日樣本與堆疊的固定效應模型）。表在 `outputs/tables/player_days_*.csv`、`outputs/tables/fixed_effects_churn_*.csv`，圖在 `outputs/figures/fixed_effects_churn_*.png`。本文件只寫定性結論，數值一律見對應的輸出檔。
 
 ## 問題
 
@@ -83,7 +83,7 @@ Kang、Suh、Kim（Heliyon 2024）以一款手機桌遊的對局紀錄，問配�
 
 ### bootstrap 檢查
 
-在上述抽樣玩家上做 100 次玩家 block bootstrap：每次從兩樣本玩家的聯集有放回地抽，抽到的玩家連同他在兩樣本的全部觀察日一起進入，重複抽到的玩家各作為一位新玩家（各自的固定效應與 cluster），再估一次堆疊的固定效應 logit。bootstrap 的標準差與 cluster sandwich 的標準誤比較見 `fixed_effects_churn_bootstrap_check.csv`，逐次的估計見 `fixed_effects_churn_bootstrap_draws.csv`。重抽次數只夠檢查標準誤的量級：100 次時，標準差本身的 Monte Carlo 相對誤差約為 7%。
+在上述抽樣玩家上做 100 次玩家 block bootstrap：每次從兩樣本玩家的聯集有放回地抽，抽到的玩家連同他在兩樣本的全部觀察日一起進入，重複抽到的玩家各作為一位新玩家（各自的固定效應與 cluster），再估一次堆疊的固定效應 logit。bootstrap 的標準差與 cluster sandwich 的標準誤比較見 `fixed_effects_churn_bootstrap_check.csv`，逐次的估計見 `fixed_effects_churn_bootstrap_draws.csv`。重抽的樣本偶爾使固定效應的去均值在迭代上限內不收斂，該次跳過，失敗次數記在 `fixed_effects_churn_bootstrap_check.csv` 的 `B_failed`，其餘重抽的標準差照常使用。重抽次數只夠檢查標準誤的量級：100 次時，標準差本身的 Monte Carlo 相對誤差約為 7%。
 
 ### Hausman 檢定
 
