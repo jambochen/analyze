@@ -1,5 +1,6 @@
 # 玩家日彙整：Heliyon 2024 的分析單位。每列為（玩家、日、切點、對局類型）。
-# 對局類型 arena 與 lobby（一般對局）分開計算當日變數；day_pure 標記當日只下了該類型。
+# 對局類型 arena 與 lobby（source 為 lobby 的一般大廳對局）分開計算當日變數；day_pure 標記當日只下了該類型。
+# 邀戰與無 source 的對局不進任何一類的當日變數，但算作當日有下，計入 n_day 與流失。
 # 流失取當日（不分類型）最後一局的 churn_14d，因為「之後 14 天沒有對局」是對玩家整天而言。
 # 依玩家代碼分桶彙整：視窗運算與 group_by 的分組數是記憶體瓶頸，玩家序列不跨桶。
 
@@ -8,11 +9,12 @@ import sys
 sys.path.insert(0, "scripts")
 import polars as pl
 
+import game_source
 from calibrated import probs
 
 NB = 16
 UTC = "UTC"
-COLS = ["player", "color", "start", "speed", "arena", "elo", "opp_elo", "score", "result", "player_game_no", "churn_14d"]
+COLS = ["player", "color", "start", "speed", "arena", "elo", "opp_elo", "score", "result", "player_game_no", "churn_14d", "source"]
 
 base = pl.scan_parquet("data/processed/player_games.parquet").filter(
     pl.col("start") >= pl.datetime(2014, 1, 1, time_zone=UTC),
@@ -51,9 +53,10 @@ for b in range(NB):
             churn=pl.col("churn_14d").last(),
             n_day=pl.len(),
             n_arena_day=pl.col("arena").sum(),
+            n_lobby_day=(pl.col("source") == "lobby").sum(),
         )
         # 缺等級分的局不計入分差與表現，但仍算當日有下（流失與 n_day 已含）
-        e = d.filter(pl.col("elo_ok")).with_columns(
+        e = d.filter(pl.col("elo_ok"), game_source.KEEP).with_columns(
             gap=(pl.col("opp_elo") - pl.col("elo")).cast(pl.Float64),
             win=(pl.col("result") == "win").cast(pl.Float64),
         )
@@ -80,7 +83,7 @@ for b in range(NB):
         )
         a = a.join(dayinfo, on=["player", "day"]).with_columns(
             cut=pl.lit(cut),
-            day_pure=pl.when(pl.col("arena")).then(pl.col("n_arena_day") == pl.col("n_day")).otherwise(pl.col("n_arena_day") == 0),
+            day_pure=pl.when(pl.col("arena")).then(pl.col("n_arena_day") == pl.col("n_day")).otherwise(pl.col("n_lobby_day") == pl.col("n_day")),
         )
         out.append(a)
     print(b, sum(x.height for x in out))

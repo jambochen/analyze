@@ -14,6 +14,7 @@ import jax.numpy as jnp
 import numpy as np
 import polars as pl
 
+import game_source
 import likelihood as lk
 import novice
 import ordinal
@@ -41,8 +42,9 @@ g_ = (
 )
 rp = pl.scan_parquet("data/processed/glicko_replay.parquet").select("game_id", "perf", "white_rd", "black_rd", "white_left_truncated", "black_left_truncated", "white_prior_games", "black_prior_games")
 d = (
-    g_.join(rp, on="game_id")
-    .filter(pl.col("perf") == pl.col("speed"))
+    game_source.with_source(g_.join(rp, on="game_id"))
+    # 邀戰與無 source 的對局不進校準，理由見 game_source.py
+    .filter(pl.col("perf") == pl.col("speed"), game_source.KEEP)
     .with_columns(
         diff=(pl.col("white_elo") - pl.col("black_elo")).cast(pl.Float64),
         gs=ordinal.g("white_rd", "black_rd"),
@@ -59,7 +61,6 @@ d = (
         novice_rd=novice.novice_rd("white_rd", "black_rd"),
         train=pl.col("start") < pl.datetime(2014, 7, 1, time_zone=UTC),
         # 分層與 calibration.py 相同；重算前後以 8 月 1 日為界
-        source=pl.when(pl.col("arena")).then(pl.lit("arena")).otherwise(pl.lit("lobby")),
         period=pl.when(pl.col("start") < pl.datetime(2014, 8, 1, time_zone=UTC)).then(pl.lit("Jan-Jul")).otherwise(pl.lit("Aug-Dec")),
         # 分組與 calibration.py 相同；局數取自重放，從帳號在該速度類別的第一局起算
         exp_bin=pl.min_horizontal("white_prior_games", "black_prior_games").cut([0, 2, 5, 10, 20, 50, 100, 200], labels=EXP, left_closed=False).cast(pl.String),
@@ -106,7 +107,7 @@ coef_rows, test_rows, cox_rows, pred_rows, curve_parts, strata_rows, score_rows,
 for tc in CLASSES:
     dt = d.filter(pl.col("speed") == tc)
     for variant, keep in [("all", pl.lit(True)), ("no_left_truncated", ~pl.col("lt_any"))]:
-        m = dt.filter(keep).sample(N_FIT, seed=1)
+        m = dt.filter(keep).pipe(lambda x: x.sample(min(N_FIT, x.height), seed=1))
         w, b = m["w"].to_numpy(), m["b"].to_numpy()
         args = tuple(m[c].to_numpy().astype(np.float64) for c in ["xr", "xd", "gxd", "y"])
         res = {}
@@ -165,7 +166,7 @@ for tc in CLASSES:
             strata_rows.append({"speed": tc, "stratum_type": k, "stratum": v, "n": m.height, "intercept": th[0], "slope": th[1], "slope_se": np.sqrt(V[1, 1]), "slope_se_iid": np.sqrt(Hi[1, 1])})
 
     # 樣本外評估：1-6 月估計，7-12 月評估
-    tr = dt.filter(pl.col("train")).sample(N_FIT, seed=2)
+    tr = dt.filter(pl.col("train")).pipe(lambda x: x.sample(min(N_FIT, x.height), seed=2))
     te = dt.filter(~pl.col("train"))
     a = tuple(tr[c].to_numpy().astype(np.float64) for c in ["xr", "xd", "gxd", "y"])
     xte = [te[c].to_numpy() for c in ["xr", "xd", "gxd"]]

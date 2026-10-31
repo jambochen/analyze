@@ -3,12 +3,17 @@
 
 import datetime as dt
 import shutil
+import sys
 import tempfile
+
+sys.path.insert(0, "scripts")
 
 import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 import pyarrow.parquet as pq
+
+import game_source
 
 UTC = dt.timezone.utc
 BEGIN = dt.datetime(2014, 1, 1, tzinfo=UTC)
@@ -37,7 +42,8 @@ sample = raw.select(
 ).collect()
 
 # 無鐘的對局一局可跨數日，開局時間不代表玩家當下在線；同帳號自己對自己的局無法拆成兩名玩家
-games = raw.filter(~no_clock, pl.col("white_id") != pl.col("black_id"))
+# 邀戰與無 source 的對局留在序列中：玩家在下這些局就不算離開；只在分 arena 與大廳的摘要中排除
+games = game_source.with_source(raw.filter(~no_clock, pl.col("white_id") != pl.col("black_id")).with_columns(arena=pl.col("tournament_id").is_not_null()))
 
 # 全站在 10 分鐘以上沒有任何新局，視為伺服器停擺：此時的「沒有下一局」不是玩家的選擇
 outages = (
@@ -64,7 +70,7 @@ tours = (
     .write_csv("outputs/tables/sessions_tournament_span.csv")
 )
 
-cols = ["game_id", "start", "speed", "time_control", "base_seconds", "increment_seconds", "tournament_id"]
+cols = ["game_id", "start", "speed", "time_control", "base_seconds", "increment_seconds", "tournament_id", "source"]
 score_white = pl.col("result").replace_strict({"1-0": 1.0, "0-1": 0.0, "1/2-1/2": 0.5}, default=None)
 long = pl.concat([
     games.select(*cols, player=pl.col("white_id"), opponent=pl.col("black_id"), color=pl.lit("white"),
@@ -99,7 +105,8 @@ for b in range(NB):
     f = d.filter(pl.col("start") >= BEGIN, pl.col("start") < FIT_END, pl.col("next_gap") <= 30 * 86400)
     for tc in CLASSES:
         for arena in [False, True]:
-            x = f.filter(pl.col("speed") == tc, pl.col("tournament_id").is_not_null() == arena)
+            # 大廳只取 source 為 lobby 者；API 只查了 2014 年，大廳的擬合範圍止於 2014 年底
+            x = f.filter(pl.col("speed") == tc, pl.col("source") == ("arena" if arena else "lobby"))
             # 同秒開局的間隔記為 1 秒，才能取對數
             g = np.log10(np.maximum(x["next_gap"].to_numpy(), 1))
             r = np.log10(np.maximum(x["next_gap"].to_numpy(), 1) / x["est_duration"].to_numpy())
@@ -182,7 +189,7 @@ for b in range(NB):
         arena=pl.col("tournament_id").is_not_null(),
         result=pl.col("score").replace_strict({1.0: "win", 0.5: "draw", 0.0: "loss"}, default=None, return_dtype=pl.String),
     )
-    s = d.filter(pl.col("start") >= BEGIN, pl.col("start") < SENS_END)
+    s = d.filter(pl.col("start") >= BEGIN, pl.col("start") < SENS_END, game_source.KEEP)
     for m in GRID_MIN:
         grid.append(s.group_by("speed", "arena", "result").agg(
             rule=pl.lit("fixed"), threshold=pl.lit(float(m)), n=pl.len(), cont=(pl.col("next_gap") <= m * 60).sum()))
@@ -197,7 +204,7 @@ for b in range(NB):
         ).with_columns(
             game_seq=pl.col("idx") - pl.when(pl.col("new")).then(pl.col("idx")).forward_fill().over("player") + 1,
         ).filter(pl.col("start") >= BEGIN, pl.col("start") < SENS_END)
-        seq.append(x.group_by("speed", "arena", game_seq=pl.col("game_seq").clip(upper_bound=20)).agg(
+        seq.append(x.filter(game_source.KEEP).group_by("speed", "arena", game_seq=pl.col("game_seq").clip(upper_bound=20)).agg(
             rule=pl.lit(name), n=pl.len(), cont=pl.col("cont").sum()))
         cross_class.append(x.filter(pl.col("cont")).group_by("speed").agg(
             rule=pl.lit(name), n=pl.len(), switch=(pl.col("next_class") != pl.col("speed")).sum()))
@@ -234,7 +241,7 @@ for b in range(NB):
         .filter(pl.col("start") >= BEGIN, pl.col("start") < END)
         .select(
             "game_id", "player", "opponent", "color", "start", "speed", "time_control", "base_seconds", "increment_seconds",
-            "est_duration", "tournament_id", "arena", "elo", "opp_elo", "score", "result",
+            "est_duration", "tournament_id", "arena", "source", "elo", "opp_elo", "score", "result",
             "player_game_no", "session_no", "game_seq", "session_games", "session_threshold", "prev_gap",
             "continue_session", "leave_8h", "churn_14d", "tour_last_game", "tour_left", "tour_first", "tour_last",
             "return_seconds", "return_censored", "to_outage",
@@ -242,9 +249,10 @@ for b in range(NB):
     )
     # 摘要在每桶內先聚合成和與個數：在合併後的 5,000 萬列上做 group_by 會超出記憶體上限
     agg = {"n": pl.len(), **{f"{o}_n": pl.col(o).count() for o in OUTCOMES}, **{f"{o}_sum": pl.col(o).sum() for o in OUTCOMES}}
-    rates.append(d.group_by("speed", "arena").agg(result=pl.lit("all"), **agg))
-    rates.append(d.filter(pl.col("result").is_not_null()).group_by("speed", "arena", "result").agg(**agg))
-    months.append(d.group_by(month=pl.col("start").dt.strftime("%Y-%m"), arena=pl.col("arena")).agg(**agg))
+    k = d.filter(game_source.KEEP)
+    rates.append(k.group_by("speed", "arena").agg(result=pl.lit("all"), **agg))
+    rates.append(k.filter(pl.col("result").is_not_null()).group_by("speed", "arena", "result").agg(**agg))
+    months.append(k.group_by(month=pl.col("start").dt.strftime("%Y-%m"), arena=pl.col("arena")).agg(**agg))
     for m in [0.5, 1.0, 2.0, 3.0]:
         tour_margin.append(d.filter(
             pl.col("arena"), pl.col("tour_last") < END - dt.timedelta(hours=2),
@@ -260,7 +268,7 @@ for b in range(NB):
     ))
     d.write_parquet(f"{tmp}/final_{b}.parquet")
     print(b, d.height)
-    del d, s, x
+    del d, s, x, k
 
 # 以 sink_parquet 串流合併 16 個暫存檔在 8 GB 上限內仍被殺掉，改為逐檔讀入、逐檔附加寫出
 writer = None

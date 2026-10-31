@@ -12,6 +12,7 @@ import jax.numpy as jnp
 import numpy as np
 import polars as pl
 
+import game_source
 import likelihood as lk
 import ordinal
 
@@ -32,8 +33,11 @@ d = (
         "game_id", "speed", "white_elo", "black_elo",
         y=pl.col("result").replace_strict({"0-1": 0, "1/2-1/2": 1, "1-0": 2}, default=None, return_dtype=pl.Int8),
         w="white_id", b="black_id",
+        arena=pl.col("tournament_id").is_not_null(),
     )
     .filter(pl.col("y").is_not_null())
+    .pipe(game_source.with_source)
+    .filter(game_source.KEEP)
     .join(pl.scan_parquet("data/processed/glicko_replay.parquet").select("game_id", "perf", "white_rd", "black_rd"), on="game_id")
     .filter(pl.col("perf") == pl.col("speed"))
     .with_columns(
@@ -60,7 +64,7 @@ def ll(t, Z, xr, xd, gxd, y):
 
 test_rows, bin_rows, curve_rows = [], [], []
 for tc in CLASSES:
-    m = d.filter(pl.col("speed") == tc).sample(N_FIT, seed=1)
+    m = d.filter(pl.col("speed") == tc).pipe(lambda x: x.sample(min(N_FIT, x.height), seed=1))
     w, b = m["w"].to_numpy(), m["b"].to_numpy()
     xr, xd, gxd, y = (m[c].to_numpy().astype(np.float64) for c in ["xr", "xd", "gxd", "y"])
     edges = np.quantile(xr, np.linspace(0, 1, K + 1)[1:-1])

@@ -14,6 +14,7 @@ import numpy as np
 import polars as pl
 from scipy import optimize
 
+import game_source
 import likelihood as lk
 import novice
 import ordinal
@@ -34,7 +35,7 @@ g = (
     pl.scan_parquet("data/processed/lichess_games.parquet")
     .filter(pl.col("speed") != "Correspondence", pl.col("base_seconds").is_not_null(), pl.col("start") < pl.datetime(2015, 1, 1, time_zone=UTC))
     .select(
-        "start", "speed", "white_elo", "black_elo",
+        "game_id", "start", "speed", "white_elo", "black_elo",
         arena=pl.col("tournament_id").is_not_null(),
         y=pl.col("result").replace_strict({"0-1": 0, "1/2-1/2": 1, "1-0": 2}, default=None, return_dtype=pl.Int8),
         w=pl.col("white_id"),
@@ -64,9 +65,11 @@ nprev = pl.concat([
     .select("i", "p", "n_prev")
     for tc in CLASSES
 ])
+# 累計局數含邀戰與無 source 的對局（同為玩家的經驗），校準的樣本只留 arena 與一般大廳對局
 d = (
-    g.lazy()
+    game_source.with_source(g.lazy())
     .filter(
+        game_source.KEEP,
         pl.col("start") >= pl.datetime(2014, 1, 1, time_zone=UTC),
         pl.col("y").is_not_null(),
         pl.col("white_elo").is_not_null(),
@@ -81,7 +84,6 @@ d = (
         diff=(pl.col("white_elo") - pl.col("black_elo")).cast(pl.Float64),
         rbar=(pl.col("white_elo") + pl.col("black_elo")) / 2,
         n_min=pl.min_horizontal("nw", "nb"),
-        source=pl.when(pl.col("arena")).then(pl.lit("arena")).otherwise(pl.lit("lobby")),
         period=pl.when(pl.col("start") < pl.datetime(2014, 8, 1, time_zone=UTC)).then(pl.lit("Jan-Jul")).otherwise(pl.lit("Aug-Dec")),
         train=pl.col("start") < pl.datetime(2014, 7, 1, time_zone=UTC),
         censored=pl.col("cw").fill_null(False) | pl.col("cb").fill_null(False),
@@ -169,7 +171,7 @@ IDX = np.arange(8)
 coef_rows, test_rows, implied_rows, cox_rows, pred_rows = [], [], [], [], []
 fits = {}
 for tc in CLASSES:
-    m = d.filter(pl.col("speed") == tc, pl.col("est")).sample(N_FIT, seed=1)
+    m = d.filter(pl.col("speed") == tc, pl.col("est")).pipe(lambda x: x.sample(min(N_FIT, x.height), seed=1))
     w, b = m["w"].to_numpy(), m["b"].to_numpy()
     xr, xd, y = (m[c].to_numpy().astype(np.float64) for c in ["xr", "xd", "y"])
     th, ll1, V, Hi, S, H = lk.fit(ll_ord, T0, IDX, (xr, xd, y), w, b)
@@ -249,7 +251,7 @@ for tc in CLASSES:
             cox_rows.append({"speed": tc, "stratum_type": k, "stratum": str(v), "n": ms.height, "intercept": tc_[0], "intercept_se": np.sqrt(Vc[0, 0]), "slope": tc_[2], "slope_se": np.sqrt(Vc[1, 1]), "slope_se_iid": np.sqrt(Hic[1, 1]), "slope_lo": lo, "slope_hi": hi})
 
     # 時間切分的預測評估：1-6 月估計，7-12 月評估
-    tr = d.filter(pl.col("speed") == tc, pl.col("est"), pl.col("train")).sample(N_FIT, seed=2)
+    tr = d.filter(pl.col("speed") == tc, pl.col("est"), pl.col("train")).pipe(lambda x: x.sample(min(N_FIT, x.height), seed=2))
     te = d.filter(pl.col("speed") == tc, ~pl.col("train"))
     a = [tr[c].to_numpy().astype(np.float64) for c in ["xr", "xd", "y"]]
     th_tr, *_ = lk.fit(ll_ord, T0, IDX, a, tr["w"].to_numpy(), tr["b"].to_numpy())

@@ -133,9 +133,12 @@ pp_summary = per_player.select(
 print(pp_summary)
 pp_summary.write_csv("outputs/tables/data_overview_per_player.csv")
 
-# 大廳以全部非錦標賽對局代理：source 尚未查完，已查部分中邀戰只佔一般對局約 1%，
-# 不改變分布形狀。pool 試行的 6 至 10 月兩邊都排除，pool 的配對另有規則
-gap = g14.filter(~pl.col("start").dt.month().is_between(6, 10), pl.col("white_elo").is_not_null(), pl.col("black_elo").is_not_null()).select(
+# 比較的是配對方式，邀戰的對手是指名的，不算自選配對；大廳只取 source 為 lobby 者。
+# pool 試行的 6 至 10 月兩邊都排除，pool 的配對另有規則
+gap = g14.filter(
+    ~pl.col("start").dt.month().is_between(6, 10), pl.col("white_elo").is_not_null(), pl.col("black_elo").is_not_null(),
+    pl.col("arena") | (pl.col("source") == "lobby"),
+).select(
     "arena", gap=(pl.col("white_elo") - pl.col("black_elo")).abs()
 )
 gap_summary = gap.group_by("arena").agg(n=pl.len(), **{f"q{int(q * 100)}": pl.col("gap").quantile(q) for q in [0.25, 0.5, 0.75, 0.9]}).sort("arena")
@@ -157,7 +160,7 @@ fig.savefig("outputs/figures/data_overview_timeline.svg")
 
 fig, ax = plt.subplots(figsize=(6, 3.6))
 bins = np.arange(0, 1001, 20)
-for arena, c, lab in [(False, ORANGE, "lobby & challenge (self-selected)"), (True, BLUE, "arena (system-assigned)")]:
+for arena, c, lab in [(False, ORANGE, "lobby (self-selected)"), (True, BLUE, "arena (system-assigned)")]:
     x = gap.filter(pl.col("arena") == arena)["gap"].to_numpy()
     ax.hist(x, bins=bins, density=True, histtype="step", lw=2, color=c, label=lab)
 ax.set_xlabel("|white rating − black rating|")

@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 
+import game_source
 import likelihood as lk
 import novice
 import ordinal
@@ -45,9 +46,11 @@ nprev = pl.concat([
 rp = pl.scan_parquet("data/processed/glicko_replay.parquet").select(
     "game_id", "perf", "white_rd", "black_rd", "white_left_truncated", "black_left_truncated", "white_prior_games", "black_prior_games",
 )
+# 樣本同 calibration.py：累計局數含邀戰與無 source 的對局，校準只留 arena 與一般大廳對局
 d = (
-    g.lazy()
+    game_source.with_source(g.lazy())
     .filter(
+        game_source.KEEP,
         pl.col("start") >= pl.datetime(2014, 1, 1, time_zone=UTC),
         pl.col("y").is_not_null(),
         pl.col("white_elo").is_not_null(),
@@ -61,7 +64,6 @@ d = (
         L=(pl.col("white_elo") - pl.col("black_elo")) * ELO,
         n_min=pl.min_horizontal("nw", "nb"),
         rd_max=pl.max_horizontal("white_rd", "black_rd"),
-        source=pl.when(pl.col("arena")).then(pl.lit("arena")).otherwise(pl.lit("lobby")),
     )
     .collect(engine="streaming")
 )
