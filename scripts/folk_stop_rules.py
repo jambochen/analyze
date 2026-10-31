@@ -122,3 +122,28 @@ axes[0].set_ylabel("mean score minus expected (main baseline)")
 axes[0].legend(fontsize=8)
 fig.tight_layout()
 fig.savefig("outputs/figures/folk_stop_rules_backtest.png", dpi=150)
+
+# 一天的切分門檻敏感度：6 與 24 小時各重跑一次，只看刪去減保留的方向與顯著與否（主結果為 12 小時）
+gap_rows = []
+for gap in [6, 12, 24]:
+    dg, _ = stop_rule_sample(gap * 3600)
+    pg = dg["player"].unique().sort().to_numpy()
+    ig = np.searchsorted(pg, dg["player"].to_numpy())
+    rg = dg["resid"].to_numpy()
+    for r in RULES:
+        for s in ["Bullet", "Blitz"]:
+            sm = (dg["speed"] == s).to_numpy()
+            dl = dg[f"del_{r}"].to_numpy()
+            cols = [sm & dl, sm & ~dl]
+            Sg = np.stack([np.bincount(ig[m], rg[m], len(pg)) for m in cols], 1)
+            Ng = np.stack([np.bincount(ig[m], None, len(pg)) for m in cols], 1)
+            rng = np.random.default_rng(0)
+            W = rng.multinomial(len(pg), np.full(len(pg), 1 / len(pg)), size=B).astype(np.float64)
+            bs = (W @ Sg) / (W @ Ng)
+            diff = Sg.sum(0)[0] / Ng.sum(0)[0] - Sg.sum(0)[1] / Ng.sum(0)[1]
+            bd = bs[:, 0] - bs[:, 1]
+            se = np.nanstd(bd, ddof=1)
+            gap_rows.append({"day_gap_hours": gap, "rule": r, "speed": s, "n_deleted": int(Ng[:, 0].sum()), "diff": diff, "se": se, "p": 2 * norm.sf(abs(diff) / se)})
+gap_res = pl.DataFrame(gap_rows)
+print(gap_res)
+gap_res.write_csv("outputs/tables/folk_stop_rules_day_gap.csv")

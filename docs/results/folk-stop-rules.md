@@ -1,6 +1,6 @@
 # 民間停止規則的回測
 
-腳本：`scripts/folk_stop_rules.py`。共用 module：`scripts/arena_batches.py`（`stop_rule_sample`）。表在 `outputs/tables/folk_stop_rules_*.csv`，圖在 `outputs/figures/folk_stop_rules_backtest.png`。規格見 `docs/methods.md`「停止規則」。本文件只寫定性結論，數值一律見對應的輸出檔。
+腳本：`scripts/folk_stop_rules.py`。共用 module：`scripts/arena_batches.py`（`stop_rule_sample`）。表在 `outputs/tables/folk_stop_rules_*.csv`（一天的切分門檻敏感度為 `folk_stop_rules_day_gap.csv`），圖在 `outputs/figures/folk_stop_rules_backtest.png`。規格見 `docs/methods.md`「停止規則」。本文件只寫定性結論，數值一律見對應的輸出檔。
 
 ## 問題
 
@@ -22,6 +22,12 @@
 - 「一路下到第一次輸」在 Blitz 校正後拒絕「刪去與保留的局相同」，方向是刪去的局較好：照規則停反而使每局的平均殘差略低於從不停。Bullet 方向相同，校正後不顯著
 - 「連輸兩局才停」在 Bullet 與 Blitz 都沒有差異
 - 差距的大小相對於一局的得分很小，換算成等級分不到幾分；結論是規則無用，不是規則有害
+
+### 一天的切分門檻
+
+- 以 6 與 24 小時各重跑一次（`folk_stop_rules_day_gap.csv`），刪去減保留之差的方向在三個門檻下一致：刪去的局不差於保留的局；「連輸兩局才停」在 Blitz 於三個門檻下都沒有差異
+- 顯著與否隨門檻變動的是 Bullet：「一路下到第一次輸」只在 6 小時的未校正檢定下顯著，「連輸兩局才停」在 6 與 24 小時顯著、12 小時在邊緣。方向從不反轉，所以不改變「規則無用」的結論，但 Bullet 的「沒有差異」依賴門檻，報告寫成限制
+- 此處只比較方向與未校正的顯著與否，不另作推論
 
 ### 停下只是把局移到隔天的第一局，而隔天的第一局更差
 

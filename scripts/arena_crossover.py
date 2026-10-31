@@ -59,6 +59,7 @@ d = (
     .with_columns(
         *[pl.col("h").shift(k).over(grp).alias(f"h_lag{k}") for k in LAGS],
         *[pl.col("midx").shift(k).over(grp).alias(f"midx_lag{k}") for k in LAGS],
+        midx_lead1=pl.col("midx").shift(-1).over(grp),
         *[pl.col("layer").shift(k).over(grp).alias(f"layer_lag{k}") for k in LAGS],
         *[pl.col("rule").shift(k).over(grp).alias(f"rule_lag{k}") for k in LAGS],
         bid_lag1=pl.col("bid").shift(1).over(grp),
@@ -120,6 +121,12 @@ for k in LAGS:
     g = sp_t[rows]
     R[k] = (rows, mk[rows], g, weights(pl_t[rows], g, rr_m[mk[rows]]))
 W_m = weights(m["player"].to_numpy(), sp_m, rr_m)
+# 安慰劑：下一局所屬批內的 h 對本局殘差。下一局的對手在本局結束後才指派，係數應為 0；
+# 是否有下一局取決於本局的結果，但下一局的指派發生在這個選擇之後
+mk = t["midx_lead1"].fill_null(-1).to_numpy()
+rows_pl = np.flatnonzero(mk >= 0)
+g_pl = sp_t[rows_pl]
+R_pl = (rows_pl, mk[rows_pl], g_pl, weights(pl_t[rows_pl], g_pl, rr_m[mk[rows_pl]]))
 # 劑量反應的五等分：切點取實際的 h（依速度類別），重新配對時固定
 r1, m1, g1, _ = R[1]
 h1 = t["h_lag1"].to_numpy()
@@ -162,6 +169,8 @@ def stats_of(hm):
     # Anderson–Rubin 式的區間：H0(c) 下 resid - c * score_lag1 不隨上一局的配對而變
     out["ar_a"] = agg(h * resid_t[rows], g, W)
     out["ar_b"] = agg(h * score_lag1[rows], g, W)
+    rows, mk, g, W = R_pl
+    out["placebo"] = agg(hm[mk] * s_t[rows], g, W) / agg(hm[mk] ** 2 * v_t[rows], g, W)
     for c, z in zip(BAL, Zc):
         out[f"balance_{c}"] = agg(hm * z, sp_m, W_m) / agg(hm * hm, sp_m, W_m)
     return out
@@ -197,7 +206,7 @@ for nl in pairing_null.NULLS:
             a, x = act[c][gi], arr[:, ki, gi]
             ri_rows.append({
                 "null": nl, "stat": c, **label(gi), "est": a, "null_mean": x.mean(), "null_sd": x.std(), "est_centered": a - x.mean(),
-                "p": (1 + (np.abs(x - x.mean()) >= abs(a - x.mean())).sum()) / (B + 1),
+                "p": np.nan if np.isnan(a) else (1 + (np.abs(x - x.mean()) >= abs(a - x.mean())).sum()) / (B + 1),
             })
     ia, ib = KEYS.index("ar_a"), KEYS.index("ar_b")
     for gi in range(NG):
@@ -220,6 +229,10 @@ ri = ri.with_columns(p_holm=pl.Series(lk.holm(ri["p"], ri.select(main_sel).to_se
 # 平衡檢驗為一族（主虛無分布、Bullet 與 Blitz、全部加權與批的組合），以 Holm 法校正後仍拒絕才觸發調整
 bal = (pl.col("null") == "main") & pl.col("stat").str.starts_with("balance_") & pl.col("speed").is_in(["Bullet", "Blitz"])
 ri = ri.with_columns(p_holm_diag=pl.Series(lk.holm(ri["p"], ri.select(bal).to_series())).fill_nan(None))
+# 安慰劑為一族（主虛無分布、Bullet 與 Blitz、全部加權與批的組合），與平衡檢驗分開校正。
+# Bullet 的純隨機規則批只出現在每場第一局，本局已有上一局時下一局不會落在其中，該格為空，不進校正
+pla = (pl.col("null") == "main") & (pl.col("stat") == "placebo") & pl.col("speed").is_in(["Bullet", "Blitz"]) & pl.col("p").is_not_nan()
+ri = ri.with_columns(p_holm_placebo=pl.Series(lk.holm(ri["p"], ri.select(pla).to_series())).fill_nan(None))
 # 換算：h 增加 0.1 的效果相當於自身等級分高多少分（以主基準的分差斜率換算）
 ri = ri.with_columns(
     elo_per_0_1=pl.when(pl.col("stat").str.starts_with("beta_")).then(pl.col("est_centered") * 0.1 / pl.col("speed").replace_strict(slope_elo, return_dtype=pl.Float64))
