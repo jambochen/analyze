@@ -22,7 +22,6 @@ import ordinal
 UTC = "UTC"
 CLASSES = ["Bullet", "Blitz", "Classical"]
 Q = ordinal.Q
-N_FIT = 1_000_000
 EXP = ["0", "1-2", "3-5", "6-10", "11-20", "21-50", "51-100", "101-200", ">200"]
 
 g_ = (
@@ -66,7 +65,7 @@ d = (
         exp_bin=pl.min_horizontal("white_prior_games", "black_prior_games").cut([0, 2, 5, 10, 20, 50, 100, 200], labels=EXP, left_closed=False).cast(pl.String),
         band=((pl.col("white_elo") + pl.col("black_elo")) / 2).cut([1200, 1400, 1600, 1800, 2000], labels=["<1200", "1200-1400", "1400-1600", "1600-1800", "1800-2000", ">=2000"]).cast(pl.String),
     )
-    # streaming 的 join 輸出列序每個行程不同，sample 的種子固定也抽到不同的局；先排序才可重現
+    # streaming 的 join 輸出列序每個行程不同，加總順序隨之變動；先排序才可重現
     .sort("game_id")
     .select("speed", "w", "b", "y", "score", "xr", "xd", "gxd", "L_elo", "L_glicko", "rd_max", "novice_rd", "lt_any", "train", "source", "period", "band", "exp_bin")
     .collect(engine="streaming")
@@ -107,7 +106,7 @@ coef_rows, test_rows, cox_rows, pred_rows, curve_parts, strata_rows, score_rows,
 for tc in CLASSES:
     dt = d.filter(pl.col("speed") == tc)
     for variant, keep in [("all", pl.lit(True)), ("no_left_truncated", ~pl.col("lt_any"))]:
-        m = dt.filter(keep).pipe(lambda x: x.sample(min(N_FIT, x.height), seed=1))
+        m = dt.filter(keep)
         w, b = m["w"].to_numpy(), m["b"].to_numpy()
         args = tuple(m[c].to_numpy().astype(np.float64) for c in ["xr", "xd", "gxd", "y"])
         res = {}
@@ -166,7 +165,7 @@ for tc in CLASSES:
             strata_rows.append({"speed": tc, "stratum_type": k, "stratum": v, "n": m.height, "intercept": th[0], "slope": th[1], "slope_se": np.sqrt(V[1, 1]), "slope_se_iid": np.sqrt(Hi[1, 1])})
 
     # 樣本外評估：1-6 月估計，7-12 月評估
-    tr = dt.filter(pl.col("train")).pipe(lambda x: x.sample(min(N_FIT, x.height), seed=2))
+    tr = dt.filter(pl.col("train"))
     te = dt.filter(~pl.col("train"))
     a = tuple(tr[c].to_numpy().astype(np.float64) for c in ["xr", "xd", "gxd", "y"])
     xte = [te[c].to_numpy() for c in ["xr", "xd", "gxd"]]

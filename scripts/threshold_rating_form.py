@@ -18,7 +18,6 @@ import ordinal
 
 UTC = "UTC"
 CLASSES = ["Bullet", "Blitz", "Classical"]
-N_FIT = 1_000_000
 # 等量分組：每組局數相同，各組的精度相近，不另定等級分的切點
 K = 20
 
@@ -64,7 +63,7 @@ def ll(t, Z, xr, xd, gxd, y):
 
 test_rows, bin_rows, curve_rows = [], [], []
 for tc in CLASSES:
-    m = d.filter(pl.col("speed") == tc).pipe(lambda x: x.sample(min(N_FIT, x.height), seed=1))
+    m = d.filter(pl.col("speed") == tc)
     w, b = m["w"].to_numpy(), m["b"].to_numpy()
     xr, xd, gxd, y = (m[c].to_numpy().astype(np.float64) for c in ["xr", "xd", "gxd", "y"])
     edges = np.quantile(xr, np.linspace(0, 1, K + 1)[1:-1])

@@ -14,9 +14,9 @@
 
 ## 資料與樣本
 
-- 2014 年 Bullet、Blitz、Classical 的有鐘對局，類別依 `speed`，含新手對局；RD 取自重放（`docs/data/glicko-replay.md`），只用重放的速度類別與對局相同者
-- 概似比檢定在各類別抽一個固定大小的簡單隨機樣本上估計，與 `docs/results/calibration.md` 相同；另以排除含左截斷一方的對局重做，因為左截斷帳號前段的 RD 是設定值
-- 樣本外評估：1 至 6 月估計，7 至 12 月全部對局評估，依新手（任一方 RD 達 provisional 門檻）與否分組
+- 2014 年 Bullet、Blitz、Classical 的有鐘對局，類別依 `speed`，含新手對局；對局來源限 arena 與一般大廳對局，與 `docs/results/calibration.md` 相同；RD 取自重放（`docs/data/glicko-replay.md`），只用重放的速度類別與對局相同者
+- 概似比檢定與切點形式的檢定都在各類別的全部對局上估計，不抽子樣本，理由同 `docs/results/calibration.md`；另以排除含左截斷一方的對局重做，因為左截斷帳號前段的 RD 是設定值
+- 樣本外評估：1 至 6 月全部對局估計，7 至 12 月全部對局評估，依新手（任一方 RD 達 provisional 門檻）與否分組
 - Elo 與 Glicko 期望得分本身的校準迴歸用該類別全部的對局
 
 ## 做法
@@ -68,7 +68,9 @@ Glicko 只給期望得分，有序 logistic 的寫法需要自由估計尺度（
 
 ### 和局帶寬需要二次，白方優勢不需要
 
-和局帶寬的對數在 Classical 低等級段持平、之後上升，彎曲明顯，Blitz 也有，二次項校正後拒絕為 0；Bullet 近乎直線，二次項不需要。二次加分組的檢定在 Bullet 與 Classical 也拒絕，但分組估計與二次曲線的偏離相對於整體趨勢很小，百萬局的樣本下小偏離也會被偵測（`threshold_rating_form_tests.csv`）。白方優勢的分組估計大致沿直線，Classical 隨等級下降；二次項在三個速度類別校正後都不拒絕為 0，Bullet 的彎曲只來自最高兩組。二次式在兩端外推時翹起，那裡資料少，不作解讀。
+和局帶寬的對數在 Classical 低等級段持平、之後上升，彎曲明顯，二次項校正後拒絕為 0；Blitz 的彎曲較淺，二次項同樣拒絕為 0；Bullet 近乎直線，二次項不需要。白方優勢的分組估計大致沿直線，Classical 隨等級下降；二次項在三個速度類別校正後都不拒絕為 0，Bullet 的彎曲只來自最高兩組（`threshold_rating_form_tests.csv`、`threshold_rating_form_bins.csv`）。
+
+二次是否足夠：和局帶寬的「二次加分組對二次」在三個速度類別都拒絕，即分組估計與二次曲線之間偵測得到偏離。但偏離相對於整體趨勢很小，分組估計大致落在二次曲線上（`threshold_rating_form_curve.csv`）：樣本有數百萬局，小偏離也會被偵測，二次式對主基準的用途足夠。白方優勢的同一檢定在三個類別都不拒絕。二次式在兩端外推時翹起，那裡資料少，不作解讀。
 
 ## 對後續分析的意涵
 

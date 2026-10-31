@@ -26,8 +26,6 @@ CLASSES = ["Bullet", "Blitz", "Classical"]
 # 累計局數的門檻是暫定的新手期界線；calibration_experience.png 用來檢查這條界線是否落在校準斜率趨穩之後
 N_EST = novice.GAMES
 ELO = ordinal.Q
-# 有序模型與 proportional odds 檢驗在每個速度類別抽 N_FIT 局的簡單隨機樣本上估計
-N_FIT = 1_000_000
 
 # 只讀需要的欄位。2014 年 12 月以前的無鐘對局計入
 # Classical 的等級分，但沒有時限，與有鐘的對局不是同一種對局，與通信棋一同排除
@@ -171,7 +169,7 @@ IDX = np.arange(8)
 coef_rows, test_rows, implied_rows, cox_rows, pred_rows = [], [], [], [], []
 fits = {}
 for tc in CLASSES:
-    m = d.filter(pl.col("speed") == tc, pl.col("est")).pipe(lambda x: x.sample(min(N_FIT, x.height), seed=1))
+    m = d.filter(pl.col("speed") == tc, pl.col("est"))
     w, b = m["w"].to_numpy(), m["b"].to_numpy()
     xr, xd, y = (m[c].to_numpy().astype(np.float64) for c in ["xr", "xd", "y"])
     th, ll1, V, Hi, S, H = lk.fit(ll_ord, T0, IDX, (xr, xd, y), w, b)
@@ -251,7 +249,7 @@ for tc in CLASSES:
             cox_rows.append({"speed": tc, "stratum_type": k, "stratum": str(v), "n": ms.height, "intercept": tc_[0], "intercept_se": np.sqrt(Vc[0, 0]), "slope": tc_[2], "slope_se": np.sqrt(Vc[1, 1]), "slope_se_iid": np.sqrt(Hic[1, 1]), "slope_lo": lo, "slope_hi": hi})
 
     # 時間切分的預測評估：1-6 月估計，7-12 月評估
-    tr = d.filter(pl.col("speed") == tc, pl.col("est"), pl.col("train")).pipe(lambda x: x.sample(min(N_FIT, x.height), seed=2))
+    tr = d.filter(pl.col("speed") == tc, pl.col("est"), pl.col("train"))
     te = d.filter(pl.col("speed") == tc, ~pl.col("train"))
     a = [tr[c].to_numpy().astype(np.float64) for c in ["xr", "xd", "y"]]
     th_tr, *_ = lk.fit(ll_ord, T0, IDX, a, tr["w"].to_numpy(), tr["b"].to_numpy())
