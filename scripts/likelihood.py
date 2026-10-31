@@ -132,32 +132,49 @@ def frac_newton(X, s, t):
 
 
 # sigmoid(alpha + beta L) 的 score 統計量 U' I^-1 U，只需在虛無假設下計算。各局當成獨立、quasi-likelihood 取 phi = 1；
-# 和局使 phi < 1，統計量偏小、區間偏寬
-def frac_score(L, s, t):
-    X = np.column_stack([np.ones_like(L), L])
-    p = 1 / (1 + np.exp(-(t[0] + t[1] * L)))
-    U = X.T @ (s - p)
-    return U @ np.linalg.solve(X.T @ (X * (p * (1 - p))[:, None]), U)
+# 和局使 phi < 1，統計量偏小、區間偏寬。
+# U、I 與牛頓步都是各局的線性和，只依賴每個相異 L 值的局數 n 與得分和 S。Elo 的 L 由整數分差決定，
+# 相異值遠少於局數，先壓成 (u, n, S) 再迭代；反轉區間時 brentq 反覆求值，只壓一次。
+# 參考實作（逐局計算）見 scripts/frac_score_matches_reference.py
+def _frac_suff(L, s):
+    u, inv = np.unique(L, return_inverse=True)
+    return u, np.bincount(inv).astype(np.float64), np.bincount(inv, s)
+
+
+def _frac_score(u, n, S, t):
+    p = 1 / (1 + np.exp(-(t[0] + t[1] * u)))
+    r, v = S - n * p, n * p * (1 - p)
+    U = np.array([r.sum(), u @ r])
+    return U @ np.linalg.solve(np.array([[v.sum(), u @ v], [u @ v, (u * u) @ v]]), U)
 
 
 # 固定第 j 個參數為 v，另一個以牛頓法解虛無假設下的估計，再算 score 統計量
-def frac_score_at(L, s, j, v, t0):
-    X = np.column_stack([np.ones_like(L), L])
+def _frac_score_at(u, n, S, j, v, t0):
     t = np.array(t0, dtype=float)
     t[j] = v
     k = 1 - j
+    xk = np.ones_like(u) if k == 0 else u
     for _ in range(50):
-        p = 1 / (1 + np.exp(-(t[0] + t[1] * L)))
-        step = (X[:, k] @ (s - p)) / (X[:, k] ** 2 @ (p * (1 - p)))
+        p = 1 / (1 + np.exp(-(t[0] + t[1] * u)))
+        step = (xk @ (S - n * p)) / ((xk**2) @ (n * p * (1 - p)))
         t[k] += step
         if abs(step) < 1e-12:
             break
-    return frac_score(L, s, t)
+    return _frac_score(u, n, S, t)
+
+
+def frac_score(L, s, t):
+    return _frac_score(*_frac_suff(L, s), t)
+
+
+def frac_score_at(L, s, j, v, t0):
+    return _frac_score_at(*_frac_suff(L, s), j, v, t0)
 
 
 # 反轉 score test 的 95% 區間；th 為估計值，se 只用來框出 brentq 的搜尋範圍
 def frac_score_ci(L, s, j, th, se):
-    f = lambda v: frac_score_at(L, s, j, v, th) - stats.chi2.ppf(0.95, 1)
+    c = _frac_suff(L, s)
+    f = lambda v: _frac_score_at(*c, j, v, th) - stats.chi2.ppf(0.95, 1)
     return optimize.brentq(f, th[j] - 4 * se, th[j]), optimize.brentq(f, th[j], th[j] + 4 * se)
 
 

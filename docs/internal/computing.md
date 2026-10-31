@@ -71,6 +71,10 @@ permutation test 的重抽由 `scripts/pairing_null.py` 的 `run` 以 fork 的�
 
 只用線性統計量（加權和、比值）的 bootstrap 不需要這個擴充：先依玩家加總，再以重抽次數矩陣相乘（`continuation_selection.py`、`folk_stop_rules.py`）。要乘的向量多時疊成一個矩陣一次相乘：重抽次數矩陣大於 L3，逐次的矩陣乘向量每次都從記憶體重讀整個矩陣，IPC 遠低於 1，BLAS 已用滿 AVX2 也無濟於事；矩陣乘矩陣時 BLAS 分塊重用，同樣的浮點運算量快數倍。
 
+### 反轉 score 檢定的區間
+
+`calibration.py` 與 `expected_score_baselines.py` 的 Cox 校準區間由 `lk.frac_score_ci` 反轉 score 檢定求得：brentq 每次求值都在全部對局上重做一次牛頓迭代，單執行緒 numpy 逐次掃過與局數同長的陣列，曾是這兩支腳本最大的段落，比有序概似的配適還多。score、information 與牛頓步都是各局的線性和，只依賴每個相異 $L$ 值的局數與得分和；Elo 的 $L$ 由整數分差決定，相異值遠少於局數，所以先壓成這三項再迭代，一次區間只壓一次（`likelihood.py` 的 `_frac_suff`）。$L$ 為連續值（例如主基準的期望得分）時相異值約等於局數，壓縮沒有好處也幾乎沒有代價。驗證見 `scripts/frac_score_matches_reference.py`，以逐局計算的寫法為參考實作，只差加總順序造成的浮點誤差。
+
 ### 條件概似的 logistic 迴歸的分母
 
 給定流失次數時，分母是所有流失日組合的總和。以初等對稱多項式的動態規劃逐位玩家精確計算，流失日多於一半時改以未流失日為事件，計算量取決於 $\min(k, n-k)$（`scripts/clogit.py`、`docs/results/appendix/fixed-effects-churn.md`）。
