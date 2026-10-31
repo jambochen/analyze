@@ -320,7 +320,6 @@ $ logit P(Y <= j) = log P(Y <= j) / (1 - P(Y <= j)) = theta_j (macron(r)) - eta,
 #stack(
   spacing: 0.7em,
   [一階 Markov：本局結果的分布只依上一局；$Y$：負、和、勝],
-  [$p_(i j) = P(Y_t = j | Y_(t - 1) = i)$，估計為 $hat(p)_(i j) = n_(i j) \/ n_(i +)$：轉移次數除以列和],
   text(size: 0.8em, fill: mute)[出處：@anderson1957],
 )
 
