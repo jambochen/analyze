@@ -18,6 +18,7 @@
 | `expected-score-baselines.md` | 三個期望勝率的基準哪個好？相依資料下修正的概似比檢定水準如何？ |
 | `novice-period.md` | 新手期如何界定？校準偏差在門檻處是否消失？ |
 | `novice-clusters.md` | 新手的偏差收斂速度是否因人而異？ |
+| `player-heterogeneity.md` | 平均沒有效果是否掩蓋了少數有效果的玩家？ |
 | `random-pairing.md` | 2014 年 arena 的配對是否確與等級分無關？permutation test 該用哪些配對批次？ |
 | `crossover.md` | 剛被隨機分到強對手之後，下一局的表現是否低於期望？總效果與直接效果有何不同？ |
 | `continuation.md` | 被分到強對手是否改變續下？考慮續下的選擇後，結論能否推到所有玩家？ |
