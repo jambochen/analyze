@@ -21,19 +21,15 @@ import sys
 os.environ["JAX_PLATFORMS"] = "cpu"
 sys.path.insert(0, "scripts")
 
-import numpy as np
 import polars as pl
 
-import likelihood as lk
 import ordinal
-from state_adjusted import diff_row, losses
+from external import evaluate, player_rows, stop_verdicts
 from runs import runs_before
-from stop_rules import apply_rules, backtest
 
 SPEEDS = ["blitz", "live"]
 DAY_GAP = 12 * 3600
 NOVICE_RD = 160
-DELTA = 10
 T_LO, T_EVAL, T_HI = 1609459200, 1672531200, 1704067200  # 2021-01-01、2023-01-01、2024-01-01（UTC）
 
 con = sqlite3.connect("file:data/raw/ogs/ogs-data.db?mode=ro", uri=True)
@@ -88,7 +84,6 @@ t = (
         xr=((pl.col("black_rating") + pl.col("white_rating")) / 2 - 1500) / 100,
         xd=(pl.col("black_rating") - pl.col("white_rating")) / 100,
         gs=ordinal.g("black_rd", "white_rd"),
-        L_sys=(pl.col("expected_black") / (1 - pl.col("expected_black"))).log(),
         d_prev_win=pl.col("b_prev_win") - pl.col("w_prev_win"),
         d_missing=pl.col("b_missing") - pl.col("w_missing"),
         d_dr=pl.col("b_dr") - pl.col("w_dr"),
@@ -103,96 +98,29 @@ print(sample)
 sample.write_csv("outputs/tables/other_games_ogs_sample.csv")
 
 BASE = ["const", "xr", "xr2", "xd", "xdxr", "gxd"]
-STATE = [("prev_result", ["d_prev_win", "d_missing"]), ("dr", ["d_dr"])]
-cal_rows, step_rows, pred_rows, coef_rows, stop_parts, eval_parts = [], [], [], [], [], []
-for spd in SPEEDS:
-    ts = t.filter(pl.col("speed") == spd)
-    tr, te = ts.filter("train"), ts.filter(~pl.col("train"))
-    wtr, btr, wte, bte = tr["black_id"].to_numpy(), tr["white_id"].to_numpy(), te["black_id"].to_numpy(), te["white_id"].to_numpy()
-    th, *_ = lk.fit(lk.logit_ll, np.zeros(len(BASE)), np.arange(len(BASE)), (tr.select(BASE).to_numpy().astype(np.float64), tr["y"].to_numpy()), wtr, btr)
-    eta = lambda d: d.select(BASE).to_numpy().astype(np.float64) @ th  # noqa: E731
-    tr, te = tr.with_columns(L_base=pl.Series(eta(tr))), te.with_columns(L_base=pl.Series(eta(te)))
-
-    # 系統與主基準的校準：logit E[y] = alpha + beta L，2023 年；完全校準為 alpha = 0、beta = 1
-    for nm in ["L_sys", "L_base"]:
-        X = te.select("const", nm).to_numpy().astype(np.float64)
-        c, _, V, *_ = lk.fit(lk.logit_ll, np.array([0.0, 1.0]), np.arange(2), (X, te["y"].to_numpy()), wte, bte)
-        cal_rows.append({"speed": spd, "expected": nm, "n": te.height, "alpha": c[0], "alpha_se": np.sqrt(V[0, 0]), "beta": c[1], "beta_se": np.sqrt(V[1, 1])})
-
-    # 依狀態調整：主基準為 offset（係數固定為 1），各項依序加入
-    def run(cols):
-        X = ["L_base"] + cols
-        t0 = np.r_[1.0, np.zeros(len(cols))]
-        c, *_ = lk.fit(lk.logit_ll, t0, np.arange(1, len(X)), (tr.select(X).to_numpy().astype(np.float64), tr["y"].to_numpy()), wtr, btr) if cols else (t0,)
-        p = 1 / (1 + np.exp(-(te.select(X).to_numpy().astype(np.float64) @ c)))
-        return c, losses(np.c_[1 - p, np.zeros(len(p)), p], (te["y"].to_numpy() * 2).astype(int)), p
-
-    _, loss_base, _ = run([])
-    p_sys = te["expected_black"].to_numpy()
-    loss_sys = losses(np.c_[1 - p_sys, np.zeros(len(p_sys)), p_sys], (te["y"].to_numpy() * 2).astype(int))
-    kept, cur, loss_cur = [], "baseline", loss_base
-    for nm, cols in STATE:
-        c, ls, _ = run(kept + cols)
-        r = diff_row(spd, nm, cur, ls, loss_cur, np.ones(te.height, bool), wte, bte, "all")[0]
-        keep = r["diff"] + 1.96 * r["diff_se_dyadic"] < 0
-        step_rows.append({"speed": spd, "step": nm, "vs": cur, "diff": r["diff"], "diff_se_dyadic": r["diff_se_dyadic"], "kept": keep})
-        if keep:
-            kept, cur, loss_cur = kept + cols, nm, ls
-    c, loss_adj, p_adj = run(kept)
-    for k, col in enumerate(kept):
-        coef_rows.append({"speed": spd, "param": col, "est": c[1 + k]})
-    nov = te["novice"].to_numpy()
-    for group, msk in [("all", np.ones(te.height, bool)), ("novice", nov), ("established", ~nov)]:
-        pred_rows += diff_row(spd, "baseline", "system", loss_base, loss_sys, msk, wte, bte, group)
-        pred_rows += diff_row(spd, "adjusted", "baseline", loss_adj, loss_base, msk, wte, bte, group)
-
-    # 停止規則：玩家視角的殘差，殘差取主基準
-    stop_parts += [
-        te.select("game_id", player="black_id", e=1 / (1 + (-pl.col("L_base")).exp())),
-        te.select("game_id", player="white_id", e=1 - 1 / (1 + (-pl.col("L_base")).exp())),
-    ]
-    # 評估段的三個預報，供連勝連敗（streaks.py）與 Brier 分解（forecast_decomposition.py）使用
-    te = te.with_columns(p_adj=pl.Series(p_adj), p_base=1 / (1 + (-pl.col("L_base")).exp()))
-    eval_parts += [
-        te.select("game_id", "speed", "novice", player="black_id", opponent="white_id", score="y", e_sys="expected_black", e_base="p_base", e_adj="p_adj"),
-        te.select("game_id", "speed", "novice", player="white_id", opponent="black_id", score=1 - pl.col("y"), e_sys=1 - pl.col("expected_black"), e_base=1 - pl.col("p_base"), e_adj=1 - pl.col("p_adj")),
-    ]
-    # 主基準下期望得分對自身等級分的斜率（每 1 分）：e(1 - e) (t3 + t4 xr + t5 g) / 100
-    spe_te = te.select(s=(1 / (1 + (-pl.col("L_base")).exp())) * (1 - 1 / (1 + (-pl.col("L_base")).exp())) * (th[3] + th[4] * pl.col("xr") + th[5] * pl.col("gs")) / 100)["s"].mean()
-    coef_rows.append({"speed": spd, "param": "score_per_rating", "est": spe_te})
-    print(spd, "done", kept, flush=True)
-
-cal, steps, pred, coef = pl.DataFrame(cal_rows), pl.DataFrame(step_rows), pl.DataFrame(pred_rows), pl.DataFrame(coef_rows)
+# 黑方為 A 方；主基準線性預測式對黑方等級分（每 100 分）的斜率為 t3 + t4 xr + t5 g
+tables, te = evaluate(
+    t.rename({"black_id": "a_id", "white_id": "b_id", "expected_black": "p_sys"}), SPEEDS, BASE,
+    lambda th, d: th[3] + th[4] * d["xr"] + th[5] * d["gs"],
+)
 with pl.Config(tbl_rows=-1, tbl_cols=-1, tbl_width_chars=250):
-    print(cal)
-    print(steps)
-    print(pred.filter(pl.col("metric") == "log_loss"))
-cal.write_csv("outputs/tables/other_games_ogs_calibration.csv")
-steps.write_csv("outputs/tables/other_games_ogs_steps.csv")
-pred.write_csv("outputs/tables/other_games_ogs_prediction.csv")
-coef.write_csv("outputs/tables/other_games_ogs_coef.csv")
-pl.concat(eval_parts).join(pg.select("game_id", "player", "day", "loss_run", "win_run"), on=["game_id", "player"]).write_parquet("data/processed/ogs_eval_rows.parquet")
+    print(tables["calibration"])
+    print(tables["steps"])
+    print(tables["prediction"].filter(pl.col("metric") == "log_loss"))
+for k, v in tables.items():
+    v.write_csv(f"outputs/tables/other_games_ogs_{k}.csv")
+# 評估段的三個預報，供連勝連敗（streaks.py）與 Brier 分解（forecast_decomposition.py）使用
+ev = player_rows(te)
+ev.join(pg.select("game_id", "player", "day", "loss_run", "win_run"), on=["game_id", "player"]).write_parquet("data/processed/ogs_eval_rows.parquet")
 
-# 停止規則的序列只含 2023 年的樣本局；一天的切分沿用全部非通訊棋的序列
+# 停止規則的序列只含 2023 年的樣本局，殘差取主基準；一天的切分沿用全部非通訊棋的序列
 d = (
-    pg.join(pl.concat(stop_parts), on=["game_id", "player"])
+    pg.join(ev.select("game_id", "player", e="e_base"), on=["game_id", "player"])
     .join(pg.select("game_id", opponent="player", opp_rd="rd"), on=["game_id", "opponent"])
-    .with_columns(
-        resid=pl.col("score") - pl.col("e"),
-        novice_rd=pl.max_horizontal("rd", "opp_rd") >= NOVICE_RD,
-    )
+    .with_columns(resid=pl.col("score") - pl.col("e"), novice_rd=pl.max_horizontal("rd", "opp_rd") >= NOVICE_RD)
     .sort("player", "ended", "game_id")
 )
-d, del_days = apply_rules(d, pl.col("day_start") >= T_EVAL)
-res, reset, *_ = backtest(d, del_days, 2000, speeds=SPEEDS, family=SPEEDS)
-spe = dict(coef.filter(pl.col("param") == "score_per_rating").select("speed", "est").iter_rows())
-res = res.with_columns(spe=pl.col("speed").replace_strict(spe, return_dtype=pl.Float64)).with_columns(
-    diff_rating=pl.col("diff") / pl.col("spe"), lo_rating=pl.col("lo") / pl.col("spe"), hi_rating=pl.col("hi") / pl.col("spe"),
-).with_columns(
-    verdict=pl.when((pl.col("diff") < 0) & (pl.col("p_holm") < 0.05)).then(pl.lit("beats_never_stop"))
-    .when((pl.col("lo_rating") > -DELTA) & (pl.col("hi_rating") < DELTA)).then(pl.lit("negligible"))
-    .otherwise(pl.lit("inconclusive"))
-)
+res, reset = stop_verdicts(d, pl.col("day_start") >= T_EVAL, SPEEDS, tables["coef"])
 with pl.Config(tbl_rows=-1, tbl_cols=-1, tbl_width_chars=250):
     print(res.filter(pl.col("group") == "all"))
     print(reset)
