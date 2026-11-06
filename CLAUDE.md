@@ -52,7 +52,8 @@
 即其依賴，不另外記。
 
 **共用 module**：同一段估計邏輯在多支腳本重複時，收進被 import 的 module，
-不各自複製。複本會漂移，而漂移不報錯。
+不各自複製。複本會漂移，而漂移不報錯。要知道 module 有哪些函式、怎麼呼叫，
+先看 `make api` 的輸出（簽名與 docstring 首行），再只讀需要的函式。
 
 `scripts/explore/` 的腳本以 `sys.path.insert(0, "scripts")` 取用共用 module。
 腳本一律在專案根目錄執行。
@@ -67,7 +68,11 @@
 
 暫存一個檔案之前先看它的 `git diff`。使用者常同時在改同一批檔案；diff 含不是本次修改的 hunk 時，只暫存自己的 hunk：以 HEAD 版本加上自己的修改寫成暫存檔，經 `git hash-object -w` 與 `git update-index --cacheinfo` 寫入 index。
 
-`scripts/` 的 lint 為 `make lint`（ruff，設定在 `pyproject.toml`），pre-commit hook 對暫存的腳本執行同一檢查。
+`make lint` 跑 ruff（設定在 `pyproject.toml`）與 `scripts/check_conventions.py`（本文件中能機械判斷的規則：章節序號、檔名編號、型別註記、類別、main 判斷、argparse）。pre-commit hook 對暫存的腳本跑 ruff，並對全 repo 跑後者。
+
+## 子 agent
+
+只讀的搜尋（找檔案、找函式的用法）與網路查證交給 Explore agent，`model` 取 `haiku`，要它只回報結論與檔案位置。分析的執行、腳本與文件的撰寫留在主 session：子 agent 不帶本文件的硬性紀律，前瞻驗證樣本與 `docs/preregistration.md` 的判定只在主 session 經手。
 
 ## 資料取得
 

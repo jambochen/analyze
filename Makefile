@@ -8,7 +8,12 @@ check-report-captions:
 .PHONY: lint
 lint:
 	$(PYTHON) -m ruff check scripts
+	$(PYTHON) scripts/check_conventions.py
 
 .PHONY: check-slides
 check-slides:
 	$(PYTHON) scripts/check_slide_overflow.py
+
+.PHONY: api
+api:
+	$(PYTHON) scripts/module_api.py

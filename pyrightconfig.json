@@ -2,7 +2,16 @@
   "venvPath": ".",
   "venv": ".venv",
   "pythonVersion": "3.13",
-  "include": ["scripts"],
-  "exclude": ["**/archive", "data", ".venv"],
-  "reportMissingImports": "error"
+  "include": [
+    "scripts"
+  ],
+  "exclude": [
+    "**/archive",
+    "data",
+    ".venv"
+  ],
+  "reportMissingImports": "error",
+  "extraPaths": [
+    "scripts"
+  ]
 }
