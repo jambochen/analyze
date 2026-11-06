@@ -26,6 +26,7 @@
 | `state-adjusted-probs.md` | 依上一局修正後的勝、和、負機率比系統的期望準多少？保留哪些近況項？ |
 | `history-depth.md` | 比上一局更早的對局能否讓勝率更準？有沒有持續數局的失常狀態？ |
 | `folk-stop-rules.md` | 「輸了今天休息」這類民間停止規則有沒有用？停下之後隔天的第一局表現如何？ |
+| `prospective-validation.md` | 2014 年的結論在沒看過的 2015 年資料上是否重現？ |
 
 ### 附錄：`results/appendix/`
 
