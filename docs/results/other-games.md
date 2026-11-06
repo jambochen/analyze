@@ -25,12 +25,17 @@ AoE2 為第二份候選資料，aoestats 的使用條款尚未確認，未下載
 - OGS 的期望勝率在兩個速度類別都過度自信：校準斜率明顯低於 1，即高估強方的優勢（`other_games_ogs_calibration.csv`）。Lichess 的 Elo 形式偏差方向相同
 - 重估的主基準在評估段接近校準，樣本外對數分數比系統的期望勝率好（`other_games_ogs_prediction.csv`）
 - 改善集中在新手：新手對局的差距遠大於老手。這與 Lichess 中新手的偏差最大、RD 收縮項的作用最大相同
+- Brier 分數的分解（`outputs/tables/forecast_decomposition.csv`，`scripts/forecast_decomposition.py`）：從系統到主基準，改善主要來自可靠度，與 Lichess 相同；新手組的解析度也明顯增加
 
 ### 近況在樣本外修正期望勝率，方向與 Lichess 相同
 
 - 雙方的上一局結果與上一局等級分變動依序加入，兩個速度類別都保留兩項，樣本外對數分數的 dyadic 區間不含 0（`other_games_ogs_steps.csv`）
 - 等級分變動的係數為正：剛漲分的一方好於期望，即等級分調得不夠，與 Lichess 相同（`other_games_ogs_coef.csv`）。給定等級分變動之後，上一局結果本身的係數為負，與等級分變動高度相關，不單獨解讀
-- 改善同樣集中在新手
+- 改善同樣集中在新手。分解上，近況主要增加解析度，即帶來等級分之外的分辨資訊，與 Lichess 相同
+
+### 連勝連敗
+
+- 連輸四局之後的局好於期望，方向與 Lichess 相反，見 `docs/results/streaks.md`
 
 ### 停止規則：沒有支持「輸了就停」的證據
 

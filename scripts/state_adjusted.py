@@ -10,6 +10,7 @@ import likelihood as lk
 import novice
 import ordinal
 from arena_batches import player_sample_rd
+from runs import runs_before
 
 # 訓練好的模型（有序 logistic 的係數、LightGBM、XGBoost、MLP），由 state_adjusted_probs.py 寫出
 MODEL_DIR = "data/processed/state_adjusted_models"
@@ -99,3 +100,24 @@ def diff_row(spd, a, b, la, lb, msk, wg, bg, group):
         se = lk.dyad_se((dlt - dlt.mean()) / msk.sum(), wg[msk], bg[msk])
         rows.append({"speed": spd, "group": group, "model": a, "vs": b, "metric": metric, "n": int(msk.sum()), "mean": la[metric][msk].mean(), "diff": dlt.mean(), "diff_se_dyadic": se})
     return rows
+
+
+def eval_rows():
+    """2014 下半年 arena 中本場有上一局的玩家局，加上三個預報：e_sys（Elo 形式，表頭等級分）、e_base（主基準）、
+    e_adj（依狀態調整的勝率，2014 上半年估計的模型），與本局之前同場內的連敗、連勝局數 loss_run、win_run。
+    連串在整場錦標賽的序列上計算，之前的局可以落在上半年。"""
+    grp = ["player", "tournament_id"]
+    full = runs_before(player_sample_rd().sort(grp + ["start", "game_id"]), grp).select("game_id", "player", "loss_run", "win_run")
+    d = sample().filter(pl.col("start") >= pl.datetime(2014, 7, 1, time_zone="UTC"))
+    parts = []
+    for spd in ["Bullet", "Blitz", "Classical"]:
+        te = d.filter(pl.col("speed") == spd)
+        th = np.load(f"{MODEL_DIR}/{spd}.npz")["th"]
+        p = probs(th, te["eta"].to_numpy(), te["w"].to_numpy(), te.select(XCOLS).to_numpy().astype(np.float64))
+        parts.append(te.with_columns(e_adj=pl.Series(p[:, 2] + p[:, 1] / 2)))
+    return (
+        pl.concat(parts)
+        .with_columns(e_sys=1 / (1 + 10 ** (-(pl.col("elo") - pl.col("opp_elo")) / 400)))
+        .join(full, on=["game_id", "player"])
+        .select("game_id", "player", "opponent", "speed", "score", "e_sys", "e_base", "e_adj", "loss_run", "win_run", novice="novice_rd")
+    )

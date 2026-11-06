@@ -1,6 +1,6 @@
 # 依狀態調整的勝率
 
-腳本：`scripts/state_adjusted_probs.py`。共用 module：`scripts/arena_batches.py`（`player_sample_rd`）、`scripts/likelihood.py`（`fit`、`dyad_se`）。表在 `outputs/tables/state_adjusted_probs_*.csv`，圖在 `outputs/figures/state_adjusted_probs_curve.png`。規格見 `docs/methods.md`「依狀態調整的勝率」。本文件只寫定性結論，數值一律見對應的輸出檔。
+腳本：`scripts/state_adjusted_probs.py`；改善來源的分解為 `scripts/forecast_decomposition.py`。共用 module：`scripts/state_adjusted.py`（樣本、機率與評估量，前瞻驗證與分解共用）、`scripts/arena_batches.py`（`player_sample_rd`）、`scripts/likelihood.py`（`fit`、`dyad_se`）。表在 `outputs/tables/state_adjusted_probs_*.csv` 與 `outputs/tables/forecast_decomposition.csv`，圖在 `outputs/figures/state_adjusted_probs_curve.png`。規格見 `docs/methods.md`「依狀態調整的勝率」。本文件只寫定性結論，數值一律見對應的輸出檔。
 
 ## 問題
 
@@ -51,6 +51,13 @@
 - 老手組較差，大部分來自重學主基準：以主基準為起點的 LightGBM 在三個速度類別的全部局都與有序模型相當，區間含 0，遠好於從頭學的 LightGBM。它在 early stopping 之下只長出少數幾輪樹，主基準之外可學的結構很少
 - 以主基準為起點之後，老手組仍只在 Blitz 不如有序模型，Bullet 與 Classical 相當；有序模型以少數參數得到同樣的樣本外表現，「有序模型還剩多少可改善」的上界因此接近 0
 - 新手組的差距在樹模型與神經網路都出現，以主基準為起點的 LightGBM 在 Bullet 與 Blitz 的新手組同樣較好，不是單一模型或重學主基準的偶然，表示新手的勝率還有主基準與近況項沒有抓到的結構。這是看過結果才發現的型態，不回頭加入有序模型的候選項；登記為事後型態，以前瞻資料檢驗
+
+### 改善來自哪裡：校準為主，近況另增分辨力
+
+- 以 Brier 分數的 Murphy 分解比較系統的 Elo 形式、主基準與依狀態調整的勝率（`forecast_decomposition.csv`）。分解只作描述，差異是否顯著由對數分數的檢定回答
+- 從 Elo 形式到主基準，Brier 分數的改善幾乎全來自可靠度：機率變得校準，分辨誰會贏的能力（解析度）幾乎不變
+- 從主基準到依狀態調整的勝率，可靠度再小幅改善，解析度也略增：近況除了修正偏差，還帶來等級分之外的分辨資訊
+- 新手組的兩步改善都較大，與新手的校準偏差最大一致
 
 ### 校準曲線
 

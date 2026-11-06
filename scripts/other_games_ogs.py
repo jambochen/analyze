@@ -27,6 +27,7 @@ import polars as pl
 import likelihood as lk
 import ordinal
 from state_adjusted import diff_row, losses
+from runs import runs_before
 from stop_rules import apply_rules, backtest
 
 SPEEDS = ["blitz", "live"]
@@ -68,6 +69,7 @@ pg = (
         prev_score=pl.col("score").shift(1).over("player"),
         dr=((pl.col("rating") - pl.col("rating").shift(1).over("player")) / 100),
         day_start=pl.col("ended").first().over("player", "day"),
+        result=pl.when(pl.col("score") == 1).then(pl.lit("win")).otherwise(pl.lit("loss")),
     )
     .with_columns(
         prev_win=pl.when("has_prev").then(pl.col("prev_score")).otherwise(0.0),
@@ -75,6 +77,7 @@ pg = (
         dr=pl.when("has_prev").then(pl.col("dr")).otherwise(0.0),
     )
 )
+pg = runs_before(pg, ["player", "day"])
 st = pg.select("game_id", "player", "prev_win", "missing", "dr")
 t = (
     g.filter("sample")
@@ -101,7 +104,7 @@ sample.write_csv("outputs/tables/other_games_ogs_sample.csv")
 
 BASE = ["const", "xr", "xr2", "xd", "xdxr", "gxd"]
 STATE = [("prev_result", ["d_prev_win", "d_missing"]), ("dr", ["d_dr"])]
-cal_rows, step_rows, pred_rows, coef_rows, stop_parts = [], [], [], [], []
+cal_rows, step_rows, pred_rows, coef_rows, stop_parts, eval_parts = [], [], [], [], [], []
 for spd in SPEEDS:
     ts = t.filter(pl.col("speed") == spd)
     tr, te = ts.filter("train"), ts.filter(~pl.col("train"))
@@ -122,20 +125,20 @@ for spd in SPEEDS:
         t0 = np.r_[1.0, np.zeros(len(cols))]
         c, *_ = lk.fit(lk.logit_ll, t0, np.arange(1, len(X)), (tr.select(X).to_numpy().astype(np.float64), tr["y"].to_numpy()), wtr, btr) if cols else (t0,)
         p = 1 / (1 + np.exp(-(te.select(X).to_numpy().astype(np.float64) @ c)))
-        return c, losses(np.c_[1 - p, np.zeros(len(p)), p], (te["y"].to_numpy() * 2).astype(int))
+        return c, losses(np.c_[1 - p, np.zeros(len(p)), p], (te["y"].to_numpy() * 2).astype(int)), p
 
-    _, loss_base = run([])
+    _, loss_base, _ = run([])
     p_sys = te["expected_black"].to_numpy()
     loss_sys = losses(np.c_[1 - p_sys, np.zeros(len(p_sys)), p_sys], (te["y"].to_numpy() * 2).astype(int))
     kept, cur, loss_cur = [], "baseline", loss_base
     for nm, cols in STATE:
-        c, ls = run(kept + cols)
+        c, ls, _ = run(kept + cols)
         r = diff_row(spd, nm, cur, ls, loss_cur, np.ones(te.height, bool), wte, bte, "all")[0]
         keep = r["diff"] + 1.96 * r["diff_se_dyadic"] < 0
         step_rows.append({"speed": spd, "step": nm, "vs": cur, "diff": r["diff"], "diff_se_dyadic": r["diff_se_dyadic"], "kept": keep})
         if keep:
             kept, cur, loss_cur = kept + cols, nm, ls
-    c, loss_adj = run(kept)
+    c, loss_adj, p_adj = run(kept)
     for k, col in enumerate(kept):
         coef_rows.append({"speed": spd, "param": col, "est": c[1 + k]})
     nov = te["novice"].to_numpy()
@@ -147,6 +150,12 @@ for spd in SPEEDS:
     stop_parts += [
         te.select("game_id", player="black_id", e=1 / (1 + (-pl.col("L_base")).exp())),
         te.select("game_id", player="white_id", e=1 - 1 / (1 + (-pl.col("L_base")).exp())),
+    ]
+    # 評估段的三個預報，供連勝連敗（streaks.py）與 Brier 分解（forecast_decomposition.py）使用
+    te = te.with_columns(p_adj=pl.Series(p_adj), p_base=1 / (1 + (-pl.col("L_base")).exp()))
+    eval_parts += [
+        te.select("game_id", "speed", "novice", player="black_id", opponent="white_id", score="y", e_sys="expected_black", e_base="p_base", e_adj="p_adj"),
+        te.select("game_id", "speed", "novice", player="white_id", opponent="black_id", score=1 - pl.col("y"), e_sys=1 - pl.col("expected_black"), e_base=1 - pl.col("p_base"), e_adj=1 - pl.col("p_adj")),
     ]
     # 主基準下期望得分對自身等級分的斜率（每 1 分）：e(1 - e) (t3 + t4 xr + t5 g) / 100
     spe_te = te.select(s=(1 / (1 + (-pl.col("L_base")).exp())) * (1 - 1 / (1 + (-pl.col("L_base")).exp())) * (th[3] + th[4] * pl.col("xr") + th[5] * pl.col("gs")) / 100)["s"].mean()
@@ -162,6 +171,7 @@ cal.write_csv("outputs/tables/other_games_ogs_calibration.csv")
 steps.write_csv("outputs/tables/other_games_ogs_steps.csv")
 pred.write_csv("outputs/tables/other_games_ogs_prediction.csv")
 coef.write_csv("outputs/tables/other_games_ogs_coef.csv")
+pl.concat(eval_parts).join(pg.select("game_id", "player", "day", "loss_run", "win_run"), on=["game_id", "player"]).write_parquet("data/processed/ogs_eval_rows.parquet")
 
 # 停止規則的序列只含 2023 年的樣本局；一天的切分沿用全部非通訊棋的序列
 d = (
@@ -169,7 +179,6 @@ d = (
     .join(pg.select("game_id", opponent="player", opp_rd="rd"), on=["game_id", "opponent"])
     .with_columns(
         resid=pl.col("score") - pl.col("e"),
-        result=pl.when(pl.col("score") == 1).then(pl.lit("win")).otherwise(pl.lit("loss")),
         novice_rd=pl.max_horizontal("rd", "opp_rd") >= NOVICE_RD,
     )
     .sort("player", "ended", "game_id")
