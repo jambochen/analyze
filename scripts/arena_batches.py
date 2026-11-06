@@ -8,6 +8,7 @@ from scipy import stats
 import novice
 import pairing_null
 from calibrated import probs, rd_baseline
+from stop_rules import STOP_RULES, apply_rules  # noqa: F401  STOP_RULES 供其他腳本由此取用
 
 UTC = "UTC"
 D = lambda y, m, d: pl.datetime(y, m, d, time_zone=UTC)  # noqa: E731
@@ -156,9 +157,6 @@ def player_sample_rd(period="2014"):
     )
 
 
-STOP_RULES = ["first_loss", "two_losses"]
-
-
 def stop_rule_sample(day_gap=12 * 3600, period="2014"):
     """評估段（STOP_PERIODS）的 arena 玩家局，加上一天的切分與兩條民間停止規則刪去的局；回傳 (d, del_days)。
 
@@ -184,24 +182,7 @@ def stop_rule_sample(day_gap=12 * 3600, period="2014"):
         .join(days, on=["game_id", "player"])
         .sort("player", "start", "game_id")
     )
-    pd_ = ["player", "day"]
-    loss = (pl.col("result") == "loss").cast(pl.Int32)
-    d = (
-        d.with_columns(run=(pl.col("result") != "loss").cum_sum().over(pd_))
-        .with_columns(streak=loss.cum_sum().over(pd_ + ["run"]))
-        .with_columns(
-            del_first_loss=(loss.cum_sum().over(pd_) - loss) > 0,
-            del_two_losses=((pl.col("streak") >= 2).cast(pl.Int32).cum_sum().over(pd_) - (pl.col("streak") >= 2).cast(pl.Int32)) > 0,
-            novice_rd=novice.novice_rd("rd", "opp_rd"),
-        )
-    )
-    first = d.group_by(pd_, maintain_order=True).agg(pl.col("resid").first(), pl.col("speed").first(), pl.col("opponent").first())
-    first = first.with_columns(
-        next_resid=pl.col("resid").shift(-1).over("player"), next_speed=pl.col("speed").shift(-1).over("player"), next_opponent=pl.col("opponent").shift(-1).over("player")
-    ).select(pd_ + ["next_resid", "next_speed", "next_opponent"])
-    d = d.filter(pl.col("day_start") >= lo_eval).drop("run", "streak")
-    del_days = d.group_by(pd_).agg(*[pl.col(f"del_{r}").any().alias(f"any_{r}") for r in STOP_RULES]).join(first, on=pd_, how="left")
-    return d, del_days
+    return apply_rules(d.with_columns(novice_rd=novice.novice_rd("rd", "opp_rd")), pl.col("day_start") >= lo_eval)
 
 
 def rating_filter_sample(nq=5, period="2014"):
