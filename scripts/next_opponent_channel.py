@@ -16,25 +16,29 @@ from crossover_direct import load
 
 grp = ["player", "tournament_id"]
 t, _, _ = load()
-prev = player_sample_rd().sort(grp + ["start", "game_id"]).select("game_id", "player", prev_game=pl.col("game_id").shift(1).over(grp))
+prev = player_sample_rd().sort(grp + ["start", "game_id"]).select("game_id", "player", "bid", prev_game=pl.col("game_id").shift(1).over(grp))
+# 上一局的對手接著下的那一局所在的批；對手沒有續下時為空
+opp_next = prev.filter(pl.col("prev_game").is_not_null()).select(opp_lag1="player", prev_game="prev_game", opp_next_bid="bid")
 meta = pl.read_parquet("data/processed/game_meta.parquet", columns=["game_id", "created_ms", "last_move_ms"])
 d = (
     t.filter(pl.col("speed").is_in(["Bullet", "Blitz"]), pl.col("layer_lag1") == "multi")
-    .join(prev, on=["game_id", "player"])
+    .join(prev.drop("bid"), on=["game_id", "player"])
+    .join(opp_next, on=["opp_lag1", "prev_game"], how="left")
     .join(meta.rename({"game_id": "prev_game"}), on="prev_game")
     .with_columns(
         log_dur=((pl.col("last_move_ms") - pl.col("created_ms")).clip(lower_bound=1000) / 1000).log(),
         prev_win=(pl.col("score_lag1") == 1).cast(pl.Float64),
         prev_draw=(pl.col("score_lag1") == 0.5).cast(pl.Float64),
         opp_elo_next=pl.col("opp_elo").cast(pl.Float64),
+        same_batch=(pl.col("opp_next_bid") == pl.col("bid")).fill_null(False).cast(pl.Float64),
     )
 )
-print(d.group_by("speed").agg(n=pl.len(), players=pl.col("player").n_unique(), batches=pl.col("bid_lag1").n_unique()))
+print(d.group_by("speed").agg(n=pl.len(), players=pl.col("player").n_unique(), batches=pl.col("bid_lag1").n_unique(), same_batch=pl.col("same_batch").mean()))
 
-COLS = ["h_lag1", "score_lag1", "log_dur", "prev_win", "prev_draw", "opp_elo_next"]
+COLS = ["h_lag1", "score_lag1", "log_dur", "prev_win", "prev_draw", "opp_elo_next", "same_batch", "h_same"]
 rows = []
 for spd in ["Bullet", "Blitz"]:
-    s = d.filter(pl.col("speed") == spd).with_columns([(pl.col(c) - pl.col(c).mean().over("bid_lag1")).alias(c) for c in COLS])
+    s = d.filter(pl.col("speed") == spd).with_columns(h_same=pl.col("h_lag1") * pl.col("same_batch")).with_columns([(pl.col(c) - pl.col(c).mean().over("bid_lag1")).alias(c) for c in COLS])
     g = s["player"].to_numpy()
 
     def ols(y, xs, model):
@@ -46,6 +50,13 @@ for spd in ["Bullet", "Blitz"]:
     ols("log_dur", ["h_lag1"], "step1_duration")
     ols("opp_elo_next", ["h_lag1"], "step2_h_only")
     ols("opp_elo_next", ["h_lag1", "prev_win", "prev_draw", "log_dur"], "step2_with_mediators")
+    # 第二個候選：上一局的對手是否在自己的下一批。分組各自批內去平均，從未去平均的資料重算
+    for grp_v, nm in [(1.0, "same_batch"), (0.0, "other_batch")]:
+        z = d.filter(pl.col("speed") == spd, pl.col("same_batch") == grp_v)
+        z = z.with_columns([(pl.col(c) - pl.col(c).mean().over("bid_lag1")).alias(c) for c in ["h_lag1", "opp_elo_next"]])
+        r = sm.OLS(z["opp_elo_next"].to_numpy(), z.select("h_lag1").to_numpy()).fit(cov_type="cluster", cov_kwds={"groups": z["player"].to_numpy()})
+        rows.append({"speed": spd, "model": "split_" + nm, "y": "opp_elo_next", "x": "h_lag1", "est": r.params[0], "se": r.bse[0], "lo": r.conf_int()[0, 0], "hi": r.conf_int()[0, 1], "n": z.height})
+    ols("opp_elo_next", ["h_lag1", "same_batch", "h_same"], "interaction")
 
 res = pl.DataFrame(rows)
 with pl.Config(tbl_rows=-1, tbl_cols=-1, tbl_width_chars=250):
