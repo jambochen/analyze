@@ -1,4 +1,4 @@
-# arena 配對批次的重建，與以批次為單位的 2014 年 arena 玩家局樣本。
+# arena 配對批次的重建，與以批次為單位的 arena 玩家局樣本（2014 年為主樣本，2015 年 1 月至 4 月 19 日為前瞻驗證）。
 # 批次：同一場錦標賽中開局時間相同（到秒）的對局視為同一次配對（依據見 docs/results/random-pairing.md）。
 
 import numpy as np
@@ -10,6 +10,12 @@ import pairing_null
 from calibrated import probs, rd_baseline
 
 UTC = "UTC"
+D = lambda y, m, d: pl.datetime(y, m, d, time_zone=UTC)  # noqa: E731
+# 每段樣本：(讀批次的起點, 樣本起點, 終點)。批次早一天讀起，跨日的錦標賽才不會把樣本的第一批誤判為開賽批。
+# 2015 年為前瞻驗證的樣本（docs/preregistration.md），4 月 20 日起 arena 不再隨機配對
+PERIODS = {"2014": (D(2013, 12, 31), D(2014, 1, 1), D(2015, 1, 1)), "2015": (D(2014, 12, 31), D(2015, 1, 1), D(2015, 4, 20))}
+# 停止規則的回測：(切分一天的序列的起點, 評估的起點)。2014 年只評估下半年，與上半年估計的依狀態調整的勝率同一段
+STOP_PERIODS = {"2014": (D(2014, 6, 1), D(2014, 7, 1)), "2015": (D(2014, 12, 1), D(2015, 1, 1))}
 
 
 def games(lo, hi):
@@ -50,15 +56,15 @@ def prev_games(g):
     )
 
 
-def _sample():
-    # 從 2013-12-31 讀起，跨年的錦標賽才不會把 2014 年的第一批誤判為開賽批
-    g, batch, bad = games(pl.datetime(2013, 12, 31, time_zone=UTC), pl.datetime(2015, 1, 1, time_zone=UTC))
+def _sample(period):
+    lo_b, lo, hi = PERIODS[period]
+    g, batch, bad = games(lo_b, hi)
     g = g.filter(~pl.col("tournament_id").is_in(bad))
     batch = batch.filter(~pl.col("tournament_id").is_in(bad))
     prev = prev_games(g).select("game_id", "player", "prev")
     pg = (
         pl.scan_parquet("data/processed/player_games.parquet")
-        .filter(pl.col("arena"), pl.col("start") >= pl.datetime(2014, 1, 1, time_zone=UTC), pl.col("start") < pl.datetime(2015, 1, 1, time_zone=UTC))
+        .filter(pl.col("arena"), pl.col("start") >= lo, pl.col("start") < hi)
         .select(
             "game_id", "player", "color", "start", "speed", "tournament_id", "elo", "opp_elo", "score", "result",
             "player_game_no", "prev_gap", "est_duration", "session_threshold", "continue_session", "leave_8h",
@@ -95,8 +101,8 @@ def _sample():
     )
 
 
-def player_sample():
-    """2014 年 arena 的玩家局，含批次、上一局、匹配品質與解釋變數；已排除異常錦標賽。
+def player_sample(period="2014"):
+    """period（PERIODS 的鍵）的 arena 玩家局，含批次、上一局、匹配品質與解釋變數；已排除異常錦標賽。
 
     layer：multi 為兩局以上的批（設計上的隨機）；single 為開賽之後的一局一批（近似隨機）；
     first_single 為只有一局的開賽批（全場兩人，批內沒有可打亂的配法，兩層都不用）。
@@ -104,7 +110,7 @@ def player_sample():
     q 的期望依玩家在候選者中的等級分位置而定（等級分極端者期望 q 較大），而這個位置本身可能與離開有關，
     比較 q 的效果時須控制它（或以 q - q_bar 為處理變數），否則混入的是位置的效果。
     """
-    d = _sample().with_columns(
+    d = _sample(period).with_columns(
         layer=pl.when(pl.col("n_games") >= 2).then(pl.lit("multi")).when(~pl.col("first")).then(pl.lit("single")).otherwise(pl.lit("first_single")),
         tour_win5=pl.concat_str("tournament_id", pl.col("start").dt.truncate("5m").cast(pl.String)),
     )
@@ -122,7 +128,7 @@ def player_sample():
     )
 
 
-def player_sample_rd():
+def player_sample_rd(period="2014"):
     """player_sample 加上對手的帳號代碼、重放的雙方 RD 與主基準（calibrated.rd_baseline）。
 
     h = e_bar - e 為隨機配對產生的對手強弱，正值為對手比依配對機制所期望的強；resid 為得分減主基準的期望得分；
@@ -131,7 +137,7 @@ def player_sample_rd():
     ids = pl.scan_parquet("data/processed/lichess_games.parquet").select("game_id", "white_id", "black_id")
     rp = pl.scan_parquet("data/processed/glicko_replay.parquet").select("game_id", "white_rd", "black_rd")
     d = (
-        player_sample()
+        player_sample(period)
         .join(ids.collect(), on="game_id")
         .join(rp.collect(), on="game_id")
         .with_columns(
@@ -153,16 +159,18 @@ def player_sample_rd():
 STOP_RULES = ["first_loss", "two_losses"]
 
 
-def stop_rule_sample(day_gap=12 * 3600):
-    """2014 下半年的 arena 玩家局，加上一天的切分與兩條民間停止規則刪去的局；回傳 (d, del_days)。
+def stop_rule_sample(day_gap=12 * 3600, period="2014"):
+    """評估段（STOP_PERIODS）的 arena 玩家局，加上一天的切分與兩條民間停止規則刪去的局；回傳 (d, del_days)。
 
     一天以全部對局（含大廳）的開局間隔切分：大廳對局不進序列，但玩家在下大廳就不算離開。
     del_<rule> 為該規則刪去的局（觸發的那一局本身保留）。del_days 每天一列，next_resid 為下一個含 arena 局的一天中
-    第一局 arena 局的殘差（next_opponent 為該局的對手），先在全年的序列上找，再限於下半年開始的天。
+    第一局 arena 局的殘差（next_opponent 為該局的對手），先在整段樣本的序列上找，再限於評估段開始的天。
     """
+    lo_day, lo_eval = STOP_PERIODS[period]
+    hi = PERIODS[period][2]
     days = (
         pl.scan_parquet("data/processed/player_games.parquet")
-        .filter(pl.col("start") >= pl.datetime(2014, 6, 1, time_zone=UTC), pl.col("start") < pl.datetime(2015, 1, 1, time_zone=UTC))
+        .filter(pl.col("start") >= lo_day, pl.col("start") < hi)
         .select("game_id", "player", "start", "prev_gap")
         .collect()
         .sort("player", "start", "game_id")
@@ -171,7 +179,7 @@ def stop_rule_sample(day_gap=12 * 3600):
         .select("game_id", "player", "day", "day_start")
     )
     d = (
-        player_sample_rd()
+        player_sample_rd(period)
         .select("game_id", "player", "opponent", "start", "speed", "result", "resid", "rd", "opp_rd")
         .join(days, on=["game_id", "player"])
         .sort("player", "start", "game_id")
@@ -191,17 +199,17 @@ def stop_rule_sample(day_gap=12 * 3600):
     first = first.with_columns(
         next_resid=pl.col("resid").shift(-1).over("player"), next_speed=pl.col("speed").shift(-1).over("player"), next_opponent=pl.col("opponent").shift(-1).over("player")
     ).select(pd_ + ["next_resid", "next_speed", "next_opponent"])
-    d = d.filter(pl.col("day_start") >= pl.datetime(2014, 7, 1, time_zone=UTC)).drop("run", "streak")
+    d = d.filter(pl.col("day_start") >= lo_eval).drop("run", "streak")
     del_days = d.group_by(pd_).agg(*[pl.col(f"del_{r}").any().alias(f"any_{r}") for r in STOP_RULES]).join(first, on=pd_, how="left")
     return d, del_days
 
 
-def rating_filter_sample(nq=5):
+def rating_filter_sample(nq=5, period="2014"):
     """有上一局的 arena 玩家局，加上一局的結果 prev_result、上一局的等級分變動 dr（每 100 分）、
     主基準期望得分的 logit L，與自身 RD 的 nq 等分 rdq（依速度類別各自取切點，0 起算）及其虛擬變數 q*、dr_q*。"""
     grp = ["player", "tournament_id"]
     t = (
-        player_sample_rd()
+        player_sample_rd(period)
         .sort("player", "tournament_id", "start", "game_id")
         .with_columns(
             prev_result=pl.col("result").shift(1).over(grp),

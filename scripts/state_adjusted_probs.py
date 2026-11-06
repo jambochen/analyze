@@ -21,78 +21,21 @@ import polars as pl
 import xgboost
 
 import likelihood as lk
-import novice
 import ordinal
-from arena_batches import player_sample_rd
+from state_adjusted import GBM_FEATURES, MODEL_DIR, PARAMS, XCOLS, diff_row, losses, ll, mlp_out, mlp_x, probs, sample
 
 UTC = "UTC"
 SPEEDS = ["Bullet", "Blitz", "Classical"]
 RESULTS = ["loss", "draw", "win"]
 
-grp = ["player", "tournament_id"]
-code = pl.col("result").replace_strict({"loss": 0, "draw": 1, "win": 2}, return_dtype=pl.Float64)
-base = (
-    player_sample_rd()
-    .sort("player", "tournament_id", "start", "game_id")
-    .with_columns(
-        prev_result=pl.col("result").shift(1).over(grp),
-        prev2=code.shift(2).over(grp),
-        prev3=code.shift(3).over(grp),
-        prev1=code.shift(1).over(grp),
-        dr=((pl.col("elo") - pl.col("elo").shift(1).over(grp)) / 100).cast(pl.Float64),
-    )
-)
-# 對手的近況取自對手在同一局的那一列；對手在這場沒有上一局時 opp_missing 為 1，近況項記為 0
-opp = base.select("game_id", opponent="player", opp_prev_result="prev_result", opp_prev1="prev1", opp_dr="dr")
-t = (
-    base.join(opp, on=["game_id", "opponent"], how="left")
-    .filter(pl.col("prev_result").is_not_null())
-    .with_columns(
-        y=(pl.col("score") * 2).cast(pl.Int64),
-        prev_draw=(pl.col("prev_result") == "draw").cast(pl.Float64),
-        prev_win=(pl.col("prev_result") == "win").cast(pl.Float64),
-        opp_missing=pl.col("opp_prev_result").is_null().cast(pl.Float64),
-        opp_prev_draw=(pl.col("opp_prev_result") == "draw").fill_null(False).cast(pl.Float64),
-        opp_prev_win=(pl.col("opp_prev_result") == "win").fill_null(False).cast(pl.Float64),
-        opp_dr=pl.col("opp_dr").fill_null(0.0),
-        novice_rd=novice.novice_rd("rd", "opp_rd"),
-        train=pl.col("start") < pl.datetime(2014, 7, 1, time_zone=UTC),
-        # 梯度提升的 early stopping 用上半年的最後一個月，下半年完全不碰
-        valid=pl.col("start") >= pl.datetime(2014, 6, 1, time_zone=UTC),
-        white=(pl.col("color") == "white").cast(pl.Float64),
-    )
-    .with_columns(
-        d_prev_draw=pl.col("prev_draw") - pl.col("opp_prev_draw"),
-        d_prev_win=pl.col("prev_win") - pl.col("opp_prev_win"),
-        d_dr=pl.col("dr") - pl.col("opp_dr"),
-    )
+t = sample().with_columns(
+    train=pl.col("start") < pl.datetime(2014, 7, 1, time_zone=UTC),
+    # 梯度提升的 early stopping 用上半年的最後一個月，下半年完全不碰
+    valid=pl.col("start") >= pl.datetime(2014, 6, 1, time_zone=UTC),
 )
 sample = t.group_by("speed", "train", "prev_result").agg(n=pl.len(), players=pl.col("player").n_unique(), opp_missing=pl.col("opp_missing").mean()).sort("speed", "train", "prev_result")
 print(sample)
 sample.write_csv("outputs/tables/state_adjusted_probs_sample.csv")
-
-# sym_* 乘雙方之差，即兩人共用的係數
-PARAMS = ["arena_shift", "arena_log_draw_width", "prev_draw", "prev_win", "dr", "sym_prev_draw", "sym_prev_win", "sym_dr", "opp_missing"]
-XCOLS = ["prev_draw", "prev_win", "dr", "d_prev_draw", "d_prev_win", "d_dr", "opp_missing"]
-
-
-# 主基準的 eta、w 為 offset。t0 平移 eta、t1 縮放和局帶寬：主基準在全站對局上估計，
-# arena 的玩家與大廳不同，這兩項吸收 arena 的整體差異
-def ll(t, eta, w, X, y):
-    return ordinal.ll(eta + t[0] + X @ t[2:], w * jnp.exp(t[1]), y)
-
-
-def probs(t, eta, w, X):
-    return ordinal.probs(eta + t[0] + X @ t[2:], w * np.exp(t[1]))
-
-
-# MLP 的輸出層給線性預測式與和局帶寬的對數，經與有序 logistic 相同的累積 logit 得到機率
-def mlp_out(p, X):
-    h = jax.nn.relu(X @ p[0] + p[1])
-    h = jax.nn.relu(h @ p[2] + p[3])
-    o = h @ p[4] + p[5]
-    return o[:, 0], jnp.exp(o[:, 1])
-
 
 def mlp_nll(p, X, y):
     return -jnp.mean(ordinal.ll(*mlp_out(p, X), y))
@@ -110,28 +53,7 @@ def mlp_step(p, m, v, k, X, y):
 mlp_val = jax.jit(mlp_nll)
 
 
-def mlp_x(d):
-    cont = d.select("elo", "opp_elo", "rd", "opp_rd", "eta", "w", "dr", "opp_dr", pl.col("games_in_tour").log1p()).to_numpy().astype(np.float32)
-    # 前幾局不存在時歸入第四類，不以 0 或平均填補
-    cat = np.concatenate([np.eye(4, dtype=np.float32)[d[c].fill_null(3).cast(pl.Int64).to_numpy()] for c in ["prev1", "prev2", "prev3", "opp_prev1"]], 1)
-    return cont, np.c_[d["white"].to_numpy().astype(np.float32), cat]
-
-
-def losses(p, y):
-    O = np.eye(3)[y]
-    C, Co = np.cumsum(p, 1)[:, :2], np.cumsum(O, 1)[:, :2]
-    return {"log_loss": -np.log(p[np.arange(len(y)), y]), "rps": ((C - Co) ** 2).sum(1) / 2}
-
-
-def diff_row(spd, a, b, la, lb, msk, wg, bg, group):
-    rows = []
-    for metric in ["log_loss", "rps"]:
-        dlt = la[metric][msk] - lb[metric][msk]
-        se = lk.dyad_se((dlt - dlt.mean()) / msk.sum(), wg[msk], bg[msk])
-        rows.append({"speed": spd, "group": group, "model": a, "vs": b, "metric": metric, "n": int(msk.sum()), "mean": la[metric][msk].mean(), "diff": dlt.mean(), "diff_se_dyadic": se})
-    return rows
-
-
+os.makedirs(MODEL_DIR, exist_ok=True)
 pred_rows, coef_rows, step_rows, gap_rows, curve_parts = [], [], [], [], []
 for spd in SPEEDS:
     ts = t.filter(pl.col("speed") == spd)
@@ -171,8 +93,8 @@ for spd in SPEEDS:
     for k, j in enumerate(kept):
         coef_rows.append({"speed": spd, "model": final, "param": PARAMS[j], "est": th[j], "se_dyadic": np.sqrt(V[k, k]), "se_iid": np.sqrt(Hi[k, k]), "n": tr.height})
 
-    # 預測上限的參照：主基準的輸入加近況，全為對局前的資訊
-    F = ["elo", "opp_elo", "rd", "opp_rd", "white", "eta", "w", "prev1", "prev2", "prev3", "dr", "opp_prev1", "opp_dr", "games_in_tour"]
+    # 預測上限的參照
+    F = GBM_FEATURES
     fit_, val_ = tr.filter(~pl.col("valid")), tr.filter(pl.col("valid"))
     Xf, Xv, Xt = (d.select(F).to_numpy().astype(np.float64) for d in [fit_, val_, te])
     gbm = lightgbm.train(
@@ -234,6 +156,11 @@ for spd in SPEEDS:
     e_mlp, w_mlp = mlp_out(best_p, Mt)
     loss["mlp"] = losses(ordinal.probs(np.asarray(e_mlp, dtype=np.float64), np.asarray(w_mlp, dtype=np.float64)), ate[3])
     print(spd, "mlp epochs", epoch + 1, "best valid", best, flush=True)
+
+    # 前瞻驗證載入同一組模型，2015 年不重新訓練
+    gbm.save_model(f"{MODEL_DIR}/lightgbm_{spd}.txt", num_iteration=gbm.best_iteration)
+    xgb[: xgb.best_iteration + 1].save_model(f"{MODEL_DIR}/xgboost_{spd}.json")
+    np.savez(f"{MODEL_DIR}/{spd}.npz", th=th, mlp_mu=mu, mlp_sd=sd, **{f"mlp_{i}": np.asarray(a) for i, a in enumerate(best_p)})
 
     nov = te["novice_rd"].to_numpy()
     for group, msk in [("all", np.ones(te.height, bool)), ("novice", nov), ("established", ~nov)]:

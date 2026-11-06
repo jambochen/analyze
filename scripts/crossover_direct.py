@@ -2,6 +2,7 @@
 import jax.numpy as jnp
 import numpy as np
 import polars as pl
+from scipy import optimize
 
 import likelihood as lk
 import ordinal
@@ -12,10 +13,10 @@ SPEEDS = ["Bullet", "Blitz", "Classical"]
 LAGS = [1, 2, 3]
 
 
-def load():
+def load(period="2014"):
     """有上一局的 arena 玩家局 t，兩局以上的批 m 與其重新配對的結構 ns。"""
     grp = ["player", "tournament_id"]
-    d = player_sample_rd().with_columns(
+    d = player_sample_rd(period).with_columns(
         y=pl.col("result").replace_strict({"loss": 0, "draw": 1, "win": 2}, return_dtype=pl.Int8),
         sp=pl.col("speed").replace_strict({s: i for i, s in enumerate(SPEEDS)}, return_dtype=pl.Int64),
     )
@@ -41,6 +42,36 @@ def load():
     )
     t = d.filter(pl.col("h_lag1").is_not_null())
     return t, m, ns
+
+
+# 總效果的虛無模型只有兩個參數（位移 alpha、和局帶寬的對數倍率 delta），以 numpy 估計：
+# 之後要 fork 出工作行程，jax 的執行緒在 fork 前不能啟動
+def nll_null(p, off, wo, y):
+    hi, nl = ordinal.cum(off + p[0], wo * np.exp(p[1]))
+    return -np.log(np.where(y == 2, hi, np.where(y == 0, 1 - nl, nl - hi))).sum()
+
+
+def null_score_info(t):
+    """每局對 eta 的 score 與 information（有序 logistic 的封閉形式），在各速度類別的虛無模型下；回傳 (s, v, 各速度類別的 alpha、delta)。"""
+    off_t, wo_t, y_t, sp_t = (t[c].to_numpy() for c in ["eta", "w", "y", "sp"])
+    s_t, v_t, fits = np.zeros(t.height), np.zeros(t.height), {}
+    for j, spd in enumerate(SPEEDS):
+        k = sp_t == j
+        r = optimize.minimize(nll_null, [0.0, 0.0], args=(off_t[k], wo_t[k], y_t[k]), method="BFGS", options={"gtol": 1e-10})
+        s_t[k], v_t[k] = ordinal.score_info(off_t[k] + r.x[0], wo_t[k] * np.exp(r.x[1]), y_t[k])
+        fits[spd] = r.x
+    return s_t, v_t, fits
+
+
+def weights(player, sp, rr):
+    """每列的權重：以局加權為 1；以玩家加權為 1 / (該玩家在該速度類別、該樣本中的列數)。純隨機規則的子樣本另算列數。
+    回傳 [以局, 以局且純隨機規則, 以玩家, 以玩家且純隨機規則]。"""
+    key = player.astype(np.int64) * len(SPEEDS) + sp
+    n_all = np.unique(key, return_inverse=True, return_counts=True)
+    n_rr = np.unique(key[rr], return_inverse=True, return_counts=True)
+    w_rr = np.zeros(len(key))
+    w_rr[rr] = 1 / n_rr[2][n_rr[1]]
+    return [np.ones(len(key)), rr.astype(float), 1 / n_all[2][n_all[1]], w_rr]
 
 
 def direct_columns(t):
