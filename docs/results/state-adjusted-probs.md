@@ -1,6 +1,6 @@
 # 依狀態調整的勝率
 
-腳本：`scripts/state_adjusted_probs.py`；改善來源的分解為 `scripts/forecast_decomposition.py`；修正量與其區間為 `scripts/state_adjusted_shift.py`。共用 module：`scripts/state_adjusted.py`（樣本、機率與評估量，前瞻驗證與分解共用）、`scripts/arena_batches.py`（`player_sample_rd`）、`scripts/likelihood.py`（`fit`、`dyad_se`）。表在 `outputs/tables/state_adjusted_probs_*.csv`、`outputs/tables/state_adjusted_shift.csv` 與 `outputs/tables/forecast_decomposition.csv`，圖在 `outputs/figures/state_adjusted_probs_curve.png` 與 `outputs/figures/state_adjusted_shift.png`。規格見 `docs/methods.md`「依狀態調整的勝率」。本文件只寫定性結論，數值一律見對應的輸出檔。
+腳本：`scripts/state_adjusted_probs.py`；改善來源的分解為 `scripts/forecast_decomposition.py`；修正量與其區間為 `scripts/state_adjusted_shift.py`；大廳對局為 `scripts/state_adjusted_lobby.py`（表 `state_adjusted_lobby_*.csv`）。共用 module：`scripts/state_adjusted.py`（樣本、機率與評估量，前瞻驗證與分解共用）、`scripts/arena_batches.py`（`player_sample_rd`）、`scripts/likelihood.py`（`fit`、`dyad_se`）。表在 `outputs/tables/state_adjusted_probs_*.csv`、`outputs/tables/state_adjusted_shift.csv` 與 `outputs/tables/forecast_decomposition.csv`，圖在 `outputs/figures/state_adjusted_probs_curve.png` 與 `outputs/figures/state_adjusted_shift.png`。規格見 `docs/methods.md`「依狀態調整的勝率」。本文件只寫定性結論，數值一律見對應的輸出檔。
 
 ## 問題
 
@@ -68,6 +68,15 @@
 - 修正後的曲線仍隨預測的期望得分略為上升：強方的實際得分高於預測，弱方低於預測。這是 arena 上的斜率偏差，整體校正只含平移與和局帶寬，不含斜率；斜率不在事先寫定的候選項中，寫成限制
 - Blitz 中預測得分最高的一格，剛輸之後的實際得分明顯低於修正後的預測
 
+### 大廳對局：同樣的項都保留，但 arena 的係數不能直接搬過去
+
+- 大廳的上一局取同一速度類別、開局間隔不超過 1 小時的大廳對局，四步程序與保留判準同 arena（`docs/methods.md`「大廳對局」）。對手由玩家自選，這裡只做預測
+- 大廳的整體校正在三個速度類別都不保留，與 arena 相同：主基準不需要為配對來源另作整體調整
+- 自身的上一局結果、$\Delta r$ 與對手的近況，在三個速度類別都保留（`state_adjusted_lobby_steps.csv`）。間隔改為 30 分鐘與 2 小時，保留的項與改善的方向都不變
+- 改善集中在新手；Bullet 與 Blitz 的老手組區間含 0，Classical 的老手組不含 0（`state_adjusted_lobby_prediction.csv`）
+- 上一局結果的係數比 arena 小，Bullet 的幾乎為 0；Bullet 的資訊主要經由 $\Delta r$ 與對手在一小時內是否下過（`state_adjusted_lobby_coef.csv`）
+- 可移轉性：把 arena 上半年估得的模型直接套到大廳下半年，整體的對數分數反而比主基準差；新手組較好，老手組明顯較差。近況的方向在兩種配對來源相同，大小不同，修正後的勝率須依配對來源分別估計
+
 ## 對後續分析的意涵
 
 - **修正後勝率的呈現**：修正量取決於雙方的上一局結果，Blitz 與 Classical 另取決於雙方上一局等級分的變動，對手在本場的第一局另標記；係數取 `state_adjusted_probs_coef.csv`，即上半年估得的模型
@@ -75,7 +84,7 @@
 
 ## 限制
 
-- 樣本只限 arena 內有上一局的局；大廳對局待 API 的 `source` 取得後才能納入
+- 大廳對局沒有前瞻驗證：2015 年的樣本已用過，大廳的結論只以 2014 年的時間切分為據
 - 主基準的係數含下半年的資料，見上
 - 修正後仍有 arena 上的斜率偏差，見上
 - 對手的近況在 2014 年下半年之前未列入候選，加入時自身近況各步的結果已看過；結論的效力以前瞻驗證為準
