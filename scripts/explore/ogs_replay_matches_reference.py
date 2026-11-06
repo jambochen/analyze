@@ -1,6 +1,7 @@
 # ogs_replay.py 與 OGS 的參考實作（ref/goratings-src）逐局比對：以參考實作的 glicko2_update、
 # get_handicap_adjustment 與 should_skip_game 重跑資料庫的前 N 局，比對每局對局前的等級分、RD 與期望勝率。
 # 參考實作的 SQL 只以結束時間排序；這裡與 ogs_replay.py 同樣加上對局代碼，兩邊才逐局對得上。
+# import analysis.util 時，參考實作會在 data/ 下建出空的 aga-data.db、egf-data.db，跑完刪除。
 
 import argparse
 import sqlite3

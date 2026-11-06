@@ -27,6 +27,7 @@
 | `history-depth.md` | 比上一局更早的對局能否讓勝率更準？有沒有持續數局的失常狀態？ |
 | `folk-stop-rules.md` | 「輸了今天休息」這類民間停止規則有沒有用？停下之後隔天的第一局表現如何？ |
 | `prospective-validation.md` | 2014 年的結論在沒看過的 2015 年資料上是否重現？ |
+| `other-games.md` | 換一個遊戲與等級分系統（OGS 圍棋），期望勝率的偏差、近況的修正與停止規則的結論是否仍成立？ |
 
 ### 附錄：`results/appendix/`
 
