@@ -18,6 +18,7 @@ BASES = ["e_sys", "e_base", "e_adj"]
 d = pl.concat([
     eval_rows().filter(pl.col("speed").is_in(["Bullet", "Blitz"])).with_columns(game=pl.lit("lichess")),
     pl.read_parquet("data/processed/ogs_eval_rows.parquet").with_columns(game=pl.lit("ogs")),
+    pl.read_parquet("data/processed/aoe2_eval_rows.parquet").with_columns(game=pl.lit("aoe2")),
 ], how="diagonal_relaxed")
 
 rows = []

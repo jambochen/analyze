@@ -20,7 +20,10 @@ BASES = ["e_sys", "e_base", "e_adj"]
 d = pl.concat([
     eval_rows().filter(pl.col("speed").is_in(["Bullet", "Blitz"])).with_columns(game=pl.lit("lichess")),
     pl.read_parquet("data/processed/ogs_eval_rows.parquet").with_columns(game=pl.lit("ogs")),
+    pl.read_parquet("data/processed/aoe2_eval_rows.parquet").with_columns(game=pl.lit("aoe2")),
 ], how="diagonal_relaxed")
+# AoE2 的快照漏收場次，連串只在一天內每一場都接得上的天有定義（other_games_aoe2.py）
+d = d.filter(pl.col("day_complete").fill_null(True))
 
 rows = []
 for (game, spd), s in d.group_by("game", "speed", maintain_order=True):

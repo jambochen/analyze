@@ -93,7 +93,7 @@ t = (
     )
     .with_columns(xr2=pl.col("xr") ** 2, xdxr=pl.col("xd") * pl.col("xr"), gxd=pl.col("gs") * pl.col("xd"))
 )
-sample = t.group_by("speed", "train").agg(n=pl.len(), players=pl.concat_list("black_id", "white_id").explode().n_unique(), novice=pl.col("novice").mean(), black_win=pl.col("y").mean()).sort("speed", "train")
+sample = t.group_by("speed", "train").agg(n=pl.len(), players=pl.concat_list("black_id", "white_id").explode().n_unique(), novice=pl.col("novice").mean(), black_win=pl.col("y").mean(), rating_diff_sd=(pl.col("xd") * 100).std()).sort("speed", "train")
 print(sample)
 sample.write_csv("outputs/tables/other_games_ogs_sample.csv")
 
