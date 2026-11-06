@@ -1,6 +1,6 @@
 # 依狀態調整的勝率
 
-腳本：`scripts/state_adjusted_probs.py`；改善來源的分解為 `scripts/forecast_decomposition.py`。共用 module：`scripts/state_adjusted.py`（樣本、機率與評估量，前瞻驗證與分解共用）、`scripts/arena_batches.py`（`player_sample_rd`）、`scripts/likelihood.py`（`fit`、`dyad_se`）。表在 `outputs/tables/state_adjusted_probs_*.csv` 與 `outputs/tables/forecast_decomposition.csv`，圖在 `outputs/figures/state_adjusted_probs_curve.png`。規格見 `docs/methods.md`「依狀態調整的勝率」。本文件只寫定性結論，數值一律見對應的輸出檔。
+腳本：`scripts/state_adjusted_probs.py`；改善來源的分解為 `scripts/forecast_decomposition.py`；修正量與其區間為 `scripts/state_adjusted_shift.py`。共用 module：`scripts/state_adjusted.py`（樣本、機率與評估量，前瞻驗證與分解共用）、`scripts/arena_batches.py`（`player_sample_rd`）、`scripts/likelihood.py`（`fit`、`dyad_se`）。表在 `outputs/tables/state_adjusted_probs_*.csv`、`outputs/tables/state_adjusted_shift.csv` 與 `outputs/tables/forecast_decomposition.csv`，圖在 `outputs/figures/state_adjusted_probs_curve.png` 與 `outputs/figures/state_adjusted_shift.png`。規格見 `docs/methods.md`「依狀態調整的勝率」。本文件只寫定性結論，數值一律見對應的輸出檔。
 
 ## 問題
 
@@ -41,9 +41,12 @@
 
 ### 「再開一局」的差距取決於雙方近況之差
 
-- 修正後與主基準的期望得分之差，以主基準的斜率換算成等級分，依速度類別、雙方的上一局結果、新手與否列在 `state_adjusted_probs_gap.csv`
-- 雙方上一局結果相同時，結果項互相抵銷；自己剛贏、對手剛輸時修正為高於系統的期望，反之低於。對手處於本場第一局時修正為高於期望
-- 換算成等級分，新手的修正幅度大於老手
+- 修正量：雙方近況的每一種組合使線性預測式平移多少，換算成等於調整自身等級分多少分，附 95% 區間（`state_adjusted_shift.csv`、`state_adjusted_shift.png`）。修正項只以雙方之差進入，所以修正量是係數的線性組合，區間由 delta method 求得；重估的係數與 `state_adjusted_probs.py` 存下的模型一致
+- 雙方上一局結果相同時修正量恰為 0，這是共用係數的形式決定的，不是估計的結果。自己剛贏、對手剛輸時修正為高於系統的期望，三個速度類別的區間都不含 0；反之低於。一方剛和局、另一方剛贏時，區間含 0
+- 對手處於本場第一局時，Bullet 與 Blitz 修正為高於期望。Classical 的這一項區間含 0；自己剛贏、對手本場第一局的修正不含 0，來自剛贏那一項
+- 雙方上一局等級分變動之差，Blitz 的區間不含 0，Classical 含 0
+- 換算成等級分，新手的修正幅度大於老手。這只來自換算：線性預測式的平移對新手與老手相同，新手的主基準斜率較小，同樣的平移折合較多等級分
+- 評估段各組實際的期望得分差，即修正後與主基準的期望得分在樣本上的平均，另列於 `state_adjusted_probs_gap.csv`，以期望得分的斜率換算成等級分，口徑與修正量不同
 
 ### 機器學習與深度學習模型不構成預測上限
 
