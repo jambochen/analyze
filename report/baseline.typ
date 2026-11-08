@@ -5,7 +5,7 @@
 
 #show: deck.with(config-info(
   title: title-font[等級分與對局結果預測],
-  subtitle: [機率校準、時間外驗證與跨遊戲分析進度],
+  subtitle: [第二次分析報告：方法選擇、診斷與待解問題],
   author: [陳力福、陳政博、李宜哲],
 ))
 
@@ -55,6 +55,19 @@
 #let temporal-periods = tab("temporal_slides_periods")
 #title-slide()
 
+== 本次報告的問題
+
+#define[等級分不足以解釋的偏差，應如何分析與驗證？]
+
+#table(columns: (auto, 1fr), rule-top,
+[本次目的], [檢視方法選擇、資料診斷與推論界線], rule-mid,
+[報告對象], [統計課程師生：討論假設與分析是否合理],
+[最終應用對象], [評分與配對系統分析者],
+[目前階段], [以中間結果判斷方法是否保留及下一步], rule-top,
+)
+
+方法仍可調整；結果用於支持分析決策。
+
 == 資料
 
 #grid(
@@ -99,36 +112,20 @@
   rule-top,
 )))
 
-本次：補上留下的問題，修正基準，再以它判斷連勝連敗。
+本次檢查：基準的假設、近況的解讀，以及預測驗證的邊界。
 
-== 分析目標
-
-#define[等級分在哪些情境下不足以預測對局結果？]
-
-#table(
-  columns: (auto, 1fr), rule-top,
-  [交付對象], [競技遊戲的評分與配對系統分析者], rule-mid,
-  [失準診斷], [分差、不確定性與近期戰績下的偏差],
-  [預測修正], [勝、和、負機率及時間外預測表現],
-  [適用範圍], [不同遊戲、配對來源與新手／老手], rule-top,
-)
-
-期望得分將和局記為半分，與勝率分開解讀。
-
-== 分析架構
+== 分析問題與方法
 
 #figure(text(size: 0.85em, table(
-  columns: (auto, auto, auto), rule-top,
-  [問題], [主要做法], [輸出], rule-mid,
-  [基準失準], [依等級分與 RD 校準], [期望得分與結果機率],
-  [近況增量], [訓練期間內選項], [固定測試段的分數差],
-  [新手誤差], [RD 與分數變動的交互作用], [新手與老手的預測比較],
-  [跨遊戲適用], [各遊戲重新估計], [可用情境與資料限制], rule-top,
+columns: (auto, auto, auto), rule-top,
+[問題], [主要做法], [需要檢查], rule-mid,
+[基準是否合適], [含 RD 的結果機率模型], [相依、分層校準與新手門檻],
+[近況如何解讀], [批內重新配對、續下界限], [配對機制與選擇偏差],
+[能否改善預測], [訓練內選項、時間外測試], [基準洩漏與證據性質],
+[能否拓展遊戲], [各遊戲重新估計], [局前資訊與分組定義], rule-top,
 )))
 
 RD：等級分的不確定性（rating deviation）。
-
-因果結果與連勝連敗診斷列於附錄。
 
 == 同一玩家的多局不獨立
 
@@ -195,31 +192,6 @@ $lambda_j$ 由 sandwich 估計；預測差值的區間亦處理雙方玩家的�
 
 偏差隨 RD 連續變化，門檻處沒有斷點。
 
-
-== RD 隨已下局數
-
-#figure(fig("expected_score_slides_rd", height: 64%))
-
-RD 幾乎只由已下的局數決定：Lichess 的 RD 不因閒置增加。
-
-== 兩種新手界定
-
-#figure(table(
-  columns: (auto, auto, auto, auto, auto),
-  align: (left, right, right, right, right),
-  rule-top,
-  [校準斜率], [RD ≥ 110：新手], [老手], [未滿 30 局：新手], [老手],
-  rule-mid,
-  ..speeds.map(s => {
-    let g(t, k) = f3(nov-cox.find(r => r.speed == s and r.stratum_type == t and r.stratum == k).slope)
-    ([#s], [#g("def_rd110", "novice")], [#g("def_rd110", "established")], [#g("def_games30", "novice")], [#g("def_games30", "established")])
-  }).flatten(),
-  rule-top,
-))
-
-兩種界定下老手的斜率相近；主分析取系統自己的 RD 門檻。
-
-
 == 門檻處的斷點
 
 #grid(
@@ -252,6 +224,121 @@ RD 幾乎只由已下的局數決定：Lichess 的 RD 不因閒置增加。
 
 剛贏之後各組皆好於期望；剛輸之後只有 RD 最高的一組差於期望。
 
+== 近況的兩種問題
+
+#table(columns: (auto, 1fr, 1fr), rule-top,
+[], [因果問題], [預測問題], rule-mid,
+[所問], [被分到強對手是否影響下一局], [已知近況是否改善結果機率],
+[困難], [前局結果非隨機、續下受影響], [基準估計與選項可能使用未來],
+[主要做法], [利用配對機制，檢查續下界限], [全部估計留在訓練期內], rule-top,
+)
+
+先檢查可識別範圍，再決定近況能承擔的解釋。
+
+== arena 的隨機配對
+
+#grid(
+  columns: (1fr, 1fr),
+  gutter: 1.2em,
+  align: horizon,
+  stack(
+    spacing: 0.8em,
+    [同一時刻空閒的玩家組成一批，批內配對不看等級分],
+    [一局一批占 2014 年 arena 局的 #pct(single-share)：只有一種配法，不提供隨機性],
+    [批內打亂對手的置換分布，比較雙方等級分的批內相關],
+  ),
+  text(size: 0.8em, table(
+    columns: (auto, auto, auto),
+    align: (left, right, right),
+    rule-top,
+    [2014 年的批], [實際相關], [置換分布 95%],
+    rule-mid,
+    ..(("random", [超過 12 人]), ("smart", [12 人以下])).map(((k, lab)) => {
+      let r = perm.find(x => x.group == "2014|" + k)
+      (lab, [#f3(r.corr)], [[#f3(r.corr_null_lo), #f3(r.corr_null_hi)]])
+    }).flatten(),
+    rule-top,
+  )),
+)
+
+以配對規則建立置換分布；平衡與安慰劑另作檢查。
+
+== 批內重新配對的檢定
+
+#figure(text(size: 15pt, diagram(
+  ..flow,
+  spacing: (2.4em, 1.2em),
+  node((0, 0), [實際的配對], name: <act>),
+  edge("-|>"),
+  node((1, 0), [統計量 $hat(beta)$], name: <stat>),
+  node((0, 1), two[依原規則在批內][重新配對 2000 次], name: <re>),
+  edge("-|>"),
+  node((1, 1), [虛無分布], name: <null>),
+  edge(<stat>, <null>, "-", stroke: (paint: mute, dash: "dashed"), label: text(fill: mute)[比較], label-side: left),
+)))
+
+- 處理 $h$：對手比批內候選平均強多少
+- $hat(beta)$：下一局殘差對 $h$ 的 score 除以 information，各速度類別分開
+- 區間：反轉檢定，取不被拒絕的效果值
+- 不依賴模型的誤差分布；前次的批內迴歸依賴各局獨立
+
+依批內配對機制建立虛無分布；續下選擇另行處理 @fisher1935。
+
+== 續下率隨對手強弱
+
+#figure(fig("baseline_slides_continue_rate", height: 62%), caption: [Within bins of $macron(e)$; first next game, batches with two or more games, player-weighted. Bars: 95% intervals])
+
+群體續下率隨對手強弱下降；個體單調性仍是額外假設。
+
+== 續下的選擇
+
+#figure(text(size: 14pt, cetz.canvas(length: 1cm, {
+  import cetz.draw: *
+  // 兩組的殘差分布；強對手組續下較少，弱對手組多出的續下者無法辨認，假設在上端或下端修剪
+  for (y, lab, n) in ((1.4, [弱對手組：續下較多], 10), (0, [強對手組：續下較少], 8.5)) {
+    rect((0, y), (n, y + 0.8), fill: sq-light, stroke: 0.5pt + sq-dark)
+    content((-0.3, y + 0.4), lab, anchor: "east")
+  }
+  rect((8.5, 1.4), (10, 2.2), fill: sq-dark.lighten(20%), stroke: 0.5pt + sq-dark)
+  content((9.25, 2.6), text(fill: mute)[多出的續下者])
+  line((0, -0.4), (10, -0.4), mark: (end: ">"), stroke: 0.5pt + mute)
+  content((5, -0.8), text(fill: mute)[依下一局殘差排序])
+})))
+
+- 只有續下者有下一局；強對手使人較少續下
+- 修剪上下界 @lee2009：多出的續下者全在上端或全在下端，修剪後的差即上下界
+- 假設：每位玩家的續下不會因對手更強而增加；群體趨勢無法驗證
+
+界限之內為「兩種對手強弱下都會續下的玩家」的效果。
+
+== 續下者之外未能確立
+
+#grid(
+  columns: (1.3fr, 1fr),
+  gutter: 1.2em,
+  align: horizon,
+  figure(fig("baseline_slides_bounds", width: 100%), caption: [First next game, batches with two or more games, player-weighted. Bars: 95% intervals]),
+  stack(
+    spacing: 0.8em,
+    [只用續下者與倒數機率加權：Blitz 不含 0],
+    [修剪上下界：Bullet 與 Blitz 皆含 0],
+    [界限依賴個體續下的單調性假設],
+  ),
+)
+
+續下者的差異不足以確立「兩種情況都續下者」的因果效果。
+
+== 近況分析的取捨
+
+#table(columns: (auto, 1fr), rule-top,
+[檢查所得], [分析決定], rule-mid,
+[配對影響後續對手], [保留 arena 機制的解讀範圍],
+[續下選擇的界限含零], [不將續下者差異推廣為整體因果效果],
+[近況仍對應預測偏差], [以局前近況修正機率，再做時間外評估], rule-top,
+)
+
+因果分析界定解釋範圍；預測增量需另行驗證。
+
 == 等級分調得不夠
 
 #grid(
@@ -277,7 +364,6 @@ RD 幾乎只由已下的局數決定：Lichess 的 RD 不因閒置增加。
 
 方向是等級分調得不夠；與 tilt 在本資料分不開。
 
-
 == 近況修正的模型
 
 $ eta_"adj" = eta_"base" + f(s_i) - f(s_j) $
@@ -291,6 +377,17 @@ $ eta_"adj" = eta_"base" + f(s_i) - f(s_j) $
 )
 
 候選是否保留由訓練期間內的預測比較決定。
+
+== 預測流程的檢查
+
+#table(columns: (auto, 1fr), rule-top,
+[可能的問題], [本次的處理], rule-mid,
+[只切近況，基準用全年], [基準與近況都限於各訓練段],
+[以測試結果決定候選], [訓練內選項，固定後才看測試],
+[把已看資料當新驗證], [標為時間外穩健性檢查], rule-top,
+)
+
+既有登記模型的前瞻驗證保留其原本的適用範圍。
 
 == 時間外驗證的流程
 
@@ -371,33 +468,22 @@ Blitz 兩段及 Bullet 後段有額外改善。零差值表示未選入延伸項
 
 各遊戲分別估計係數，新手定義不強作等價。
 
-== 外部資料的時間切分
+== 跨遊戲的分析取捨
 
-#figure(text(size: 0.75em, table(
-  columns: (auto, auto, auto, auto, auto), rule-top,
-  [遊戲], [初次估計], [內部選項], [重估], [測試], rule-mid,
-  ..temporal-periods.filter(r => r.game != "Lichess").map(r => ([#r.game], [#r.fit], [#r.select], [#r.refit], [#r.test])).flatten(), rule-top,
-)))
+#table(columns: (auto, 1fr, 1fr), rule-top,
+[資料診斷], [可繼續的分析], [尚缺的條件], rule-mid,
+[OGS 缺開局時間], [結束時間排序的探索], [確認歷史在開局前已完成],
+[AoE2 無 RD、期間短], [累計局數分組、重估近況], [更長期間的穩定性檢查],
+[遊戲制度與尺度不同], [重用流程、各自估計], [不直接移植係數或新手門檻], rule-top,
+)
 
-OGS 排除自我對局。AoE2 的歷史須已結束且等級分接續。
+跨遊戲檢查流程能否成立；結果須連同資料條件解讀。
 
 == AoE2 的近況增量
 
 #figure(fig("temporal_slides_aoe2_recent", height: 64%), caption: [Recent model minus calibrated baseline. Conditional 95% intervals])
 
 改善集中於新手。老手的區間含零，不解讀為確立的傷害。
-
-== OGS 的近況增量
-
-#figure(fig("temporal_slides_ogs_recent", height: 64%), caption: [End-time ordering only. Recent model minus calibrated baseline; conditional 95% intervals])
-
-近況改善全體與新手。缺少開局時間，不能確認歷史在局前可用。
-
-== OGS 的新手延伸
-
-#figure(fig("temporal_slides_ogs_novice_extension", height: 64%), caption: [End-time ordering only. RD extension minus recent model; conditional 95% intervals])
-
-兩個速度類別都有新手增量，仍限探索性外部參考。
 
 == 驗證證據的區別
 
@@ -411,6 +497,81 @@ OGS 排除自我對局。AoE2 的歷史須已結束且等級分接續。
 
 既有前瞻驗證不能替新增交互作用提供確認性證據。
 
+== 目前的分析決策
+
+#table(columns: (auto, 1fr), rule-top,
+[定位], [判斷與依據], rule-mid,
+[主要做法], [RD 基準與近況修正：校準診斷及時間外比較],
+[檢查], [相依修正、續下界限、跨遊戲資料可用性],
+[探索延伸], [連續 RD 交互作用：新手仍有剩餘誤差],
+[待確認], [新增候選的外推與 OGS 的局前歷史], rule-top,
+)
+
+尚未確立的機制與外推，不寫成應用建議。
+
+== 待解問題與下一步
+
+#table(columns: (auto, 1fr), rule-top,
+[待解問題], [下一步及其目的], rule-mid,
+[新手延伸能否重現], [另留未用資料、先登記，再確認新增候選],
+[OGS 歷史是否局前已知], [補開局時間；未補齊前保留探索定位],
+[跨期間是否穩定], [更長的 AoE2 資料檢查適用範圍],
+[報告如何收斂], [依方法診斷與未解問題決定最終主張], rule-top,
+)
+
+停止規則不列入後續分析；本次以方法與推論範圍供討論。
+
+== 參考文獻
+
+#text(size: 11pt, columns(2, gutter: 1.5em, bibliography("refs.bib", title: none, style: "apa")))
+
+#show: appendix
+
+== RD 隨已下局數
+
+#figure(fig("expected_score_slides_rd", height: 64%))
+
+RD 幾乎只由已下的局數決定：Lichess 的 RD 不因閒置增加。
+
+== 兩種新手界定
+
+#figure(table(
+  columns: (auto, auto, auto, auto, auto),
+  align: (left, right, right, right, right),
+  rule-top,
+  [校準斜率], [RD ≥ 110：新手], [老手], [未滿 30 局：新手], [老手],
+  rule-mid,
+  ..speeds.map(s => {
+    let g(t, k) = f3(nov-cox.find(r => r.speed == s and r.stratum_type == t and r.stratum == k).slope)
+    ([#s], [#g("def_rd110", "novice")], [#g("def_rd110", "established")], [#g("def_games30", "novice")], [#g("def_games30", "established")])
+  }).flatten(),
+  rule-top,
+))
+
+兩種界定下老手的斜率相近；主分析取系統自己的 RD 門檻。
+
+== 外部資料的時間切分
+
+#figure(text(size: 0.75em, table(
+  columns: (auto, auto, auto, auto, auto), rule-top,
+  [遊戲], [初次估計], [內部選項], [重估], [測試], rule-mid,
+  ..temporal-periods.filter(r => r.game != "Lichess").map(r => ([#r.game], [#r.fit], [#r.select], [#r.refit], [#r.test])).flatten(), rule-top,
+)))
+
+OGS 排除自我對局。AoE2 的歷史須已結束且等級分接續。
+
+== OGS 的近況增量
+
+#figure(fig("temporal_slides_ogs_recent", height: 64%), caption: [End-time ordering only. Recent model minus calibrated baseline; conditional 95% intervals])
+
+近況改善全體與新手。缺少開局時間，不能確認歷史在局前可用。
+
+== OGS 的新手延伸
+
+#figure(fig("temporal_slides_ogs_novice_extension", height: 64%), caption: [End-time ordering only. RD extension minus recent model; conditional 95% intervals])
+
+兩個速度類別都有新手增量，仍限探索性外部參考。
+
 == 界線與限制
 
 - OGS 缺少開局時間，僅作結束時間排序的探索
@@ -418,64 +579,6 @@ OGS 排除自我對局。AoE2 的歷史須已結束且等級分接續。
 - 新手延伸尚需未使用資料的確認性驗證
 - 區間條件於已訓練模型，重疊訓練段不作獨立實驗
 - 預測改善不直接推出配對公平性或留存效果
-
-== 目前的發現
-
-+ RD 校準提供較合適的基準，近況另帶來預測資訊
-+ Lichess 的近況增量通過完整時間外檢查，新手仍有可修正的結構
-+ 跨遊戲的改善集中於新手，老手須依遊戲與情境評估
-
-交付機率診斷、修正與適用範圍。
-
-== 未完成與下一步
-
-#figure(table(
-  columns: (auto, 1fr), rule-top,
-  [項目], [下一步], rule-mid,
-  [新手延伸], [另留未使用資料，先登記再確認],
-  [OGS 資訊可用性], [取得開局時間才能驗證局前歷史],
-  [最終報告], [整合預測修正、時間外證據與適用範圍],
-  [選做分析], [首局與空檔時間的預測增量], rule-top,
-))
-
-停止規則暫停延伸。
-
-== 參考文獻
-
-#text(size: 11pt, columns(2, gutter: 1.5em, bibliography("refs.bib", title: none, style: "apa")))
-
-
-
-#show: appendix
-
-== arena 的隨機配對
-
-#grid(
-  columns: (1fr, 1fr),
-  gutter: 1.2em,
-  align: horizon,
-  stack(
-    spacing: 0.8em,
-    [同一時刻空閒的玩家組成一批，批內配對不看等級分],
-    [一局一批占 2014 年 arena 局的 #pct(single-share)：只有一種配法，不提供隨機性],
-    [批內打亂對手的置換分布，比較雙方等級分的批內相關],
-  ),
-  text(size: 0.8em, table(
-    columns: (auto, auto, auto),
-    align: (left, right, right),
-    rule-top,
-    [2014 年的批], [實際相關], [置換分布 95%],
-    rule-mid,
-    ..(("random", [超過 12 人]), ("smart", [12 人以下])).map(((k, lab)) => {
-      let r = perm.find(x => x.group == "2014|" + k)
-      (lab, [#f3(r.corr)], [[#f3(r.corr_null_lo), #f3(r.corr_null_hi)]])
-    }).flatten(),
-    rule-top,
-  )),
-)
-
-批內的對手強弱與玩家當下的狀態無關。
-
 
 == 配對批次的大小
 
@@ -499,28 +602,6 @@ OGS 排除自我對局。AoE2 的歷史須已結束且等級分接續。
 )))
 
 各分層的相關皆落在置換分布之內；12 人以下的批分差略小，見限制。
-
-== 批內重新配對的檢定
-
-#figure(text(size: 15pt, diagram(
-  ..flow,
-  spacing: (2.4em, 1.2em),
-  node((0, 0), [實際的配對], name: <act>),
-  edge("-|>"),
-  node((1, 0), [統計量 $hat(beta)$], name: <stat>),
-  node((0, 1), two[依原規則在批內][重新配對 2000 次], name: <re>),
-  edge("-|>"),
-  node((1, 1), [虛無分布], name: <null>),
-  edge(<stat>, <null>, "-", stroke: (paint: mute, dash: "dashed"), label: text(fill: mute)[比較], label-side: left),
-)))
-
-- 處理 $h$：對手比批內候選平均強多少
-- $hat(beta)$：下一局殘差對 $h$ 的 score 除以 information，各速度類別分開
-- 區間：反轉檢定，取不被拒絕的效果值
-- 不依賴模型的誤差分布；前次的批內迴歸依賴各局獨立
-
-只用到「批內配對隨機」這一個假設 @fisher1935。
-
 
 == 平衡與安慰劑
 
@@ -566,7 +647,6 @@ OGS 排除自我對局。AoE2 的歷史須已結束且等級分接續。
 
 Blitz：下一局低於期望，只延續一局；直接效果方向相同，未能確立。
 
-
 == 劑量反應
 
 #figure(fig("baseline_slides_dose", height: 62%), caption: [Player-weighted. Bars: 95% intervals])
@@ -609,8 +689,6 @@ Blitz 的第一局在各組合下皆拒絕；第二、三局皆不拒絕。
 
 被分到強對手之後，下一局的對手較弱：總效果含這條 arena 特有的管道。
 
-
-
 == 下一局對手較弱的原因
 
 #figure(text(size: 0.8em, table(
@@ -651,57 +729,11 @@ Blitz 的第一局在各組合下皆拒絕；第二、三局皆不拒絕。
 
 下一局的管道是配對規則的機械效果；直接效果以下一批的組成控制它。
 
-== 續下率隨對手強弱
-
-#figure(fig("baseline_slides_continue_rate", height: 62%), caption: [Within bins of $macron(e)$; first next game, batches with two or more games, player-weighted. Bars: 95% intervals])
-
-對手越強，同場再下一局的比例越低，且單調：修剪上下界的前提成立。
-
-== 續下的選擇
-
-#figure(text(size: 14pt, cetz.canvas(length: 1cm, {
-  import cetz.draw: *
-  // 兩組的殘差分布；強對手組續下較少，弱對手組多出的續下者無法辨認，假設在上端或下端修剪
-  for (y, lab, n) in ((1.4, [弱對手組：續下較多], 10), (0, [強對手組：續下較少], 8.5)) {
-    rect((0, y), (n, y + 0.8), fill: sq-light, stroke: 0.5pt + sq-dark)
-    content((-0.3, y + 0.4), lab, anchor: "east")
-  }
-  rect((8.5, 1.4), (10, 2.2), fill: sq-dark.lighten(20%), stroke: 0.5pt + sq-dark)
-  content((9.25, 2.6), text(fill: mute)[多出的續下者])
-  line((0, -0.4), (10, -0.4), mark: (end: ">"), stroke: 0.5pt + mute)
-  content((5, -0.8), text(fill: mute)[依下一局殘差排序])
-})))
-
-- 只有續下者有下一局；強對手使人較少續下
-- 修剪上下界 @lee2009：多出的續下者全在上端或全在下端，修剪後的差即上下界
-- 假設：對手強弱對續下的影響方向一致；資料上續下率隨 $h$ 單調下降
-
-界限之內為「兩種對手強弱下都會續下的玩家」的效果。
-
-== 續下者之外未能確立
-
-#grid(
-  columns: (1.3fr, 1fr),
-  gutter: 1.2em,
-  align: horizon,
-  figure(fig("baseline_slides_bounds", width: 100%), caption: [First next game, batches with two or more games, player-weighted. Bars: 95% intervals]),
-  stack(
-    spacing: 0.8em,
-    [只用續下者與倒數機率加權：Blitz 不含 0],
-    [修剪上下界：Bullet 與 Blitz 皆含 0],
-    [續下率的差僅數個百分點，殘差分布寬],
-  ),
-)
-
-Blitz 的效果只在續下者上成立。
-
-
 == 各局的上下界
 
 #figure(fig("baseline_slides_bounds_lag", height: 62%), caption: [Thick: trimming bounds; thin: 95% interval covering the effect])
 
 之後各局的界限皆含 0，且隨局數變寬。
-
 
 == 登記模型的選項
 
@@ -733,7 +765,6 @@ Blitz 的效果只在續下者上成立。
 )
 
 修正等於依雙方近況之差平移等級分。
-
 
 == 新手與老手
 
@@ -780,7 +811,6 @@ Blitz 的效果只在續下者上成立。
 - Elo 公式換成主基準的改善遠大於近況的修正
 
 近況是主基準之上幅度小、穩定的修正。
-
 
 == 大廳對局
 
@@ -837,7 +867,6 @@ Blitz 的效果只在續下者上成立。
 
 登記於動用 2015 年資料之前；事後型態只檢驗方向。
 
-
 == 兩年的總效果
 
 #figure(table(
@@ -869,7 +898,6 @@ Blitz 的效果只在續下者上成立。
 )
 
 以 Elo 為基準看不出連敗，Bullet 甚至相反；以主基準為準，連敗與連勝都多於期望。
-
 
 == 連串中的弱方
 
