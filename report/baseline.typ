@@ -98,35 +98,6 @@
 
 三種速度類別各有等級分，模型分開估計。
 
-== 前次的結論
-
-#figure(text(size: 0.85em, table(
-  columns: (auto, auto),
-  align: left,
-  rule-top,
-  [前次], [結論],
-  rule-mid,
-  [Elo 的期望得分], [斜率 $hat(beta)$ 皆低於 1：高估強方；截距 $hat(alpha) > 0$：白方優勢],
-  [主基準], [加入 RD 的有序 logistic，勝、和、負三類同時建模],
-  [留下的問題], [多局相依、新帳號、上一局被分到強弱對手的效果與續下],
-  rule-top,
-)))
-
-本次檢查：基準的假設、近況的解讀，以及預測驗證的邊界。
-
-== 分析問題與方法
-
-#figure(text(size: 0.85em, table(
-columns: (auto, auto, auto), rule-top,
-[問題], [主要做法], [需要檢查], rule-mid,
-[基準是否合適], [含 RD 的結果機率模型], [相依、分層校準與新手門檻],
-[近況如何解讀], [批內重新配對、續下界限], [配對機制與選擇偏差],
-[能否改善預測], [訓練內選項、時間外測試], [基準洩漏與證據性質],
-[能否拓展遊戲], [各遊戲重新估計], [局前資訊與分組定義], rule-top,
-)))
-
-RD：等級分的不確定性（rating deviation）。
-
 == 同一玩家的多局不獨立
 
 #grid(
@@ -154,12 +125,6 @@ RD：等級分的不確定性（rating deviation）。
 
 $lambda_j$ 由 sandwich 估計；預測差值的區間亦處理雙方玩家的相依。
 
-== 校準斜率的分層
-
-#figure(fig("expected_score_slides_strata", height: 66%), caption: [Calibration slope of Elo's expected score by stratum. Bars: 95% intervals])
-
-斜率在每個等級分、來源與時段都低於 1：高估強方不是少數子樣本造成的。
-
 == 三個基準的比較
 
 #figure(table(
@@ -171,7 +136,7 @@ $lambda_j$ 由 sandwich 估計；預測差值的區間亦處理雙方玩家的�
   }).flatten(), rule-top,
 ))
 
-對立模型：分差斜率隨雙方 RD 改變的有序 logistic。
+RD：等級分的不確定性。對立模型的分差斜率隨雙方 RD 改變。
 
 相依修正的 LRT 拒絕兩個特例，預測另由時間外資料評估。
 
@@ -263,33 +228,6 @@ $lambda_j$ 由 sandwich 估計；預測差值的區間亦處理雙方玩家的�
 
 以配對規則建立置換分布；平衡與安慰劑另作檢查。
 
-== 批內重新配對的檢定
-
-#figure(text(size: 15pt, diagram(
-  ..flow,
-  spacing: (2.4em, 1.2em),
-  node((0, 0), [實際的配對], name: <act>),
-  edge("-|>"),
-  node((1, 0), [統計量 $hat(beta)$], name: <stat>),
-  node((0, 1), two[依原規則在批內][重新配對 2000 次], name: <re>),
-  edge("-|>"),
-  node((1, 1), [虛無分布], name: <null>),
-  edge(<stat>, <null>, "-", stroke: (paint: mute, dash: "dashed"), label: text(fill: mute)[比較], label-side: left),
-)))
-
-- 處理 $h$：對手比批內候選平均強多少
-- $hat(beta)$：下一局殘差對 $h$ 的 score 除以 information，各速度類別分開
-- 區間：反轉檢定，取不被拒絕的效果值
-- 不依賴模型的誤差分布；前次的批內迴歸依賴各局獨立
-
-依批內配對機制建立虛無分布；續下選擇另行處理 @fisher1935。
-
-== 續下率隨對手強弱
-
-#figure(fig("baseline_slides_continue_rate", height: 62%), caption: [Within bins of $macron(e)$; first next game, batches with two or more games, player-weighted. Bars: 95% intervals])
-
-群體續下率隨對手強弱下降；個體單調性仍是額外假設。
-
 == 續下的選擇
 
 #figure(text(size: 14pt, cetz.canvas(length: 1cm, {
@@ -328,42 +266,6 @@ $lambda_j$ 由 sandwich 估計；預測差值的區間亦處理雙方玩家的�
 
 續下者的差異不足以確立「兩種情況都續下者」的因果效果。
 
-== 近況分析的取捨
-
-#table(columns: (auto, 1fr), rule-top,
-[檢查所得], [分析決定], rule-mid,
-[配對影響後續對手], [保留 arena 機制的解讀範圍],
-[續下選擇的界限含零], [不將續下者差異推廣為整體因果效果],
-[近況仍對應預測偏差], [以局前近況修正機率，再做時間外評估], rule-top,
-)
-
-因果分析界定解釋範圍；預測增量需另行驗證。
-
-== 等級分調得不夠
-
-#grid(
-  columns: (1fr, 1fr),
-  gutter: 1.2em,
-  align: horizon,
-  stack(
-    spacing: 0.8em,
-    [$Delta r$：本局與上一局的對局前等級分之差，本局開始前已知],
-    [剛贏之後好於期望；剛輸之後只有 RD 最高的五分之一差於期望],
-    [給定上一局結果，$Delta r$ 越大下一局越好],
-  ),
-  text(size: 0.8em, table(
-    columns: (auto, auto),
-    align: (left, right),
-    rule-top,
-    [], [$Delta r$ 每 100 分的效果（等級分）],
-    rule-mid,
-    ..speeds.map(s => ([#s], [#f0(rf-coef.find(r => r.speed == s).elo_per_100)])).flatten(),
-    rule-top,
-  )),
-)
-
-方向是等級分調得不夠；與 tilt 在本資料分不開。
-
 == 近況修正的模型
 
 $ eta_"adj" = eta_"base" + f(s_i) - f(s_j) $
@@ -401,18 +303,6 @@ $ eta_"adj" = eta_"base" + f(s_i) - f(s_j) $
 )))
 
 主基準與近況模型使用相同的時間邊界。
-
-== Lichess 的時間切分
-
-#figure(text(size: 0.85em, table(
-  columns: (auto, auto, auto, auto), rule-top,
-  [初次估計], [內部選項], [重估], [最終測試], rule-mid,
-  ..temporal-periods.filter(r => r.game == "Lichess").map(r => ([#r.fit], [#r.select], [#r.refit], [#r.test])).flatten(), rule-top,
-)))
-
-- 全站資料估計 RD 基準，arena 本場有上一局者估計近況
-- 測試段不重疊，訓練段隨時間擴大
-- 已用資料的穩健性檢查，不是新的前瞻確認
 
 == 預測比較的判準
 
@@ -468,17 +358,6 @@ Blitz 兩段及 Bullet 後段有額外改善。零差值表示未選入延伸項
 
 各遊戲分別估計係數，新手定義不強作等價。
 
-== 跨遊戲的分析取捨
-
-#table(columns: (auto, 1fr, 1fr), rule-top,
-[資料診斷], [可繼續的分析], [尚缺的條件], rule-mid,
-[OGS 缺開局時間], [結束時間排序的探索], [確認歷史在開局前已完成],
-[AoE2 無 RD、期間短], [累計局數分組、重估近況], [更長期間的穩定性檢查],
-[遊戲制度與尺度不同], [重用流程、各自估計], [不直接移植係數或新手門檻], rule-top,
-)
-
-跨遊戲檢查流程能否成立；結果須連同資料條件解讀。
-
 == AoE2 的近況增量
 
 #figure(fig("temporal_slides_aoe2_recent", height: 64%), caption: [Recent model minus calibrated baseline. Conditional 95% intervals])
@@ -521,11 +400,132 @@ Blitz 兩段及 Bullet 後段有額外改善。零差值表示未選入延伸項
 
 停止規則不列入後續分析；本次以方法與推論範圍供討論。
 
+#show: appendix
+
+== 前次的結論
+
+#figure(text(size: 0.85em, table(
+  columns: (auto, auto),
+  align: left,
+  rule-top,
+  [前次], [結論],
+  rule-mid,
+  [Elo 的期望得分], [斜率 $hat(beta)$ 皆低於 1：高估強方；截距 $hat(alpha) > 0$：白方優勢],
+  [主基準], [加入 RD 的有序 logistic，勝、和、負三類同時建模],
+  [留下的問題], [多局相依、新帳號、上一局被分到強弱對手的效果與續下],
+  rule-top,
+)))
+
+本次檢查：基準的假設、近況的解讀，以及預測驗證的邊界。
+
+== 分析問題與方法
+
+#figure(text(size: 0.85em, table(
+columns: (auto, auto, auto), rule-top,
+[問題], [主要做法], [需要檢查], rule-mid,
+[基準是否合適], [含 RD 的結果機率模型], [相依、分層校準與新手門檻],
+[近況如何解讀], [批內重新配對、續下界限], [配對機制與選擇偏差],
+[能否改善預測], [訓練內選項、時間外測試], [基準洩漏與證據性質],
+[能否拓展遊戲], [各遊戲重新估計], [局前資訊與分組定義], rule-top,
+)))
+
+RD：等級分的不確定性（rating deviation）。
+
+== 校準斜率的分層
+
+#figure(fig("expected_score_slides_strata", height: 66%), caption: [Calibration slope of Elo's expected score by stratum. Bars: 95% intervals])
+
+斜率在每個等級分、來源與時段都低於 1：高估強方不是少數子樣本造成的。
+
+== 批內重新配對的檢定
+
+#figure(text(size: 15pt, diagram(
+  ..flow,
+  spacing: (2.4em, 1.2em),
+  node((0, 0), [實際的配對], name: <act>),
+  edge("-|>"),
+  node((1, 0), [統計量 $hat(beta)$], name: <stat>),
+  node((0, 1), two[依原規則在批內][重新配對 2000 次], name: <re>),
+  edge("-|>"),
+  node((1, 1), [虛無分布], name: <null>),
+  edge(<stat>, <null>, "-", stroke: (paint: mute, dash: "dashed"), label: text(fill: mute)[比較], label-side: left),
+)))
+
+- 處理 $h$：對手比批內候選平均強多少
+- $hat(beta)$：下一局殘差對 $h$ 的 score 除以 information，各速度類別分開
+- 區間：反轉檢定，取不被拒絕的效果值
+- 不依賴模型的誤差分布；前次的批內迴歸依賴各局獨立
+
+依批內配對機制建立虛無分布；續下選擇另行處理 @fisher1935。
+
+== 續下率隨對手強弱
+
+#figure(fig("baseline_slides_continue_rate", height: 62%), caption: [Within bins of $macron(e)$; first next game, batches with two or more games, player-weighted. Bars: 95% intervals])
+
+群體續下率隨對手強弱下降；個體單調性仍是額外假設。
+
+== 近況分析的取捨
+
+#table(columns: (auto, 1fr), rule-top,
+[檢查所得], [分析決定], rule-mid,
+[配對影響後續對手], [保留 arena 機制的解讀範圍],
+[續下選擇的界限含零], [不將續下者差異推廣為整體因果效果],
+[近況仍對應預測偏差], [以局前近況修正機率，再做時間外評估], rule-top,
+)
+
+因果分析界定解釋範圍；預測增量需另行驗證。
+
+== 等級分調得不夠
+
+#grid(
+  columns: (1fr, 1fr),
+  gutter: 1.2em,
+  align: horizon,
+  stack(
+    spacing: 0.8em,
+    [$Delta r$：本局與上一局的對局前等級分之差，本局開始前已知],
+    [剛贏之後好於期望；剛輸之後只有 RD 最高的五分之一差於期望],
+    [給定上一局結果，$Delta r$ 越大下一局越好],
+  ),
+  text(size: 0.8em, table(
+    columns: (auto, auto),
+    align: (left, right),
+    rule-top,
+    [], [$Delta r$ 每 100 分的效果（等級分）],
+    rule-mid,
+    ..speeds.map(s => ([#s], [#f0(rf-coef.find(r => r.speed == s).elo_per_100)])).flatten(),
+    rule-top,
+  )),
+)
+
+方向是等級分調得不夠；與 tilt 在本資料分不開。
+
+== Lichess 的時間切分
+
+#figure(text(size: 0.85em, table(
+  columns: (auto, auto, auto, auto), rule-top,
+  [初次估計], [內部選項], [重估], [最終測試], rule-mid,
+  ..temporal-periods.filter(r => r.game == "Lichess").map(r => ([#r.fit], [#r.select], [#r.refit], [#r.test])).flatten(), rule-top,
+)))
+
+- 全站資料估計 RD 基準，arena 本場有上一局者估計近況
+- 測試段不重疊，訓練段隨時間擴大
+- 已用資料的穩健性檢查，不是新的前瞻確認
+
+== 跨遊戲的分析取捨
+
+#table(columns: (auto, 1fr, 1fr), rule-top,
+[資料診斷], [可繼續的分析], [尚缺的條件], rule-mid,
+[OGS 缺開局時間], [結束時間排序的探索], [確認歷史在開局前已完成],
+[AoE2 無 RD、期間短], [累計局數分組、重估近況], [更長期間的穩定性檢查],
+[遊戲制度與尺度不同], [重用流程、各自估計], [不直接移植係數或新手門檻], rule-top,
+)
+
+跨遊戲檢查流程能否成立；結果須連同資料條件解讀。
+
 == 參考文獻
 
 #text(size: 11pt, columns(2, gutter: 1.5em, bibliography("refs.bib", title: none, style: "apa")))
-
-#show: appendix
 
 == RD 隨已下局數
 
