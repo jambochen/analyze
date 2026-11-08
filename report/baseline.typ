@@ -4,8 +4,8 @@
 #import "@preview/oxifmt:1.0.0": strfmt
 
 #show: deck.with(config-info(
-  title: title-font[線上對戰的勝率預估],
-  subtitle: [期望勝率作為判斷玩家狀態的基準：分析進度],
+  title: title-font[等級分與對局結果預測],
+  subtitle: [機率校準、時間外驗證與跨遊戲分析進度],
   author: [陳力福、陳政博、李宜哲],
 ))
 
@@ -42,21 +42,17 @@
 #let pv-log = tab("prospective_validation_log_score").filter(r => r.metric == "log_loss")
 #let pv-total = tab("prospective_validation_total_effect").find(r => r.speed == "Blitz")
 #let posthoc = tab("prospective_validation_posthoc")
-#let base-aic = tab("expected_score_baselines_aic")
 #let nov-cox = tab("novice_period_cox")
 #let ri-all = tab("arena_crossover_ri").filter(r => r.null == "main")
 #let steps = tab("state_adjusted_probs_steps")
 #let pred-all = tab("state_adjusted_probs_prediction").filter(r => r.metric == "log_loss" and r.vs == "baseline")
-#let ogs-cal = tab("other_games_ogs_calibration")
-#let aoe-cal = tab("other_games_aoe2_calibration")
-#let ogs-steps = tab("other_games_ogs_steps")
-#let aoe-steps = tab("other_games_aoe2_steps")
 #let mark(x) = if x == "1.0" or x == "true" [保留] else [不保留]
 #let nb-tests = tab("novice_break_tests")
 #let channel = tab("next_opponent_channel")
 #let lobby-steps = tab("state_adjusted_lobby_steps").filter(r => r.gap_min == "60")
 #let lobby-pred = tab("state_adjusted_lobby_prediction").filter(r => r.gap_min == "60" and r.metric == "log_loss")
 
+#let temporal-periods = tab("temporal_slides_periods")
 #title-slide()
 
 == 資料
@@ -81,8 +77,8 @@
   stack(
     spacing: 0.8em,
     [Lichess 的 rated 對局；玩家 #num(y2014.players) 位],
-    [2014 上半年估計、下半年評估],
-    [2015 年 1/1 至 4/19 的 arena：#num(holdout.games) 局，前瞻驗證只用一次],
+    [Lichess 建立方法，OGS、AoE2 作外部比較],
+    [2015 年 1/1 至 4/19 的 arena：#num(holdout.games) 局，登記的前瞻驗證已完成],
     [欄位：對局前的 `WhiteElo`、`BlackElo`，`Event`、開局時間與 `Result`；不用賽後的 `RatingDiff`],
   ),
 )
@@ -107,46 +103,32 @@
 
 == 分析目標
 
-#figure(text(size: 15pt, diagram(
-  ..flow,
-  spacing: (2.4em, 1.4em),
-  node((0, 0), [實際結果], name: <y>),
-  node((2, 0), [期望勝率], name: <e>, stroke: 1.2pt + sq-dark),
-  node((1, 1), two[「連敗異常」][「輸了會 tilt」], name: <claim>),
-  edge(<y>, <claim>, "-|>"),
-  edge(<e>, <claim>, "-|>", label: text(fill: mute)[基準], label-side: left),
-)))
+#define[等級分在哪些情境下不足以預測對局結果？]
 
 #table(
-  columns: (auto, auto),
-  rule-top,
-  [目標], [內容],
-  rule-mid,
-  [檢驗], [期望勝率在哪些對局條件與玩家狀態下偏離實際結果],
-  [預測], [依雙方近況修正的勝、和、負機率],
-  rule-top,
+  columns: (auto, 1fr), rule-top,
+  [交付對象], [競技遊戲的評分與配對系統分析者], rule-mid,
+  [失準診斷], [分差、不確定性與近期戰績下的偏差],
+  [預測修正], [勝、和、負機率及時間外預測表現],
+  [適用範圍], [不同遊戲、配對來源與新手／老手], rule-top,
 )
 
-基準錯了，對玩家狀態的判斷跟著錯。
+期望得分將和局記為半分，與勝率分開解讀。
 
-== 做法的調整
+== 分析架構
 
-#figure(text(size: 0.75em, table(
-  columns: (auto, auto, auto, auto),
-  align: left,
-  rule-top,
-  [項目], [前次], [本次], [理由],
-  rule-mid,
-  [多局相依], [當獨立], [依玩家、對手分群的 sandwich], [模擬中當獨立的 LRT 拒絕過多],
-  [隨機配對的檢定], [批內迴歸], [批內重新配對], [只依賴配對隨機，不依賴各局獨立],
-  [新手期], [累計未滿 30 局], [重放的 RD ≥ 110], [系統自己的門檻，非看資料而選],
-  [門檻處的斷點], [RD 分層的圖], [事件時間對齊的跳躍項], [RD 上的樣條結果隨節點數翻轉，不採用],
-  [近況的候選], [—], [自身的近況，再加對手的], [對手的近況在看過自身結果後加入，登記於前瞻驗證],
-  [直接效果], [—], [事先寫定的玩家內對比], [連續值的對照顯著，仍依事先的規格],
-  rule-top,
+#figure(text(size: 0.85em, table(
+  columns: (auto, auto, auto), rule-top,
+  [問題], [主要做法], [輸出], rule-mid,
+  [基準失準], [依等級分與 RD 校準], [期望得分與結果機率],
+  [近況增量], [訓練期間內選項], [固定測試段的分數差],
+  [新手誤差], [RD 與分數變動的交互作用], [新手與老手的預測比較],
+  [跨遊戲適用], [各遊戲重新估計], [可用情境與資料限制], rule-top,
 )))
 
-每一項改動皆在動用 2015 年資料之前。
+RD：等級分的不確定性（rating deviation）。
+
+因果結果與連勝連敗診斷列於附錄。
 
 == 同一玩家的多局不獨立
 
@@ -173,7 +155,7 @@
   )),
 )
 
-$lambda_j$ 由 sandwich 估計；之後的檢定與區間皆經此修正。
+$lambda_j$ 由 sandwich 估計；預測差值的區間亦處理雙方玩家的相依。
 
 == 校準斜率的分層
 
@@ -184,22 +166,17 @@ $lambda_j$ 由 sandwich 估計；之後的檢定與區間皆經此修正。
 == 三個基準的比較
 
 #figure(table(
-  columns: (auto, auto, auto, auto, auto),
-  align: (left, right, right, right, right),
-  rule-top,
-  [], [LRT 對有序 logistic], [LRT 對 Glicko 形式], [當獨立的 $p$], [AIC 差：Glicko 減主基準],
-  rule-mid,
+  columns: (auto, auto, auto), align: (left, right, right), rule-top,
+  [受限模型的檢定], [有序 logistic], [Glicko 形式], rule-mid,
   ..speeds.map(s => {
     let g(m) = base-tests.find(r => r.speed == s and r.sample == "all" and r.restricted == m)
-    let a(m) = float(base-aic.find(r => r.speed == s and r.sample == "all" and r.model == m).aic)
-    ([#s], [#pv(g("ordinal").p)], [#pv(g("glicko").p)], [#pv(g("glicko").p_naive)], [#num(a("glicko") - a("rd_ordinal"))])
-  }).flatten(),
-  rule-top,
+    ([#s], [#pv(g("ordinal").p)], [#pv(g("glicko").p)])
+  }).flatten(), rule-top,
 ))
 
-#text(size: 0.8em, fill: mute)[$p$：修正的 LRT；對立假設為加入 RD 的有序 logistic]
+對立模型：分差斜率隨雙方 RD 改變的有序 logistic。
 
-修正後兩個特例仍皆被拒絕；之後的期望勝率皆取主基準。
+相依修正的 LRT 拒絕兩個特例，預測另由時間外資料評估。
 
 == 新手期
 
@@ -268,6 +245,208 @@ RD 幾乎只由已下的局數決定：Lichess 的 RD 不因閒置增加。
 )
 
 門檻處沒有跳躍：偏差逐局收斂，110 是約定而非轉折點。
+
+== 剛贏、剛輸之後
+
+#figure(fig("baseline_slides_after_result", height: 62%), caption: [Calibration intercept of the main baseline after each previous result. Bars: 95% intervals])
+
+剛贏之後各組皆好於期望；剛輸之後只有 RD 最高的一組差於期望。
+
+== 等級分調得不夠
+
+#grid(
+  columns: (1fr, 1fr),
+  gutter: 1.2em,
+  align: horizon,
+  stack(
+    spacing: 0.8em,
+    [$Delta r$：本局與上一局的對局前等級分之差，本局開始前已知],
+    [剛贏之後好於期望；剛輸之後只有 RD 最高的五分之一差於期望],
+    [給定上一局結果，$Delta r$ 越大下一局越好],
+  ),
+  text(size: 0.8em, table(
+    columns: (auto, auto),
+    align: (left, right),
+    rule-top,
+    [], [$Delta r$ 每 100 分的效果（等級分）],
+    rule-mid,
+    ..speeds.map(s => ([#s], [#f0(rf-coef.find(r => r.speed == s).elo_per_100)])).flatten(),
+    rule-top,
+  )),
+)
+
+方向是等級分調得不夠；與 tilt 在本資料分不開。
+
+
+== 近況修正的模型
+
+$ eta_"adj" = eta_"base" + f(s_i) - f(s_j) $
+
+#table(
+  columns: (auto, 1fr), rule-top,
+  [符號], [意義], rule-mid,
+  [$eta_"base"$], [校準基準的線性預測式],
+  [$s_i, s_j$], [雙方上一局結果、等級分變動與歷史缺失指標],
+  [$f$], [雙方共用的近況修正係數], rule-top,
+)
+
+候選是否保留由訓練期間內的預測比較決定。
+
+== 時間外驗證的流程
+
+#figure(text(size: 15pt, diagram(
+  ..flow, spacing: (2em, 1.5em),
+  node((0, 0), two[訓練前段][估計基準與近況], name: <fit>),
+  node((2, 0), two[訓練後段][選擇候選項], name: <select>),
+  node((0, 1), two[完整訓練段][固定欄位後重估], name: <refit>),
+  node((2, 1), two[後續測試段][只評估固定模型], name: <test>),
+  edge(<fit>, <select>, "-|>"), edge(<select>, <refit>, "-|>"), edge(<refit>, <test>, "-|>"),
+)))
+
+主基準與近況模型使用相同的時間邊界。
+
+== Lichess 的時間切分
+
+#figure(text(size: 0.85em, table(
+  columns: (auto, auto, auto, auto), rule-top,
+  [初次估計], [內部選項], [重估], [最終測試], rule-mid,
+  ..temporal-periods.filter(r => r.game == "Lichess").map(r => ([#r.fit], [#r.select], [#r.refit], [#r.test])).flatten(), rule-top,
+)))
+
+- 全站資料估計 RD 基準，arena 本場有上一局者估計近況
+- 測試段不重疊，訓練段隨時間擴大
+- 已用資料的穩健性檢查，不是新的前瞻確認
+
+== 預測比較的判準
+
+$ Delta L = L_"候選" - L_"目前模型" $
+
+#table(
+  columns: (auto, 1fr), rule-top,
+  [對數損失 log loss], [實際結果的預測機率越高，損失越低], rule-mid,
+  [內部選項], [平均損失差的相依修正 95% 區間上界低於零],
+  [最終測試], [全體、新手、老手分別比較損失與校準],
+  [區間範圍], [條件於已訓練模型，不含訓練與選項的不確定性], rule-top,
+)
+
+Lichess 的 Elo 只有期望得分，另以得分誤差比較。
+
+== Lichess 的近況增量
+
+#figure(fig("temporal_slides_lichess_recent", height: 64%), caption: [Recent model minus RD baseline. Conditional 95% intervals; lower is better])
+
+Bullet、Blitz 在兩個測試時段均改善。Classical 未保留近況項。
+
+== 新手誤差的候選
+
+$x_i = Delta r_i / 100$，$u_i = "RD"_i / 100$
+
+#table(
+  columns: (auto, 1fr), rule-top,
+  [候選], [回答的問題], rule-mid,
+  [$x_i u_i - x_j u_j$], [分數變動的修正是否隨 RD 改變],
+  [$abs(x_i) u_i - abs(x_j) u_j$], [上升與下降是否需要不同斜率], rule-top,
+)
+
+- 依序加入，以內部選擇段的新手預測判定
+- 保留交互作用時一併保留分數變動項
+
+探索預測結構，不能據此區分 tilt 與實力追蹤誤差。
+
+== 新手誤差的預測增量
+
+#figure(fig("temporal_slides_lichess_novice_extension", height: 64%), caption: [RD extension minus recent model. Conditional 95% intervals; lower is better])
+
+Blitz 兩段及 Bullet 後段有額外改善。零差值表示未選入延伸項。
+
+== 跨遊戲的資料條件
+
+#figure(text(size: 0.8em, table(
+  columns: (auto, auto, auto, auto), rule-top,
+  [資料], [結果], [不確定性資訊], [用途與限制], rule-mid,
+  [Lichess], [勝、和、負], [重放 RD], [方法建立、arena 與大廳],
+  [OGS 圍棋], [勝、負], [重放 RD], [只有結束時間，探索性參考],
+  [AoE2 1v1], [勝、負], [局前累計局數], [排隊配對，單月快照], rule-top,
+)))
+
+各遊戲分別估計係數，新手定義不強作等價。
+
+== 外部資料的時間切分
+
+#figure(text(size: 0.75em, table(
+  columns: (auto, auto, auto, auto, auto), rule-top,
+  [遊戲], [初次估計], [內部選項], [重估], [測試], rule-mid,
+  ..temporal-periods.filter(r => r.game != "Lichess").map(r => ([#r.game], [#r.fit], [#r.select], [#r.refit], [#r.test])).flatten(), rule-top,
+)))
+
+OGS 排除自我對局。AoE2 的歷史須已結束且等級分接續。
+
+== AoE2 的近況增量
+
+#figure(fig("temporal_slides_aoe2_recent", height: 64%), caption: [Recent model minus calibrated baseline. Conditional 95% intervals])
+
+改善集中於新手。老手的區間含零，不解讀為確立的傷害。
+
+== OGS 的近況增量
+
+#figure(fig("temporal_slides_ogs_recent", height: 64%), caption: [End-time ordering only. Recent model minus calibrated baseline; conditional 95% intervals])
+
+近況改善全體與新手。缺少開局時間，不能確認歷史在局前可用。
+
+== OGS 的新手延伸
+
+#figure(fig("temporal_slides_ogs_novice_extension", height: 64%), caption: [End-time ordering only. RD extension minus recent model; conditional 95% intervals])
+
+兩個速度類別都有新手增量，仍限探索性外部參考。
+
+== 驗證證據的區別
+
+#figure(text(size: 0.85em, table(
+  columns: (auto, auto, auto), rule-top,
+  [證據], [模型與資料], [可支持的結論], rule-mid,
+  [登記的前瞻驗證], [固定模型，未見的 2015 年樣本], [登記模型的外推表現],
+  [完整時間外流程], [已用資料，訓練內選項], [流程的時間穩定性],
+  [新手交互作用], [事後假設，固定後續測試], [探索性預測增量], rule-top,
+)))
+
+既有前瞻驗證不能替新增交互作用提供確認性證據。
+
+== 界線與限制
+
+- OGS 缺少開局時間，僅作結束時間排序的探索
+- AoE2 只有單月，Elo 期望為代理基準
+- 新手延伸尚需未使用資料的確認性驗證
+- 區間條件於已訓練模型，重疊訓練段不作獨立實驗
+- 預測改善不直接推出配對公平性或留存效果
+
+== 目前的發現
+
++ RD 校準提供較合適的基準，近況另帶來預測資訊
++ Lichess 的近況增量通過完整時間外檢查，新手仍有可修正的結構
++ 跨遊戲的改善集中於新手，老手須依遊戲與情境評估
+
+交付機率診斷、修正與適用範圍。
+
+== 未完成與下一步
+
+#figure(table(
+  columns: (auto, 1fr), rule-top,
+  [項目], [下一步], rule-mid,
+  [新手延伸], [另留未使用資料，先登記再確認],
+  [OGS 資訊可用性], [取得開局時間才能驗證局前歷史],
+  [最終報告], [整合預測修正、時間外證據與適用範圍],
+  [選做分析], [首局與空檔時間的預測增量], rule-top,
+))
+
+停止規則暫停延伸。
+
+== 參考文獻
+
+#text(size: 11pt, columns(2, gutter: 1.5em, bibliography("refs.bib", title: none, style: "apa")))
+
+
+
+#show: appendix
 
 == arena 的隨機配對
 
@@ -524,39 +703,7 @@ Blitz 的效果只在續下者上成立。
 之後各局的界限皆含 0，且隨局數變寬。
 
 
-== 剛贏、剛輸之後
-
-#figure(fig("baseline_slides_after_result", height: 62%), caption: [Calibration intercept of the main baseline after each previous result. Bars: 95% intervals])
-
-剛贏之後各組皆好於期望；剛輸之後只有 RD 最高的一組差於期望。
-
-== 等級分調得不夠
-
-#grid(
-  columns: (1fr, 1fr),
-  gutter: 1.2em,
-  align: horizon,
-  stack(
-    spacing: 0.8em,
-    [$Delta r$：本局與上一局的對局前等級分之差，本局開始前已知],
-    [剛贏之後好於期望；剛輸之後只有 RD 最高的五分之一差於期望],
-    [給定上一局結果，$Delta r$ 越大下一局越好],
-  ),
-  text(size: 0.8em, table(
-    columns: (auto, auto),
-    align: (left, right),
-    rule-top,
-    [], [$Delta r$ 每 100 分的效果（等級分）],
-    rule-mid,
-    ..speeds.map(s => ([#s], [#f0(rf-coef.find(r => r.speed == s).elo_per_100)])).flatten(),
-    rule-top,
-  )),
-)
-
-方向是等級分調得不夠；與 tilt 在本資料分不開。
-
-
-== 逐步加入的項
+== 登記模型的選項
 
 #figure(table(
   columns: (auto, auto, auto, auto),
@@ -568,7 +715,7 @@ Blitz 的效果只在續下者上成立。
   rule-top,
 ))
 
-判準：2014 下半年的 log loss 改善，且 dyadic 95% 區間不含 0。
+此設計用下半年選項、全年估計 offset；模型的確認依 2015 年登記驗證。
 
 == 修正後的基準
 
@@ -611,7 +758,7 @@ Blitz 的效果只在續下者上成立。
 
 修正後剛贏與剛輸的曲線大致重合。
 
-== 樣本外的比較
+== 登記模型的預測比較
 
 #figure(table(
   columns: (auto, auto, auto, auto),
@@ -747,55 +894,3 @@ Lichess 的連敗多由弱方構成；AoE2 強弱各半，故兩種基準相近�
 )
 
 連敗的超額可由等級分調得不夠解釋，不需要操控。
-
-
-== 換一個遊戲
-
-#figure(text(size: 0.8em, table(
-  columns: (auto, auto, auto, auto),
-  align: (left, right, right, center),
-  rule-top,
-  [], [系統期望的校準斜率], [重估主基準的斜率], [近況的修正],
-  rule-mid,
-  ..(("blitz", [OGS 快棋]), ("live", [OGS 一般])).map(((k, lab)) => {
-    let g(e) = f3(ogs-cal.find(r => r.speed == k and r.expected == e).beta)
-    (lab, [#g("L_sys")], [#g("L_base")], mark(ogs-steps.find(r => r.speed == k and r.step == "dr").kept))
-  }).flatten(),
-  [AoE2 1v1], [#f3(aoe-cal.find(r => r.expected == "L_sys").beta)], [#f3(aoe-cal.find(r => r.expected == "L_base").beta)], mark(aoe-steps.find(r => r.step == "dr").kept),
-  rule-top,
-)))
-
-高估強方在 OGS 成立；等級分調得不夠在三個遊戲都成立。對手非隨機指派，只作外部效度。
-
-== 界線與限制
-
-- 電競多為團隊、排隊配對；arena 的對手強弱分布較寬
-- 配對以等級分相近為準時，期望勝率的單調誤差不改變誰與誰最接近；故不回測配對
-- 對手的近況與連敗的檢驗在看過 2014 年結果後加入，由前瞻驗證把關
-- 主基準的係數含評估段的資料；各模型共用同一個 offset
-- 2014 年 12 人以下的批略偏離隨機；只用純隨機規則的批結論相同
-
-== 目前的發現
-
-+ 以 Elo 公式為基準，會高估強方的優勢、忽略白方優勢，也不給和局機率；判斷玩家表現時應改用校準後的基準
-+ 近況使基準再錯一點：剛贏之後好於期望，即等級分調得不夠；加入雙方近況的修正，在 2015 年仍較準
-+ 以校準後的基準判斷，連敗多於期望，但隨機配對下不可能來自操控；以 Elo 為基準則看不出連敗，Bullet 的方向甚至相反
-
-== 未完成與下一步
-
-#figure(table(
-  columns: (auto, auto),
-  align: left,
-  rule-top,
-  [項目], [現況],
-  rule-mid,
-  [大廳對局], [只有 2014 年的時間切分，沒有前瞻驗證],
-  [最終報告], [彙整修正後的勝率與連勝連敗的判斷],
-  rule-top,
-))
-
-== 參考文獻
-
-#text(size: 11pt, columns(2, gutter: 1.5em, bibliography("refs.bib", title: none, style: "apa")))
-
-#show: appendix
