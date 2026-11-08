@@ -15,7 +15,6 @@
 # - 停止規則：2023 年開始的天，回測與判定同 Lichess（stop_rules.py）；邊界 10 等級分，以主基準的斜率換算
 
 import os
-import sqlite3
 import sys
 
 os.environ["JAX_PLATFORMS"] = "cpu"
@@ -23,76 +22,13 @@ sys.path.insert(0, "scripts")
 
 import polars as pl
 
-import ordinal
 from external import evaluate, player_rows, stop_verdicts
-from runs import runs_before
+import external_sample
 
 SPEEDS = ["blitz", "live"]
-DAY_GAP = 12 * 3600
+T_EVAL = 1672531200
 NOVICE_RD = 160
-T_LO, T_EVAL, T_HI = 1609459200, 1672531200, 1704067200  # 2021-01-01、2023-01-01、2024-01-01（UTC）
-
-con = sqlite3.connect("file:data/raw/ogs/ogs-data.db?mode=ro", uri=True)
-q = f"""
-SELECT g.id AS game_id, size, handicap, black_id, white_id, time_per_move, winner_id, ended,
-       coalesce(bp.is_bot, 1) AS black_bot, coalesce(wp.is_bot, 1) AS white_bot
-FROM game_records g
-LEFT JOIN players bp ON black_id = bp.id
-LEFT JOIN players wp ON white_id = wp.id
-WHERE ended >= {T_LO - 31 * 86400} AND ended < {T_HI} AND time_per_move > 0 AND time_per_move <= 3600
-"""
-g = pl.concat(pl.read_database(q, con, iter_batches=True, batch_size=1_000_000))
-g = g.join(pl.scan_parquet("data/processed/ogs_replay.parquet").collect(), on="game_id").filter(~pl.col("skipped"), ~pl.col("overflow"))
-g = g.with_columns(
-    speed=pl.when(pl.col("time_per_move") <= 15).then(pl.lit("blitz")).otherwise(pl.lit("live")),
-    sample=(pl.col("size") == 19) & (pl.col("handicap") == 0) & (pl.col("black_bot") == 0) & (pl.col("white_bot") == 0)
-    & ((pl.col("winner_id") == pl.col("black_id")) | (pl.col("winner_id") == pl.col("white_id"))) & (pl.col("ended") >= T_LO),
-)
-
-# 每位玩家每局一列，依結束時間切出一天，取同一天的上一局
-side = lambda me, op: g.select(  # noqa: E731
-    "game_id", "ended", "speed", "sample",
-    player=f"{me}_id", opponent=f"{op}_id", rating=f"{me}_rating", rd=f"{me}_rd",
-    score=(pl.col("winner_id") == pl.col(f"{me}_id")).cast(pl.Float64),
-)
-pg = (
-    pl.concat([side("black", "white"), side("white", "black")])
-    .sort("player", "ended", "game_id")
-    .with_columns(gap=pl.col("ended").diff().over("player"))
-    .with_columns(day=(pl.col("gap").is_null() | (pl.col("gap") > DAY_GAP)).cum_sum().over("player"))
-    .with_columns(
-        has_prev=(pl.col("day") == pl.col("day").shift(1).over("player")).fill_null(False),
-        prev_score=pl.col("score").shift(1).over("player"),
-        dr=((pl.col("rating") - pl.col("rating").shift(1).over("player")) / 100),
-        day_start=pl.col("ended").first().over("player", "day"),
-        result=pl.when(pl.col("score") == 1).then(pl.lit("win")).otherwise(pl.lit("loss")),
-    )
-    .with_columns(
-        prev_win=pl.when("has_prev").then(pl.col("prev_score")).otherwise(0.0),
-        missing=(~pl.col("has_prev")).cast(pl.Float64),
-        dr=pl.when("has_prev").then(pl.col("dr")).otherwise(0.0),
-    )
-)
-pg = runs_before(pg, ["player", "day"])
-st = pg.select("game_id", "player", "prev_win", "missing", "dr")
-t = (
-    g.filter("sample")
-    .join(st.rename({c: f"b_{c}" for c in ["prev_win", "missing", "dr"]}), left_on=["game_id", "black_id"], right_on=["game_id", "player"])
-    .join(st.rename({c: f"w_{c}" for c in ["prev_win", "missing", "dr"]}), left_on=["game_id", "white_id"], right_on=["game_id", "player"])
-    .with_columns(
-        y=(pl.col("winner_id") == pl.col("black_id")).cast(pl.Float64),
-        xr=((pl.col("black_rating") + pl.col("white_rating")) / 2 - 1500) / 100,
-        xd=(pl.col("black_rating") - pl.col("white_rating")) / 100,
-        gs=ordinal.g("black_rd", "white_rd"),
-        d_prev_win=pl.col("b_prev_win") - pl.col("w_prev_win"),
-        d_missing=pl.col("b_missing") - pl.col("w_missing"),
-        d_dr=pl.col("b_dr") - pl.col("w_dr"),
-        novice=pl.max_horizontal("black_rd", "white_rd") >= NOVICE_RD,
-        train=pl.col("ended") < T_EVAL,
-        const=pl.lit(1.0),
-    )
-    .with_columns(xr2=pl.col("xr") ** 2, xdxr=pl.col("xd") * pl.col("xr"), gxd=pl.col("gs") * pl.col("xd"))
-)
+t, pg = external_sample.ogs()
 sample = t.group_by("speed", "train").agg(n=pl.len(), players=pl.concat_list("black_id", "white_id").explode().n_unique(), novice=pl.col("novice").mean(), black_win=pl.col("y").mean(), rating_diff_sd=(pl.col("xd") * 100).std()).sort("speed", "train")
 print(sample)
 sample.write_csv("outputs/tables/other_games_ogs_sample.csv")

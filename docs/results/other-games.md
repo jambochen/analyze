@@ -2,6 +2,9 @@
 
 腳本：`scripts/ogs_replay.py`（OGS 等級分的重放）、`scripts/other_games_ogs.py`、`scripts/other_games_aoe2.py`（分析）。重放與 OGS 官方參考實作的比對：`scripts/explore/ogs_replay_matches_reference.py`。共用 module：`scripts/external.py`（主基準的重估、校準、近況的逐步加入、停止規則的判定，兩個遊戲共用）、`scripts/state_adjusted.py`（對數分數與 dyadic 標準誤）、`scripts/stop_rules.py`（停止規則的回測）、`scripts/runs.py`（連串的長度）。表在 `outputs/tables/other_games_ogs_*.csv`、`outputs/tables/other_games_aoe2_*.csv`，Brier 分數的分解在 `outputs/tables/forecast_decomposition.csv`（`scripts/forecast_decomposition.py`）。規格見 `docs/plan.md`「其他遊戲的外部驗證」，資料見 `data/raw/ogs/SOURCE.md`、`data/raw/aoe2/SOURCE.md`。本文件只寫定性結論，數值一律見對應的輸出檔。
 
+
+基準、近況選項與最終測試分開的共同流程見 `docs/results/temporal-validation.md`。該分析排除 OGS 自我對局、對 AoE2 加入上一局已完成的檢查，並明列 OGS 缺少開局時間的限制；本文件的既有輸出保留。
+
 ## 問題
 
 Lichess 的結論是在一個遊戲、一種配對機制上得到的。換一個遊戲與等級分系統，三件事是否仍成立：系統的期望勝率不校準、近況能在樣本外修正它、民間停止規則沒有用。這裡只作外部效度的檢驗，不作因果識別：兩個遊戲的對手都不是隨機指派的。

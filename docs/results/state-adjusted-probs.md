@@ -2,6 +2,8 @@
 
 腳本：`scripts/state_adjusted_probs.py`；改善來源的分解為 `scripts/forecast_decomposition.py`；修正量與其區間為 `scripts/state_adjusted_shift.py`；大廳對局為 `scripts/state_adjusted_lobby.py`（表 `state_adjusted_lobby_*.csv`）。共用 module：`scripts/state_adjusted.py`（樣本、機率與評估量，前瞻驗證與分解共用）、`scripts/arena_batches.py`（`player_sample_rd`）、`scripts/likelihood.py`（`fit`、`dyad_se`）。表在 `outputs/tables/state_adjusted_probs_*.csv`、`outputs/tables/state_adjusted_shift.csv` 與 `outputs/tables/forecast_decomposition.csv`，圖在 `outputs/figures/state_adjusted_probs_curve.png` 與 `outputs/figures/state_adjusted_shift.png`。規格見 `docs/methods.md`「依狀態調整的勝率」。本文件只寫定性結論，數值一律見對應的輸出檔。
 
+完整時間外共同流程的獨立重估見 `docs/results/temporal-validation.md`；其選項在訓練期內決定，本文件記載的模型與前瞻驗證口徑維持不變。
+
 ## 問題
 
 玩家排完隊、看到對手之後，系統給的期望勝率能否依雙方剛才的對局修正得更準？電競玩家看得到對手的近期戰績，所以自身與對手的近況都是可用的資訊。這是預測交付物：修正後的勝、和、負機率，與「再開一局，預期比系統的期望差多少」。預測只需要預測力，不需要因果的識別，所以變數由樣本外表現決定，不由前局效果是否顯著決定。

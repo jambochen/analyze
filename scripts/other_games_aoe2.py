@@ -16,59 +16,11 @@ sys.path.insert(0, "scripts")
 
 import polars as pl
 
-import novice
 from external import evaluate, player_rows, stop_verdicts
-from runs import runs_before
+import external_sample
 
-D = "data/raw/aoe2/2026-11-06/"
-DAY_GAP = 12 * 3600
 T_EVAL = int(dt.datetime(2026, 6, 24, tzinfo=dt.timezone.utc).timestamp())
-
-m = pl.read_parquet(D + "matches.parquet").filter(pl.col("ladder") == "1v1").select("match_id", "start_time", "completion_time")
-p = pl.read_parquet(D + "players.parquet").join(m, on="match_id")
-p = p.filter((pl.col("won").cast(pl.Int32).sum().over("match_id") == 1) & (pl.len().over("match_id") == 2))
-pg = (
-    p.select(
-        "match_id", "start_time", "completion_time", "team", "old_rating", "new_rating",
-        player="profile_id", score=pl.col("won").cast(pl.Float64), games_before=pl.col("career_wins") + pl.col("career_losses") - 1,
-    )
-    .sort("player", "start_time", "match_id")
-    .with_columns(gap=pl.col("start_time") - pl.col("completion_time").shift(1).over("player"), chain=pl.col("old_rating") == pl.col("new_rating").shift(1).over("player"))
-    .with_columns(day=(pl.col("gap").is_null() | (pl.col("gap") > DAY_GAP)).cum_sum().over("player"))
-    .with_columns(
-        first_of_day=pl.col("day") != pl.col("day").shift(1).over("player").fill_null(-1),
-        day_start=pl.col("start_time").first().over("player", "day"),
-        result=pl.when(pl.col("score") == 1).then(pl.lit("win")).otherwise(pl.lit("loss")),
-    )
-    .with_columns(
-        has_prev=~pl.col("first_of_day") & pl.col("chain").fill_null(False),
-        day_complete=(pl.col("first_of_day") | pl.col("chain").fill_null(False)).all().over("player", "day"),
-    )
-    .with_columns(
-        prev_win=pl.when("has_prev").then(pl.col("score").shift(1).over("player")).otherwise(0.0),
-        missing=(~pl.col("has_prev")).cast(pl.Float64),
-        dr=pl.when("has_prev").then((pl.col("old_rating") - pl.col("old_rating").shift(1).over("player")) / 100).otherwise(0.0),
-        novice_side=pl.col("games_before") < novice.GAMES,
-    )
-)
-pg = runs_before(pg, ["player", "day"])
-a, b = pg.filter(pl.col("team") == 0), pg.filter(pl.col("team") == 1)
-side = lambda x, s: x.select("match_id", *[pl.col(c).alias(f"{s}_{c}") for c in ["player", "old_rating", "score", "prev_win", "missing", "dr", "novice_side"]])  # noqa: E731
-t = (
-    side(a, "a").join(side(b, "b"), on="match_id").join(m, on="match_id")
-    .with_columns(
-        game_id="match_id", a_id="a_player", b_id="b_player", y="a_score", speed=pl.lit("1v1"),
-        train=pl.col("start_time") < T_EVAL, const=pl.lit(1.0),
-        xr=((pl.col("a_old_rating") + pl.col("b_old_rating")) / 2 - 1500) / 100,
-        xd=((pl.col("a_old_rating") - pl.col("b_old_rating")) / 100).cast(pl.Float64),
-        p_sys=1 / (1 + 10 ** (-(pl.col("a_old_rating") - pl.col("b_old_rating")) / 400)),
-        d_prev_win=pl.col("a_prev_win") - pl.col("b_prev_win"),
-        d_missing=pl.col("a_missing") - pl.col("b_missing"),
-        d_dr=pl.col("a_dr") - pl.col("b_dr"),
-        novice=pl.col("a_novice_side") | pl.col("b_novice_side"),
-    )
-    .with_columns(xr2=pl.col("xr") ** 2, xdxr=pl.col("xd") * pl.col("xr"))
-)
+t, pg = external_sample.aoe2()
 sample = t.group_by("train").agg(
     n=pl.len(), players=pl.concat_list("a_id", "b_id").explode().n_unique(), novice=pl.col("novice").mean(), a_win=pl.col("y").mean(),
     has_prev=(1 - pl.col("a_missing")).mean(), rating_diff_sd=(pl.col("xd") * 100).std(),
