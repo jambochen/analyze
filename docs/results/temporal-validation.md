@@ -26,12 +26,52 @@ Lichess 以全站資料估計 RD 主基準，在 arena 本場有上一局的玩�
 
 預測交付以遊戲內的「校準基準 → 近況 → 有 RD 時的新手延伸」呈現，同時展示未被選入的候選。Lichess 的新手誤差延伸有可重現的時間段證據，值得納入主線；其機制仍不能區分實力追蹤不足與短期狀態。AoE2 支持近況資訊在排隊配對情境的預測價值，但只有單月。OGS 支持方法探索，開局前資訊可用性的缺口須另有時間資料才能補足。
 
+## 改善幅度與實際用途
+
+`scripts/prediction_value.py` 使用保存的最終係數重建各測試段，逐組重現既有樣本與損失，沒有重新配適或選項。數值在 `outputs/tables/prediction_value_*.csv`；作圖為 `scripts/prediction_value_figures.py`。情境選擇與校準摘要的定義見 `docs/temporal-validation.md`「預測改善的幅度與情境解讀」。
+
+### 預測改善集中在哪裡
+
+近況在 Lichess Bullet、Blitz 的整體對數損失改善小，新手組的相對改善較集中；老手的增量較小，Bullet 前一測試段的區間仍跨零。Classical 未選入候選，零增量表示模型相同。新手交互作用在已選入的速度與時段有額外增量，但仍是探索性結果。
+
+外部資料也顯示群體差異。OGS 新手的相對改善較大，老手的改善不一致；開局時間缺口仍限制用途。AoE2 的新手改善較集中，老手的差值區間跨零，不能把全體改善當成每個族群都適用。各遊戲的新手定義不同，相對改善也只在遊戲內作比較。
+
+這些結果支持將近況作為既有機率模型的小幅修正。它尚不足以證明修改配對政策、提升留存或改變玩家決策有收益；那些用途需要各自的決策目標與成本，不能從對數損失直接換算。
+
+圖：[Lichess 相對改善](../../outputs/figures/prediction_value_lichess_gain.svg)、[OGS 相對改善](../../outputs/figures/prediction_value_ogs_gain.svg)、[AoE2 相對改善](../../outputs/figures/prediction_value_aoe2_gain.svg)。
+
+### 機率修正與準確度是不同的量
+
+Lichess 的大多數近況修正幅度不大，少數對局的調整較明顯；新手組的誤差改善較大，並不要求每個時段的新手機率調整都大於老手。AoE2 的新手與老手調整幅度相近，卻只有新手呈現明確的平均預測改善。機率改變多少不能代替損失比較，更不能稱為玩家勝率被提高。
+
+匿名情境以訓練期的局前特徵選取，顯示同一組對局條件下，基準、近況與新手延伸如何重新分配勝、和、負機率。新手延伸有時會拉回近況模型的修正，並非一律放大它。情境之間的等級分、RD 與分數變動不同，不構成前局輸贏的因果對比，也不是未見資料上的個別機率驗證。
+
+圖：[Blitz 匿名情境](../../outputs/figures/prediction_value_blitz_scenarios.svg)、[Bullet 匿名情境](../../outputs/figures/prediction_value_bullet_scenarios.svg)。
+
+### 校準改善並不全面
+
+依基準預測形成共同分箱時，Lichess Bullet、Blitz 的近況修正降低整體與新手的期望得分偏差；新手延伸再降低已選入情境的新手偏差。老手並非每一項都同步改善。各模型依自身預測分箱時，部分細節也會改變，因此不以單一分箱摘要宣稱全面校準。
+
+把 Lichess 的勝、和、負分開看，勝負機率的偏差縮小較一致，和局機率的分箱偏差不一定縮小。近況模型只修正優勢項，沒有另外調整和局帶寬；整體對數損失改善不代表三類機率的每一項診斷都改善。
+
+OGS 在共同分箱下的偏差改善並不一致；AoE2 的對數損失改善，但這項分箱偏差沒有跟著降低。這些是受分箱與有限樣本影響的描述，不能說已確立校準惡化，也不能把預測增量全部歸因於消除校準偏差。
+
+圖：[Lichess 修正幅度與條件偏差](../../outputs/figures/prediction_value_lichess_magnitude.svg)、[OGS 修正幅度與條件偏差](../../outputs/figures/prediction_value_ogs_magnitude.svg)、[AoE2 修正幅度與條件偏差](../../outputs/figures/prediction_value_aoe2_magnitude.svg)。
+
+### 對後續工作的判斷
+
+現有成果可交付「小幅、依族群與情境而異的機率修正」，並以匿名例子說明輸出。是否值得實際採用，仍取決於用途所需的改善與資訊取得成本，不設定事後門檻宣稱實用。新增分析優先針對會改變主張的缺口；不因整體增量小就持續增加模型，也不把未見驗證或外部時間欄位的缺口當作已補齊。
+
 ## 輸出解讀
 
 - `sample`：各段時間範圍、玩家數、對局與玩家局數；Lichess 的同局可能有雙方視角，不與外部遊戲的每局一列混為相同樣本單位。
 - `selection`、`models`、`state_coef`：內部選擇的判定、最終欄位與對應係數；`coef` 保留全部配適係數。
 - `prediction`：各遊戲、速度、時間段與新手分組的分數差；負值為改善。Lichess 的 Elo 只有期望得分，不計算虛構的三類對數損失。
 - `calibration` 與校準圖：固定預測機率分箱的實際平均得分；`comparison` 圖比較近況對基準、新手延伸對近況的條件區間。
+- `prediction_value_scores`、`changes`：相對誤差改善與機率調整分布，兩者不可混同。
+- `prediction_value_calibration`、`calibration_bins`：各模型自身分箱及共同基準分箱的偏差；`target` 區分期望得分與結果機率。
+- `prediction_value_scenarios`：訓練期選定的匿名局前特徵與三種模型機率；`dr`、`opp_dr` 以百分為單位，顯示等級分變動時須乘回尺度。
+- `prediction_value_checks`：重建樣本與既有逐組損失的核對。
 - `fits`：執行耗時與最大標準化 score；配適需通過一階條件與機率有效性檢查。
 
 ## 推論界線
