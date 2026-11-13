@@ -2,6 +2,8 @@
 
 標「已查證」者已在出版者頁面或 arXiv 核對標題與出處；其餘僅見於搜尋結果或作者頁面，引用前須核對。
 
+核心對照的本地原文、版本及可借用方法見[核心方法評讀](competitive-game-methods.md)；跨研究目標比較見[研究目標與交付](competitive-game-research-goals.md)。
+
 ## 借用的方法：原論文解決什麼，本研究借它解決什麼
 
 借用時須分清兩件事：原論文用這個方法回答什麼問題、在什麼條件下成立；本研究用它回答什麼，條件是否仍成立。
@@ -71,7 +73,7 @@
 - 網易伏羲的 OptMatch（KDD 2020）與全域匹配（KDD 2021）：見作者頁面 https://wu-runze.github.io/collection-archive/
 - **Match experiences affect interest: Impacts of matchmaking and performance on churn in a competitive game**（Kang、Suh、Kim，Heliyon 2024，已查證，已讀全文）。Netmarble 手遊的伺服器紀錄，論文明寫資料不公開。玩家日為單位、14 天無對局為流失，以雙向固定效應 logistic 迴歸估計分差、分差變異、勝率與連勝連敗對流失的效果。配對由系統依分數決定，作者承認為觀察資料。方法與本研究的用法見 `docs/methods.md`。https://pmc.ncbi.nlm.nih.gov/articles/PMC10839887/
 - **The Role of Skill in Matchmaking**（Activision 白皮書，以新聞報導核對存在與內容，全文未讀）。Call of Duty: Modern Warfare 3 的內部實驗，逐步放寬技術配對並追蹤離開與留存，結論為放寬後中途離開與不再遊玩增加；另含實力相當下連敗發生率的機率基準。內部資料，未經獨立驗證。https://www.activision.com/cdn/research/CallofDuty_Matchmaking_Series_2.pdf
-- **Skill-Based Matchmaking for Competitive Two-Player Games**（Yuksel，ACM TOG 2024）。https://dl.acm.org/doi/10.1145/3651303
+- **Skill-Based Matchmaking for Competitive Two-Player Games**（Yuksel，Proceedings of the ACM on Computer Graphics and Interactive Techniques 2024，已查證，已讀正文及補充的方法與驗證）。自適應評分與近期目標勝率配對，以合成模擬驗證，非真人部署證據。https://dl.acm.org/doi/10.1145/3651303
 - **Opponent Indifference in Rating Systems: A Theoretical Case for Sonas**（arXiv 2209.03950，已查證）。玩家能看到對手分數並挑選或中止時，等級分系統會誘使玩家策略性選對手。支撐「大廳自選對手混淆分差效果」的論點。https://arxiv.org/abs/2209.03950
 - **Mean-Field Analysis and Optimal Control of a Dynamic Rating and Matchmaking System**（arXiv 2512.22038，已查證）。以平均場理論分析等級分準確度與配對強度的關係。https://arxiv.org/abs/2512.22038
 - **Paths, Trees, and Flowers**（Edmonds，Canadian Journal of Mathematics 17，1965，已查證）。一般圖上最大匹配的 blossom 演算法，minimum weight perfect matching 的實作依據。https://doi.org/10.4153/CJM-1965-045-4

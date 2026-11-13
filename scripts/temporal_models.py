@@ -23,7 +23,7 @@ def sample(game):
             p_sys=1 / (1 + 10 ** (-(pl.col("elo") - pl.col("opp_elo")) / 400)),
         )
         # 不讓 sample 內全年基準的欄位流入本次配適。
-        t = t.select("game_id", "time", "speed", "a_id", "b_id", "y", "novice", "sign", "xr", "xd", "gxd", "p_sys", "d_prev_draw", "d_prev_win", "opp_missing", "d_dr", "rd_dr", "rd_abs_dr", "elo", "opp_elo", "rd", "opp_rd", "dr", "opp_dr", "prev_result", "opp_prev_result")
+        t = t.select("game_id", "tournament_id", "games_in_tour", "time", "speed", "a_id", "b_id", "y", "novice", "sign", "xr", "xd", "gxd", "p_sys", "d_prev_draw", "d_prev_win", "opp_missing", "d_dr", "rd_dr", "rd_abs_dr", "elo", "opp_elo", "rd", "opp_rd", "dr", "opp_dr", "prev_result", "opp_prev_result")
         folds = [("Jul-Sep", "2014-06-01", "2014-07-01", "2014-10-01"), ("Oct-Dec", "2014-09-01", "2014-10-01", "2015-01-01")]
         state_cols = ["d_prev_draw", "d_prev_win", "opp_missing"]
     else:

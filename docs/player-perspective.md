@@ -22,6 +22,7 @@
 ## 既有證據的使用方式
 
 - [新手期](results/novice-period.md)與[玩家軌跡](results/novice-clusters.md)：等級分不確定性有個人差異，應與分數一起解讀。
+- [序列參考診斷](results/sequence-diagnostics.md)：總體視窗與玩家等權的連敗結論不同；單局模型的模擬分位數不能直接作個人異常門檻。
 - [連勝連敗](results/streaks.md)：是否「異常」依賴比較基準，不能單靠連敗指控配對操控。
 - [配對目標與個人保護](results/matching-policy.md)：降低整體平均不平衡不保證每位玩家受益；個人保護須寫出具體指標與上限。
 - [停止規則回測](results/folk-stop-rules.md)與[前瞻驗證](results/prospective-validation.md)：沒有支持得分收益不等於證明休息無效，也不等於繼續打較好。
