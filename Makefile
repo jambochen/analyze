@@ -14,10 +14,6 @@ lint:
 check-slides:
 	$(PYTHON) scripts/check_slide_overflow.py
 
-.PHONY: baseline-timing
-baseline-timing:
-	$(PYTHON) scripts/baseline_timing.py
-
 .PHONY: api
 api:
 	$(PYTHON) scripts/module_api.py
