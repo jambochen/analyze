@@ -243,14 +243,14 @@ $ logit P(Y <= j) = log P(Y <= j) / (1 - P(Y <= j)) = theta_j (macron(r)) - eta,
     text(size: 0.8em, fill: mute)[quasi-likelihood、score test 區間同前；不限 RD],
     text(size: 0.8em, {
       let g(s, v) = cox.find(r => r.speed == s and r.stratum_type == "experience" and r.stratum == v)
-      let ci(a) = text(size: 0.85em, fill: mute)[[#f2(a.slope_lo), #f2(a.slope_hi)]]
+      let ci(a) = text(size: 0.85em, fill: mute)[[#f3(a.slope_lo), #f3(a.slope_hi)]]
       table(
         columns: (auto, auto, auto),
         align: (left, right, right),
         rule-top,
         [$hat(beta)$], [第 0 局], [200 局以上],
         rule-mid,
-        ..speeds.map(s => ([#s], [#f2(g(s, "0").slope)], [#f2(g(s, ">200").slope)], [], ci(g(s, "0")), ci(g(s, ">200")))).flatten(),
+        ..speeds.map(s => ([#s], [#f3(g(s, "0").slope)], [#f3(g(s, ">200").slope)], [], ci(g(s, "0")), ci(g(s, ">200")))).flatten(),
         table.cell(colspan: 3, text(size: 0.85em, fill: mute)[score test 的 95% 區間]),
         rule-top,
       )
