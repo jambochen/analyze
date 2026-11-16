@@ -8,9 +8,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 
-p = pl.read_csv("outputs/tables/likelihood_selection_prediction.csv")
-c = pl.read_csv("outputs/tables/likelihood_selection_calibration.csv")
-bins = pl.read_csv("outputs/tables/likelihood_selection_calibration_bins.csv")
+speed_labels = {"Bullet": "Short", "Blitz": "Medium", "Classical": "Long"}
+speed_type = pl.Enum(list(speed_labels))
+
+p = pl.read_csv("outputs/tables/likelihood_selection_prediction.csv").with_columns(pl.col("speed").cast(speed_type))
+c = pl.read_csv("outputs/tables/likelihood_selection_calibration.csv").with_columns(pl.col("speed").cast(speed_type))
+bins = pl.read_csv("outputs/tables/likelihood_selection_calibration_bins.csv").with_columns(pl.col("speed").cast(speed_type))
 export = json.loads(Path("outputs/tables/likelihood_selection_models.json").read_text())
 selection = pl.read_csv("outputs/tables/likelihood_selection_selection.csv")
 model_rows = []
@@ -35,7 +38,7 @@ for filename, pairs in [("branches", [("interaction", "recent", "BIC within inte
             d = d.sort("speed", "fold")
             y = np.arange(d.height)+(j-(len(pairs)-1)/2)*.18
             ax.errorbar(d["diff"].to_numpy()*1000, y, xerr=d["se"].to_numpy()*1960, fmt="o", color=color, capsize=3, label=label)
-        ax.set(yticks=np.arange(d.height), yticklabels=[f"{r['speed']} / {r['fold']}" for r in d.iter_rows(named=True)], title=title, xlabel="Log-loss difference (x 0.001)")
+        ax.set(yticks=np.arange(d.height), yticklabels=[f"{speed_labels[r['speed']]} / {r['fold']}" for r in d.iter_rows(named=True)], title=title, xlabel="Log-loss difference (x 0.001)")
         ax.axvline(0, color="grey", linestyle="--")
         ax.grid(axis="x", alpha=.15)
     axes[0].invert_yaxis()
@@ -46,11 +49,11 @@ for filename, pairs in [("branches", [("interaction", "recent", "BIC within inte
 
 fig, axes = plt.subplots(1, 3, figsize=(13, 4), sharey=True)
 for ax, group, title in zip(axes, ["all", "novice", "established"], ["All games", "At least one high-RD player", "Both players low-RD"]):
-    for j, (source, model, label, color) in enumerate([(p, "recent", "Simple recent", "#b05a16"), (p, "selected", "Selected model (BIC)", "#33414a")]):
+    for j, (source, model, label, color) in enumerate([(p, "recent", "With previous-game data", "#b05a16"), (p, "selected", "Selected model (BIC)", "#33414a")]):
         d = source.filter(pl.col("group") == group, pl.col("metric") == "log_loss", pl.col("model") == model, pl.col("vs") == "baseline").sort("speed", "fold")
         reference = d["mean"].to_numpy()-d["diff"].to_numpy()
         ax.errorbar(-100*d["diff"].to_numpy()/reference, np.arange(d.height)+(j-.5)*.18, xerr=196*d["se"].to_numpy()/reference, fmt="o", color=color, capsize=3, label=label)
-    ax.set(yticks=np.arange(d.height), yticklabels=[f"{r['speed']} / {r['fold']}" for r in d.iter_rows(named=True)], title=title, xlabel="Relative log-loss reduction (%)")
+    ax.set(yticks=np.arange(d.height), yticklabels=[f"{speed_labels[r['speed']]} / {r['fold']}" for r in d.iter_rows(named=True)], title=title, xlabel="Relative log-loss reduction (%)")
     ax.axvline(0, color="grey", linestyle="--")
     ax.grid(axis="x", alpha=.15)
 axes[0].invert_yaxis()
@@ -59,11 +62,11 @@ fig.tight_layout(rect=(0, 0, 1, .9))
 fig.savefig("outputs/figures/likelihood_selection_report_gain.svg", bbox_inches="tight")
 plt.close(fig)
 
-changes = pl.read_csv("outputs/tables/likelihood_selection_changes.csv").filter(pl.col("group") == "all", pl.col("vs") == "baseline").sort("speed", "fold")
+changes = pl.read_csv("outputs/tables/likelihood_selection_changes.csv").with_columns(pl.col("speed").cast(speed_type)).filter(pl.col("group") == "all", pl.col("vs") == "baseline").sort("speed", "fold")
 fig, ax = plt.subplots(figsize=(10, 3.6))
 for column, label, marker in [("mean_abs_win_pp", "Mean", "o"), ("p90_abs_win_pp", "90th percentile", "x")]:
     ax.scatter(changes[column], np.arange(changes.height), label=label, marker=marker, s=55)
-ax.set(yticks=np.arange(changes.height), yticklabels=[f"{r['speed']} / {r['fold']}" for r in changes.iter_rows(named=True)], xlabel="Absolute win-probability change (percentage points)")
+ax.set(yticks=np.arange(changes.height), yticklabels=[f"{speed_labels[r['speed']]} / {r['fold']}" for r in changes.iter_rows(named=True)], xlabel="Absolute win-probability change (percentage points)")
 ax.invert_yaxis()
 ax.grid(alpha=.15)
 ax.legend(frameon=False)
@@ -73,10 +76,10 @@ plt.close(fig)
 
 fig, axes = plt.subplots(1, 3, figsize=(13, 4), sharey=True)
 for ax, target in zip(axes, ["loss", "draw", "win"]):
-    for j, (model, label, color) in enumerate([("baseline", "Baseline", "#888888"), ("recent", "Simple recent", "#b05a16"), ("selected", "Selected model (BIC)", "#247a70")]):
+    for j, (model, label, color) in enumerate([("baseline", "Baseline", "#888888"), ("recent", "With previous-game data", "#b05a16"), ("selected", "Selected model (BIC)", "#247a70")]):
         d = c.filter(pl.col("group") == "all", pl.col("target") == target, pl.col("binning") == "own_prediction", pl.col("model") == model).sort("speed", "fold")
         ax.scatter(d["weighted_abs_gap_pp"], np.arange(d.height)+(j-1)*.18, label=label, color=color)
-    ax.set(yticks=np.arange(d.height), yticklabels=[f"{r['speed']} / {r['fold']}" for r in d.iter_rows(named=True)], title=target.title(), xlabel="Weighted absolute calibration gap (pp)")
+    ax.set(yticks=np.arange(d.height), yticklabels=[f"{speed_labels[r['speed']]} / {r['fold']}" for r in d.iter_rows(named=True)], title=target.title(), xlabel="Weighted absolute calibration gap (pp)")
     ax.grid(axis="x", alpha=.15)
 axes[0].invert_yaxis()
 fig.legend(*axes[0].get_legend_handles_labels(), loc="upper center", ncol=3, frameon=False)
@@ -86,25 +89,25 @@ plt.close(fig)
 
 fig, axes = plt.subplots(1, 2, figsize=(11, 4), sharey=True)
 for ax, fold in zip(axes, ["Jul-Sep", "Oct-Dec"]):
-    for model, label, color in [("baseline", "Baseline", "#888888"), ("recent", "Simple recent", "#b05a16"), ("selected", "Selected model (BIC)", "#247a70")]:
+    for model, label, color in [("baseline", "Baseline", "#888888"), ("recent", "With previous-game data", "#b05a16"), ("selected", "Selected model (BIC)", "#247a70")]:
         d = bins.filter(pl.col("speed") == "Blitz", pl.col("fold") == fold, pl.col("group") == "all", pl.col("target") == "score", pl.col("binning") == "baseline_prediction", pl.col("model") == model).sort("bin")
         reference = bins.filter(pl.col("speed") == "Blitz", pl.col("fold") == fold, pl.col("group") == "all", pl.col("target") == "score", pl.col("binning") == "baseline_prediction", pl.col("model") == "baseline").sort("bin")
         ax.plot(reference["predicted"], d["residual"]*100, marker="o", label=label, color=color)
     ax.axhline(0, color="grey", linestyle="--")
-    ax.set(title=f"Blitz / {fold}", xlabel="Baseline mean expected score", ylabel="Observed - predicted score (pp)")
+    ax.set(title=f"Medium / {fold}", xlabel="Baseline mean expected score", ylabel="Observed - predicted score (pp)")
     ax.grid(alpha=.15)
 fig.legend(*axes[0].get_legend_handles_labels(), loc="upper center", ncol=3, frameon=False)
 fig.tight_layout(rect=(0, 0, 1, .9))
 fig.savefig("outputs/figures/likelihood_selection_report_score.svg", bbox_inches="tight")
 plt.close(fig)
 
-entry = pl.read_csv("outputs/tables/entry_context_scores.csv").filter(pl.col("group") == "all", pl.col("metric") == "log_loss", pl.col("model") == "first", pl.col("reference") == "recalibrated")
+entry = pl.read_csv("outputs/tables/entry_context_scores.csv").with_columns(pl.col("speed").cast(speed_type)).filter(pl.col("group") == "all", pl.col("metric") == "log_loss", pl.col("model") == "first", pl.col("reference") == "recalibrated")
 fig, axes = plt.subplots(1, 2, figsize=(11, 3.6), sharex=True, sharey=True)
 for ax, weighting, title in zip(axes, ["games", "players"], ["Game weights", "Equal player weights"]):
     d = entry.filter(pl.col("weighting") == weighting).sort("speed", "fold")
     x = 1000*d["diff"].to_numpy()
     ax.errorbar(x, np.arange(d.height), xerr=np.array([x-1000*d["lo"].to_numpy(), 1000*d["hi"].to_numpy()-x]), fmt="o", color="#247a70", capsize=3)
-    ax.set(yticks=np.arange(d.height), yticklabels=[f"{r['speed']} / {r['fold']}" for r in d.iter_rows(named=True)], title=title, xlabel="Entry-label log-loss difference (x 0.001)")
+    ax.set(yticks=np.arange(d.height), yticklabels=[f"{speed_labels[r['speed']]} / {r['fold']}" for r in d.iter_rows(named=True)], title=title, xlabel="First-game indicator log-loss difference (x 0.001)")
     ax.axvline(0, color="grey", linestyle="--")
     ax.grid(axis="x", alpha=.15)
 axes[0].invert_yaxis()
@@ -119,7 +122,7 @@ for ax, metric, title in zip(axes, ["log_loss", "score_mse"], ["Log loss", "Scor
         ax.hlines(pos, d["lo"], d["hi"], color=color)
         ax.scatter(d["diff"], pos, color=color, label=label, s=25)
     ax.axvline(0, color="grey", linestyle="--")
-    ax.set(title=title, xlabel="Simple recent minus rating baseline", yticks=np.arange(d.height), yticklabels=[f"{r['speed']} / {r['fold']}" for r in d.iter_rows(named=True)])
+    ax.set(title=title, xlabel="Previous-game model minus baseline", yticks=np.arange(d.height), yticklabels=[f"{speed_labels[r['speed']]} / {r['fold']}" for r in d.iter_rows(named=True)])
     ax.ticklabel_format(axis="x", style="sci", scilimits=(-3, 3))
 axes[0].invert_yaxis()
 fig.legend(*axes[0].get_legend_handles_labels(), loc="upper center", ncol=3, frameon=False)
@@ -132,7 +135,7 @@ for ax, group, title in zip(axes, ["all", "novice", "established"], ["All games"
     d = p.filter(pl.col("model") == "aic", pl.col("vs") == "selected", pl.col("metric") == "log_loss", pl.col("group") == group).sort("speed", "fold")
     ax.errorbar(d["diff"].to_numpy()*1000, np.arange(d.height), xerr=d["se"].to_numpy()*1960, fmt="o", color="#247a70", capsize=3)
     ax.axvline(0, color="grey", linestyle="--")
-    ax.set(title=title, xlabel="AIC minus BIC test log loss (x 0.001)", yticks=np.arange(d.height), yticklabels=[f"{r['speed']} / {r['fold']}" for r in d.iter_rows(named=True)])
+    ax.set(title=title, xlabel="AIC minus BIC test log loss (x 0.001)", yticks=np.arange(d.height), yticklabels=[f"{speed_labels[r['speed']]} / {r['fold']}" for r in d.iter_rows(named=True)])
     ax.grid(axis="x", alpha=.15)
 axes[0].invert_yaxis()
 fig.tight_layout()
