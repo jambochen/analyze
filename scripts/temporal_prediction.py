@@ -44,16 +44,12 @@ def base_fit(d, label):
     return fit_model(lk.logit_ll, np.zeros(len(cols)), np.arange(len(cols)), (d.select(cols).to_numpy().astype(float), d["y"].to_numpy() / 2), d, label)
 
 
-def state_ll(th, X, width, y):
-    return ordinal.ll(X @ th, width, y)
-
-
 def state_fit(tr, te, cols, label):
     cols = ["eta"] + cols
     Xtr, Xte = [d.select(cols).to_numpy().astype(float) for d in [tr, te]]
     t0 = np.r_[1.0, np.zeros(len(cols) - 1)]
     if game == "Lichess":
-        th = fit_model(state_ll, t0, np.arange(1, len(cols)), (Xtr, tr["width"].to_numpy(), tr["y"].to_numpy()), tr, label)
+        th = fit_model(tm.state_ll, t0, np.arange(1, len(cols)), (Xtr, tr["width"].to_numpy(), tr["y"].to_numpy()), tr, label)
     else:
         th = fit_model(lk.logit_ll, t0, np.arange(1, len(cols)), (Xtr, tr["y"].to_numpy() / 2), tr, label)
     p = ordinal.probs(Xte @ th, te["width"].to_numpy())

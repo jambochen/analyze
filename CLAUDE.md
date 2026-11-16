@@ -10,9 +10,11 @@
 
 ## 主題
 
-**競技對局的預測與決策：評分、配對與玩家戰績解讀**。交付對象包含評分與配對系統分析者，以及需要理解戰績的玩家。以局前結果機率為共同基礎，並行評估平台配對、玩家提醒與模型適用範圍，問題結構見 `docs/application-scope.md`。
+**局前評分與近期戰績的對局結果預測**。建立並驗證利用局前評分、評分不確定性與雙方近期戰績的模型，回答近期資訊的增量、模型複雜度的取捨與適用範圍。第二次報告須完成主要分析、模型選擇、驗證與結論；預測交付滿足課程要求。
 
-配對分析須讀 `docs/matching-policy.md`，區分單步可行改善與線上等待、留存效益。玩家用途須讀 `docs/player-perspective.md`；首局、開局間隔及適用範圍分析須讀 `docs/entry-context.md`。Lichess 建立方法，OGS 與 AoE2 驗證預測流程；各遊戲各自估計。停止規則的既有成果保留，提醒或間隔的預測資訊不等於休息效果。
+調整報告內容或分析優先序前，讀 `docs/report-focus.md`；模型定案前的收尾工作見 `docs/plan.md`。Lichess 建立方法，OGS 與 AoE2 各自估計並檢查適用範圍。既有替代模型實驗用於解釋取捨，跨不同基準、輸入或選模流程的結果不能直接排名。
+
+配對、停手、tilt 因果識別與個人異常警示保留為相關成果，非課程必要交付。涉及配對時讀 `docs/matching-policy.md`，玩家用途讀 `docs/player-perspective.md`，首局與間隔讀 `docs/entry-context.md`；相關用途總覽見 `docs/application-scope.md`。提醒或間隔的預測資訊不等於休息效果。
 
 研究問題與識別見 `docs/design.md`，方法規格見 `docs/methods.md`，各方法的主從、依賴與待辦見 `docs/plan.md`，各分析的結論見 `docs/results/`，總覽見根目錄 `README.md`，其餘文件的索引見 `docs/README.md`。
 

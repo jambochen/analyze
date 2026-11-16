@@ -1,20 +1,50 @@
-# 完整時間外預測與新手誤差
+# 時間外預測與模型選擇結果
 
-執行規格見 `docs/temporal-validation.md`。腳本為 `scripts/temporal_prediction.py`，圖與輸出檢查為 `scripts/temporal_prediction_figures.py`。輸出表為 `outputs/tables/temporal_prediction_*.csv`，圖為 `outputs/figures/temporal_prediction_*.png`。數值以輸出表為準。
+主分析以相依修正 BIC 選模型、AIC 作對照，巢狀比較用相依修正 LRT。執行規格見 `docs/temporal-validation.md`，估計腳本為 `scripts/likelihood_selection.py`，報告圖為 `scripts/likelihood_selection_report.py`。數值以 `outputs/tables/likelihood_selection_*.csv` 為準。
 
-## 問題與設計
+## 相同訓練樣本的共同估計
 
-檢查主基準、近況係數及候選選擇都只使用訓練期間時，修正是否仍能改善後續對局的預測。這是已使用資料上的探索與穩健性分析；既有前瞻驗證的假設、模型與判定不變。
+Lichess 每個速度、每個向前切分，都在相同 arena 玩家局共同估計評分基準與近況／RD 項。所有基準參數自由估計，和局帶寬參數亦重估；全站係數只作數值起點。概似、資訊矩陣與 dyadic score 共變異都使用同一批訓練列，避免固定估計基準卻忽略其不確定性。
 
-Lichess 以全站資料估計 RD 主基準，在 arena 本場有上一局的玩家局估計與評估近況。各速度分別使用年中與末季兩個向前切分，內部選擇用訓練期間的最後一個月。OGS 與 AoE2 各自重估基準，內部選擇與最終測試分開。選定後以全部訓練資料重估，最終測試只評估固定模型。
+BIC 使用唯一對局數為主尺度，AIC 作對照，另列玩家數及玩家局數的 BIC。全部有限候選都參與比較，LRT 不先淘汰候選。這是依賴資料上的工作資訊準則，並非精確 Bayes factor；所有時段已使用，結果屬探索與穩健性分析。
 
-近況以雙方上一局結果與等級分變動之差為候選；新手延伸在有 RD 的遊戲加入連續 RD 與等級分變動的交互作用，再考慮升降方向不同。內部選擇的依據為近況的全體預測分數、新手延伸的新手預測分數。兩者都以區間判定，不用最終測試選項。
+## BIC、AIC 與巢狀 LRT
 
-## Lichess
+| 速度 | 前段 BIC 選擇 | 後段 BIC 選擇 |
+|---|---|---|
+| Bullet | 評分變動與 RD 樣條 | 結果、缺歷史、評分變動與 RD 樣條 |
+| Blitz | 評分變動與 RD 樣條 | 結果、缺歷史、評分變動與 RD 樣條 |
+| Classical | 結果與缺歷史 | 結果與缺歷史 |
 
-- Bullet、Blitz 的近況修正在兩個測試時段都比重估的 RD 主基準好，對數損失差的條件區間在改善方向。主基準用到評估時段並非近況預測增量的必要條件。
-- 新手延伸在 Blitz 兩個時段均被選入，並改善全體與新手的後續預測；Bullet 只在後一段被選入並改善。這支持連續 RD 與近期分數變動仍有可用的預測結構，不能解讀為 tilt 的識別。
-- Classical 在兩個內部選擇段均未保留近況或新手延伸，最終模型與基準相同。損失差為零是沒有加入候選項的結果，不是證明近況在母體上沒有作用。
+AIC 在 Bullet、Blitz 前段保留較多近況項，選入結果、缺歷史、評分變動與樣條；後段及 Classical 與 BIC 一致。依玩家數計 BIC 時，Bullet 前段也改選含結果的樣條；依玩家局數則與對局數尺度一致。其餘切分不隨這些尺度改變選擇。因此 Bullet 前段的近況項取捨較敏感，不把單一尺度的結果當成穩定定案。
+
+預定的巢狀比較顯示，在含結果與評分變動的模型上增加 RD 交互作用及升降不對稱，Bullet、Blitz 在 Holm 校正後仍有配適證據，Classical 則不足。這不代表交互作用在全部候選中最合適，樣條與交互作用彼此非巢狀，主模型仍依 BIC。
+
+LRT 的原始 p、Holm p、數值計算方式及保守上界均保存。這些增項比較與選模使用相同訓練資料，不作選模後的新確認性檢定。
+
+## 時間外結果
+
+- 簡單近況族中的 BIC 最佳者，在 Bullet、Blitz 的全體 NLL 與得分 MSE 均有跨期增量。Bullet 前段高 RD 的 NLL 區間仍含零，不能以全體結果代替所有分組。Classical 選入結果與缺歷史，前段改善不明確，後段改善較明確。
+- 全候選 BIC 選定模型在 Bullet 前段的全體與高 RD 組反而較基準差；Blitz、Classical 前段的全體差值區間含零。後段三種速度的全體損失皆改善。訓練 BIC 最小並不保證時間外改善。
+- AIC 與 BIC 的前段候選不同，但都未避開 Bullet 前段的惡化；相同模型的測試差值為零，不解讀為不同模型具有相同母體風險。主準則不依測試表現更換。
+
+這些比較中的基準及所有候選都在 arena 共同估計，不能將損失直接接到全站固定基準流程，或把變化只歸因於改了選模準則。基準估計樣本與候選比較流程也有差異。
+
+圖：[近況增量](../../outputs/figures/likelihood_selection_report_metrics.svg)、[RD 候選](../../outputs/figures/likelihood_selection_report_branches.svg)、[BIC 模型](../../outputs/figures/likelihood_selection_report_selected.svg)、[AIC 與 BIC 的測試差值](../../outputs/figures/likelihood_selection_report_criteria_test.svg)。
+
+## 機率、幅度與校準
+
+相對損失改善與勝率調整分開呈現。BIC 選出的模型多數對局修正較小，少數調整較大；調整幅度不能替代準確度，也不能稱為玩家勝率增加。匿名情境沿用訓練期局前特徵選例，各模型都使用自己的共同估計基準與近況係數。
+
+分箱偏差沒有在各結果類別同步改善。Bullet 前段的勝負偏差變大，Classical 後段也未全面改善；分箱偏差與對數損失可能給出不同訊息。共同基準分箱只比較相同對局的條件平均，自身預測分箱則描述各模型校準，兩者皆受切點與有限樣本影響。
+
+圖：[相對改善](../../outputs/figures/likelihood_selection_report_gain.svg)、[勝率調整](../../outputs/figures/likelihood_selection_report_changes.svg)、[得分條件偏差](../../outputs/figures/likelihood_selection_report_score.svg)、[三類校準](../../outputs/figures/likelihood_selection_report_classes.svg)。
+
+## 固定基準的參照實驗
+
+`temporal_prediction_*`、`rd_model_comparison_*` 與 `prediction_value_*` 保留固定基準、訓練內驗證 NLL 選模的成果。該流程的 Bullet、Blitz 簡單近況在兩段皆有全體增量，Classical 保留基準；RD 共同比較前段選樣條、後段選交互作用，Bullet 前段也出現測試惡化。這是不同流程的結果，與本文件主分析的 BIC 模型分開解讀。
+
+既有 HMM、樹模型、MLP、GAM 與玩家隨機截距只作模型取捨參照，不以不同基準或選模流程的損失直接排名。2015 年前瞻登記仍只驗證當時固定的近況模型，不替新的 BIC 選擇提供確認性背書。
 
 ## 跨遊戲結果
 
@@ -22,60 +52,19 @@ Lichess 以全站資料估計 RD 主基準，在 arena 本場有上一局的玩�
 - **AoE2**：校準基準相對 Elo 代理的整體差異區間含零，新手組反而較差。加入近況後，全體與新手的預測改善，老手組點估計較差、區間含零，不寫成確立的傷害。內部選擇保留上一局結果與缺少歷史的差，未保留等級分變動。沒有 RD，不執行 RD 延伸；其與近況模型的零差值代表同一模型。
 - **適用範圍**：近況的增量並非在每個速度、每種玩家都一致。新手的改善較集中，老手需分遊戲評估；不能將同一修正套用所有群體。各遊戲的新手定義、歷史可用性與評分尺度不同，不跨遊戲排列原始損失的高低。
 
-## 對交付物的意涵
+## 模型交付與核對
 
-預測交付以遊戲內的「校準基準 → 近況 → 有 RD 時的新手延伸」呈現，同時展示未被選入的候選。Lichess 的新手誤差延伸有可重現的時間段證據，值得納入主線；其機制仍不能區分實力追蹤不足與短期狀態。AoE2 支持近況資訊在排隊配對情境的預測價值，但只有單月。OGS 支持方法探索，開局前資訊可用性的缺口須另有時間資料才能補足。
+`outputs/tables/prediction_models.json` 保存每個候選各自的基準係數、近況欄位、係數、樣條轉換及 BIC／AIC 選擇。`models` 的鍵是固定候選名稱；報告摘要的 `recent`、`interaction`、`spline` 等標籤先經 `aliases` 解析，不能直接按同名鍵重建。各模型的 `baseline_coef` 不共用。這是歷史切分下的模型，不宣稱已驗證現行平台部署。
 
-## 改善幅度與實際用途
+| 輸出 | 內容 |
+|---|---|
+| `likelihood_selection_fits` | 各候選訓練 NLL、參數數與有效參數數、普通及修正資訊準則、配適診斷 |
+| `likelihood_selection_selection` | 所有候選相對各準則最小值的差、各準則選擇 |
+| `likelihood_selection_lrt` | 巢狀 LR、受檢維度、相依修正 p、尾端上界及 Holm 校正 |
+| `likelihood_selection_sample` | 訓練／測試時間範圍、實際對局及玩家局數，核對既有樣本 |
+| `likelihood_selection_prediction` | 固定模型的分組測試 NLL、RPS、MSE 與差值區間 |
+| `likelihood_selection_calibration`、`calibration_bins` | 各分組、機率目標、自身及共同分箱偏差 |
+| `likelihood_selection_changes`、`scenarios` | 機率調整與匿名訓練情境；dr 以百分為單位 |
+| `likelihood_selection_report_models` | 主模型、AIC 對照及 BIC 樣本數尺度的報告摘要 |
 
-`scripts/prediction_value.py` 使用保存的最終係數重建各測試段，逐組重現既有樣本與損失，沒有重新配適或選項。數值在 `outputs/tables/prediction_value_*.csv`；作圖為 `scripts/prediction_value_figures.py`。情境選擇與校準摘要的定義見 `docs/temporal-validation.md`「預測改善的幅度與情境解讀」。
-
-### 預測改善集中在哪裡
-
-近況在 Lichess Bullet、Blitz 的整體對數損失改善小，新手組的相對改善較集中；老手的增量較小，Bullet 前一測試段的區間仍跨零。Classical 未選入候選，零增量表示模型相同。新手交互作用在已選入的速度與時段有額外增量，但仍是探索性結果。
-
-外部資料也顯示群體差異。OGS 新手的相對改善較大，老手的改善不一致；開局時間缺口仍限制用途。AoE2 的新手改善較集中，老手的差值區間跨零，不能把全體改善當成每個族群都適用。各遊戲的新手定義不同，相對改善也只在遊戲內作比較。
-
-這些結果支持將近況作為既有機率模型的小幅修正。它尚不足以證明修改配對政策、提升留存或改變玩家決策有收益；那些用途需要各自的決策目標與成本，不能從對數損失直接換算。
-
-圖：[Lichess 相對改善](../../outputs/figures/prediction_value_lichess_gain.svg)、[OGS 相對改善](../../outputs/figures/prediction_value_ogs_gain.svg)、[AoE2 相對改善](../../outputs/figures/prediction_value_aoe2_gain.svg)。
-
-### 機率修正與準確度是不同的量
-
-Lichess 的大多數近況修正幅度不大，少數對局的調整較明顯；新手組的誤差改善較大，並不要求每個時段的新手機率調整都大於老手。AoE2 的新手與老手調整幅度相近，卻只有新手呈現明確的平均預測改善。機率改變多少不能代替損失比較，更不能稱為玩家勝率被提高。
-
-匿名情境以訓練期的局前特徵選取，顯示同一組對局條件下，基準、近況與新手延伸如何重新分配勝、和、負機率。新手延伸有時會拉回近況模型的修正，並非一律放大它。情境之間的等級分、RD 與分數變動不同，不構成前局輸贏的因果對比，也不是未見資料上的個別機率驗證。
-
-圖：[Blitz 匿名情境](../../outputs/figures/prediction_value_blitz_scenarios.svg)、[Bullet 匿名情境](../../outputs/figures/prediction_value_bullet_scenarios.svg)。
-
-### 校準改善並不全面
-
-依基準預測形成共同分箱時，Lichess Bullet、Blitz 的近況修正降低整體與新手的期望得分偏差；新手延伸再降低已選入情境的新手偏差。老手並非每一項都同步改善。各模型依自身預測分箱時，部分細節也會改變，因此不以單一分箱摘要宣稱全面校準。
-
-把 Lichess 的勝、和、負分開看，勝負機率的偏差縮小較一致，和局機率的分箱偏差不一定縮小。近況模型只修正優勢項，沒有另外調整和局帶寬；整體對數損失改善不代表三類機率的每一項診斷都改善。
-
-OGS 在共同分箱下的偏差改善並不一致；AoE2 的對數損失改善，但這項分箱偏差沒有跟著降低。這些是受分箱與有限樣本影響的描述，不能說已確立校準惡化，也不能把預測增量全部歸因於消除校準偏差。
-
-圖：[Lichess 修正幅度與條件偏差](../../outputs/figures/prediction_value_lichess_magnitude.svg)、[OGS 修正幅度與條件偏差](../../outputs/figures/prediction_value_ogs_magnitude.svg)、[AoE2 修正幅度與條件偏差](../../outputs/figures/prediction_value_aoe2_magnitude.svg)。
-
-### 對後續工作的判斷
-
-現有成果可交付「小幅、依族群與情境而異的機率修正」，並以匿名例子說明輸出。是否值得實際採用，仍取決於用途所需的改善與資訊取得成本，不設定事後門檻宣稱實用。新增分析優先針對會改變主張的缺口；不因整體增量小就持續增加模型，也不把未見驗證或外部時間欄位的缺口當作已補齊。
-
-## 輸出解讀
-
-- `sample`：各段時間範圍、玩家數、對局與玩家局數；Lichess 的同局可能有雙方視角，不與外部遊戲的每局一列混為相同樣本單位。
-- `selection`、`models`、`state_coef`：內部選擇的判定、最終欄位與對應係數；`coef` 保留全部配適係數。
-- `prediction`：各遊戲、速度、時間段與新手分組的分數差；負值為改善。Lichess 的 Elo 只有期望得分，不計算虛構的三類對數損失。
-- `calibration` 與校準圖：固定預測機率分箱的實際平均得分；`comparison` 圖比較近況對基準、新手延伸對近況的條件區間。
-- `prediction_value_scores`、`changes`：相對誤差改善與機率調整分布，兩者不可混同。
-- `prediction_value_calibration`、`calibration_bins`：各模型自身分箱及共同基準分箱的偏差；`target` 區分期望得分與結果機率。
-- `prediction_value_scenarios`：訓練期選定的匿名局前特徵與三種模型機率；`dr`、`opp_dr` 以百分為單位，顯示等級分變動時須乘回尺度。
-- `prediction_value_checks`：重建樣本與既有逐組損失的核對。
-- `fits`：執行耗時與最大標準化 score；配適需通過一階條件與機率有效性檢查。
-
-## 推論界線
-
-區間以測試樣本的玩家與對手相依修正，條件於已估計的模型，不包含重抽訓練及模型選擇的不確定性。兩個向前切分的訓練資料重疊，不當成獨立重複實驗。新手延伸是探索，不把事後提出的新假設重新標為前瞻驗證。
-
-OGS 排除黑白雙方同一帳號的自我對局，避免雙方歷史串接鍵重複；既有重放等級分未重建，仍是參考程式口徑。OGS 只有結束時間，無法確認用來構造歷史的上一局在本局開始前已完成；其結果只作結束時間排序下的探索性外部參考，不算通過嚴格開局前驗證。AoE2 限單月快照，Elo 期望是代理基準，不是已核對的官方期望；歷史必須通過等級分接續及上一局已結束的條件。
+正式估計通過配適一階條件、H 與 sandwich 正定、概似與預測機率一致、樣本與時間順序、JSON 重建核對。測試區間條件於已估模型，不包含重新訓練或選模變異；相關時段已使用，不作新的確認性宣稱。

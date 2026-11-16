@@ -56,3 +56,16 @@ def offset(d, th, game):
         width = np.zeros(d.height)
     return d.with_columns(eta=pl.Series(eta), width=pl.Series(width))
 
+
+
+def state_ll(th, X, width, y):
+    """有序近況模型的逐列概似；固定基準係數的限制由 fit 的 free 指定。"""
+    return ordinal.ll(X @ th, width, y)
+
+
+def joint_ll(th, X, Z, y):
+    """同一玩家局樣本共同估計優勢與和局帶寬，供巢狀 LRT 與資訊準則比較。"""
+    import jax.numpy as jnp
+
+    k = X.shape[1]
+    return ordinal.ll(X @ th[:k], jnp.exp(Z @ th[k:]), y)

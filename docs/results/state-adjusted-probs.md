@@ -2,7 +2,7 @@
 
 腳本：`scripts/state_adjusted_probs.py`；改善來源的分解為 `scripts/forecast_decomposition.py`；修正量與其區間為 `scripts/state_adjusted_shift.py`；大廳對局為 `scripts/state_adjusted_lobby.py`（表 `state_adjusted_lobby_*.csv`）。共用 module：`scripts/state_adjusted.py`（樣本、機率與評估量，前瞻驗證與分解共用）、`scripts/arena_batches.py`（`player_sample_rd`）、`scripts/likelihood.py`（`fit`、`dyad_se`）。表在 `outputs/tables/state_adjusted_probs_*.csv`、`outputs/tables/state_adjusted_shift.csv` 與 `outputs/tables/forecast_decomposition.csv`，圖在 `outputs/figures/state_adjusted_probs_curve.png` 與 `outputs/figures/state_adjusted_shift.png`。規格見 `docs/methods.md`「依狀態調整的勝率」。本文件只寫定性結論，數值一律見對應的輸出檔。
 
-完整時間外共同流程的獨立重估見 `docs/results/temporal-validation.md`；其選項在訓練期內決定，本文件記載的模型與前瞻驗證口徑維持不變。
+同樣本共同估計、BIC 主選與 AIC 對照見 `docs/results/temporal-validation.md`；其選項在訓練期內決定，本文件記載的模型與前瞻驗證口徑維持不變。
 
 ## 問題
 
@@ -18,7 +18,7 @@
   3. 自身上一局等級分的變動 $\Delta r$：本局與上一局表頭的對局前等級分之差，不用 `RatingDiff`
   4. 對手的近況：取自身已保留的項，雙方共用係數、以「自身減對手」進入線性預測式，等於依近況調整雙方的等級分。對手在本場沒有上一局時以一個指標變數吸收
 - 第四步只有共用係數的形式。每局以雙方的視角各出現一次、結果互為鏡像，對手的近況另給一組係數時，最大概似估計因對稱必落在共用係數上；「對手的近況與自身的近況是否等量反向」在這個設計下無從檢驗
-- 參照模型：LightGBM、XGBoost 與 MLP，輸入相同：雙方等級分與 RD、執子顏色、主基準的線性預測式與和局帶寬、自身前三局結果與 $\Delta r$、對手的上一局結果與 $\Delta r$、場內局數，全為對局前的資訊。資訊量涵蓋有序模型的輸入，差異只來自模型。MLP 的輸出層經與有序 logistic 相同的累積 logit 得到機率。early stopping 只用上半年的 6 月，下半年不參與任何選擇
+- 參照模型：LightGBM、XGBoost 與 MLP，輸入相同：雙方等級分與 RD、執子顏色、主基準的線性預測式與和局帶寬、自身前三局結果與 $\Delta r$、對手的上一局結果與 $\Delta r$、場內局數，全為對局前的資訊。特徵涵蓋有序模型的輸入並增加較長歷史與場內局數，差異不能全歸因於演算法。MLP 的輸出層經與有序 logistic 相同的累積 logit 得到機率。early stopping 只用上半年的 6 月，下半年不參與任何選擇
 - 另一個 LightGBM 以主基準三類機率的對數為起點（`init_score`），輸入與超參數相同，樹只學主基準之外的部分。前三者要從頭學等級分與勝率的對應，這一個不必
 - 評估：對數分數、ranked probability score，全部、新手、老手三組分開報告（`state_adjusted_probs_prediction.csv`）；依上一局結果分色的校準曲線（`state_adjusted_probs_curve.png`）
 
@@ -54,7 +54,7 @@
 
 - LightGBM、XGBoost 與 MLP 的下半年對數分數，在全部與老手組都不如有序模型；只在 Bullet 與 Blitz 的新手組較好，Bullet 的 MLP 區間含 0；Classical 的新手組也不如有序模型（`state_adjusted_probs_prediction.csv`）
 - 老手組較差，大部分來自重學主基準：以主基準為起點的 LightGBM 在三個速度類別的全部局都與有序模型相當，區間含 0，遠好於從頭學的 LightGBM。它在 early stopping 之下只長出少數幾輪樹，主基準之外可學的結構很少
-- 以主基準為起點之後，老手組仍只在 Blitz 不如有序模型，Bullet 與 Classical 相當；有序模型以少數參數得到同樣的樣本外表現，「有序模型還剩多少可改善」的上界因此接近 0
+- 以主基準為起點之後，老手組仍只在 Blitz 不如有序模型，Bullet 與 Classical 相當；這組彈性模型比較未顯示穩定的全體增量，有序模型以較少參數得到相近的樣本外表現；這不能給出所有可能模型的改善上界
 - 新手組的差距在樹模型與神經網路都出現，以主基準為起點的 LightGBM 在 Bullet 與 Blitz 的新手組同樣較好，不是單一模型或重學主基準的偶然，表示新手的勝率還有主基準與近況項沒有抓到的結構。這是看過結果才發現的型態，不回頭加入有序模型的候選項；登記為事後型態，以前瞻資料檢驗
 
 ### 改善來自哪裡：校準為主，近況另增分辨力
