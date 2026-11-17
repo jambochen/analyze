@@ -15,7 +15,7 @@
 
 長時間的 API 抓取以 `systemd-run --user --unit=…` 在工作階段外執行，加 `Restart=on-failure`，日誌放專案內而非 `/tmp`。
 
-熱點先向量化（numpy、polars、jax 的 `vmap`）；向量化不夠時直接寫 Rust，不必先經 numba。Rust 的條件見「Rust 擴充」。
+大型模擬與抽樣依「Rust 計算核心」執行。其他計算先向量化（numpy、polars、jax 的 `vmap`），向量化仍不足時，再依實測熱點決定 Rust 擴充。
 
 ## 記憶體
 
@@ -79,19 +79,23 @@ permutation test 的重抽由 `scripts/pairing_null.py` 的 `run` 以 fork 的�
 
 給定流失次數時，分母是所有流失日組合的總和。以初等對稱多項式的動態規劃逐位玩家精確計算，流失日多於一半時改以未流失日為事件，計算量取決於 $\min(k, n-k)$（`scripts/clogit.py`、`docs/results/appendix/fixed-effects-churn.md`）。
 
-## Rust 擴充：僅限實測過的熱點
+## Rust 計算核心
 
-預設全部用 Python。只有同時滿足以下兩個條件，才考慮寫 Rust crate 以 pyo3 綁定：
+後續新增或需要重跑的大型模擬與抽樣，包含 bootstrap、permutation test 與 MCMC，主要計算統一使用 Rust。Python 保留資料整理、工作調度、套件呼叫與結果輸出。已完成的分析不因這項規則重跑。
+
+優先使用既有 Rust 套件或專案內的 Rust module。檢查實際計算路徑：採用 Rust sampler 時，也須確認 likelihood 與 gradient 的計算後端；若它們佔主要耗時，一併納入 Rust 計算核心。小規模參考實作可用 Python，供數值比對。
+
+正式執行前，以代表性資料驗證 likelihood、gradient 或模擬統計量與參考實作一致，固定 random seed，實測耗時、記憶體與平行度。MCMC 另檢查收斂與每單位時間的有效樣本量；不以 CPU 使用率代替效能判定。量測用於選擇 Rust 實作與執行緒配置，不取消大型模擬與抽樣使用 Rust 的要求。
+
+其他分析的 Rust 擴充，須同時滿足以下兩個條件：
 
 1. **該段是經常觸發瓶頸**。該運算會頻繁或多處使用。
 2. **既有套件解不掉**。該運算在 numpy / scipy / statsmodels / polars 裡沒有
    對應實作，或有實作但是純 Python 迴圈、未走 C/C++/Rust 加速
 
-兩者皆成立時，Rust 的價值在 rayon 並行與 SIMD，適合的形態是自訂的逐列數值
-迴圈、bootstrap 重抽、對每個群組重複擬合這類 numpy 向量化表達不出來的運算。
+兩者皆成立時，以 Rust 處理已確認的熱點，依資料依賴決定 rayon 並行或 SIMD。
 
-反之不要寫：能用 numpy 向量化改寫的、只跑一次的前處理、佔總時間比例低的段落。
-維護一條 Rust 建置鏈的成本高於它省下的時間。
+其餘可用 numpy 向量化的計算、只跑一次的前處理與佔總時間比例低的段落，保留現有實作。
 
 crate 放 `rust/<name>/`，以 maturin 建置，在 `pyproject.toml` 宣告依賴。
 Python 側須保留一份等價的參考實作，用於驗證 Rust 版結果一致。
@@ -113,6 +117,6 @@ Imhof 的被積函數在無窮區間上振盪，統計量越大振盪越快、�
 ## 操作
 
 - **停止行程**：`pkill -f` 的 pattern 若也出現在執行它的 shell 命令列中，該 shell 會一起被砍（exit 144）；先以 `pgrep -f` 列出，用精確的 pattern 再砍
-- **CPU 曲線**：使用率長期低於核心數、呈鋸齒狀，多半是呼叫開銷或單執行緒的 Python 迴圈；先改成批次，再考慮換語言
+- **CPU 曲線**：先核對同時執行的 chains／workers 與執行緒上限，再判斷使用率是否異常；可並行工作數少於可用核心時，CPU 未滿符合設定。呈鋸齒狀時再檢查呼叫開銷與串列段落，語言選擇依「Rust 計算核心」。
 - **剖析**：`ptrace_scope` 為 1，py-spy 不能 attach 已在跑的行程，但由它啟動的子行程可以：`py-spy record --native --idle -f speedscope -o … -- python scripts/<name>.py`，外層加 `/usr/bin/time -v` 看平均使用的核心數與 context switch。perf 在 `perf_event_paranoid` 為預設的 4 時不可用，需要時以 `sudo sysctl kernel.perf_event_paranoid=2` 暫時放寬，重開機即恢復
 - **CPU 尖刺的成因**：尖刺是 BLAS、jax、polars 的短暫多執行緒，尖刺之間的低谷才是瓶頸，多半是單執行緒 numpy 在掃大型暫存陣列；等記憶體時 CPU 照樣算作忙碌，不會呈尖刺；反過來，CPU 使用率高也不代表在運算，OpenBLAS 的空轉等待同樣算作忙碌，perf 中以 `blas_thread_server` 出現

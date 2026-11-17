@@ -8,6 +8,7 @@ curl -L --fail --silent --show-error --max-time 90 https://arxiv.org/src/2207.07
 curl -L --fail --silent --show-error --max-time 90 https://arxiv.org/src/1702.06820v1 -o ref/competitive-games/eomm-source.tar
 curl -L --fail --silent --show-error --max-time 90 https://arxiv.org/pdf/2503.21713v2 -o ref/competitive-games/gee.pdf
 curl -L --fail --silent --show-error --max-time 90 https://arxiv.org/pdf/2207.07780v1 -o ref/competitive-games/chowdhary.pdf
+curl -L --fail --silent --show-error --max-time 90 https://arxiv.org/pdf/2502.10985v1 -o ref/competitive-games/tang.pdf
 # 這兩篇作者頁未提供 TeX；EOMM 源碼包則只有包裝 PDF 的 TeX。
 curl -L --fail --silent --show-error --max-time 90 https://www.cemyuksel.com/research/matchmaking/i3d2024-matchmaking.pdf -o ref/competitive-games/yuksel.pdf
 curl -L --fail --silent --show-error --max-time 90 https://www.cemyuksel.com/research/matchmaking/i3d2024-matchmaking-supplemental.pdf -o ref/competitive-games/yuksel-supplemental.pdf
@@ -23,7 +24,7 @@ for name in ['gee', 'chowdhary', 'eomm']:
         archive.extractall(root / f'{name}-source', filter='data')
 PY
 
-for paper in gee chowdhary yuksel yuksel-supplemental chen-joachims; do
+for paper in gee chowdhary tang yuksel yuksel-supplemental chen-joachims; do
     pdftotext -layout "ref/competitive-games/$paper.pdf" "ref/competitive-games/$paper.txt"
 done
 pdftotext -layout ref/competitive-games/eomm-source/camera_ready_final_final_v7.pdf ref/competitive-games/eomm.txt
@@ -36,6 +37,7 @@ from pathlib import Path
 
 root = Path('ref/competitive-games')
 sources = [
+    ('tang.pdf', 'https://arxiv.org/pdf/2502.10985v1', 'arXiv nonexclusive-distrib/1.0'),
     ('gee-source.tar', 'https://arxiv.org/src/2503.21713v2', 'CC BY 4.0'),
     ('gee.pdf', 'https://arxiv.org/pdf/2503.21713v2', 'CC BY 4.0'),
     ('chowdhary-source.tar', 'https://arxiv.org/src/2207.07780v1', 'arXiv nonexclusive-distrib/1.0'),

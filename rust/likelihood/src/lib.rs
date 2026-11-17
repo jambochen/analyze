@@ -6,6 +6,8 @@
 use numpy::{PyArray1, PyArray2, PyArrayMethods, PyReadonlyArray1, PyReadonlyArray2, PyUntypedArrayMethods};
 use pyo3::prelude::*;
 use rayon::prelude::*;
+mod hierarchical;
+mod trueskill;
 
 const BLOCK: usize = 4096;
 
@@ -161,6 +163,8 @@ fn dyad_meat<'py>(py: Python<'py>, s: PyReadonlyArray2<'py, f64>, w: PyReadonlyA
 
 #[pymodule]
 fn likelihood_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(hierarchical::hierarchical_logp, m)?)?;
+    m.add_function(wrap_pyfunction!(trueskill::trueskill_replay, m)?)?;
     m.add_function(wrap_pyfunction!(vgh, m)?)?;
     m.add_function(wrap_pyfunction!(score, m)?)?;
     m.add_function(wrap_pyfunction!(group_outer, m)?)?;

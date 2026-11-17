@@ -16,6 +16,8 @@
 | `player-alerts.md` | 如何比較連敗與對手調整後的近期表現提醒？ |
 | `matching-policy.md` | 固定已配對玩家後，如何比較替代配法與代價？ |
 | `temporal-validation.md` | 時間外切分與共同估計？BIC 主選、AIC 對照與巢狀 LRT 如何比較及交付模型？ |
+| `trueskill-replication.md` | 如何重放 TrueSkill，以訓練內選參數及相同測試對局比較三類預測？ |
+| `hierarchical-replication.md` | 如何復現文獻中的玩家 intercept/slope 模型，保留和局並與 BIC 模型比較？如何區分 BIC 對照的判定與報告的比較範圍？ |
 | `plan.md` | 各研究問題的主要做法與對照？結論之間如何依賴？範圍外不做哪些分析？待辦？ |
 
 ## 結果：`results/`
@@ -27,6 +29,8 @@
 | `player-alerts.md` | 哪些近期表現提醒有下一局資訊？提醒對象與高頻玩家的影響是什麼？ |
 | `matching-policy.md` | 平均、極端對局、批內最差及個人保護目標各有何取捨？誰的配對變差，哪些代價仍不可識別？ |
 | `temporal-validation.md` | 主基準與選項都限訓練期時，近況及 RD 候選是否改善？選中模型何時失敗？ |
+| `trueskill-prediction.md` | TrueSkill 在相同測試樣本是否優於 logistic？輸入、時間代理與選參數有哪些限制？ |
+| `hierarchical-prediction.md` | 文獻中的玩家 intercept/slope 模型在相同測試對局是否較好？未見玩家與抽樣不確定性如何影響判定？ |
 | `calibration.md` | 等級分給出的期望得分是否校準？偏差在哪裡？ |
 | `expected-score-baselines.md` | 三個期望勝率的基準哪個好？相依資料下修正的概似比檢定水準如何？ |
 | `novice-period.md` | 新手期如何界定？校準偏差在門檻處是否消失？ |
@@ -70,6 +74,8 @@
 | `literature.md` | 有哪些文獻？借用的方法在原論文中解決什麼？Lichess 的規則出自哪個 commit？ |
 | `competitive-game-research-goals.md` | 使用同來源或相似雙人對戰資料的論文，各以什麼問題與交付為目標？ |
 | `competitive-game-methods.md` | 最接近本研究的五篇論文用了哪些方法？原文在哪裡？哪些已做、可借用或不適合直接採用？ |
+| `lichess-prediction-literature.md` | 哪些論文實際使用 Lichess？文獻預測結果與本地分析如何區分？ |
+| `dynamic-rating-literature.md` | WHR、TrueSkill Through Time 與情境對戰模型使用哪些資料？原文的歷史實力推論與局前預測證據有何差別？ |
 | `community-perception.md` | 電競玩家怎麼看匹配系統？開發商怎麼回應？ |
 | `topic-selection.md` | 為什麼選這個題目？比較過哪些候選？資料能回答與回答不了什麼？ |
 

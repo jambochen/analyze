@@ -19,6 +19,7 @@ dependencies = [
     "pymc[nutpie]>=6.3.2",
     "pyreadstat>=1.3.6",
     "statsmodels>=0.15.0",
+    "trueskill==0.4.5",
     "weighted-trim",
     "xgboost>=3.4.1",
 ]

@@ -29,6 +29,8 @@ Lichess 建立方法，OGS 與 AoE2 驗證預測流程；各遊戲各自估計�
 
 - Lichess 在相同 arena 訓練玩家局共同估計基準與新增項，以相依修正 BIC 主選、AIC 對照；巢狀 LRT 說明增項證據。模型固定後才計算測試誤差。具體切分見 `docs/temporal-validation.md`，結果見 `docs/results/temporal-validation.md`。
 - BIC 在 Bullet、Blitz 兩段皆選入 RD 樣條，Classical 選入前局結果與缺歷史。AIC 在前段保留較多近況項；Bullet 前段亦受 BIC 樣本數尺度影響。BIC 選定模型在 Bullet 前段反而變差，Blitz 與 Classical 前段沒有明確增量，後段三種速度均改善。
+- 玩家 intercept/slope 的[文獻復現與共同比較](docs/results/hierarchical-prediction.md)已完成。簡報統一介紹三種用時的 correlated random intercept/slope，與共用係數的上一局模型比較。中用時有改善，短用時 score MSE 增加，長用時尚無明確改善；仍屬已使用資料上的探索，既有前瞻驗證未涵蓋此模型。
+- [TrueSkill 的本地比較](docs/results/trueskill-prediction.md)採相同測試紀錄的三類 log loss、score MSE 與 calibration。訓練內選參數、測試期逐局更新後，未見優於評分基準或共用係數的上一局模型；長用時兩項誤差較高。
 - AoE2 與 OGS 保留驗證 NLL 選模的外部參照設計。AoE2 的近況改善集中於新手；OGS 缺少開局時間，只能作結束時間排序下的探索參考。
 - 這是已用資料的穩健性與探索分析，區間條件於已訓練模型；固定基準的參照實驗與既有前瞻驗證保留各自口徑。
 
@@ -143,7 +145,7 @@ Lichess 建立方法，OGS 與 AoE2 驗證預測流程；各遊戲各自估計�
 
 ## 報告收尾
 
-- **模型定案**：同樣本共同估計、BIC 主選、AIC 對照與巢狀 LRT 已完成，各速度／切分的模型與轉換保存於 `outputs/tables/prediction_models.json`；規格見 [時間外驗證](docs/temporal-validation.md)。現有長歷史、HMM、樹模型、MLP 與 GAM／GLMM 結果用來交代取捨，不以不同基準或選模流程的損失直接排名，也不宣稱目前模型為所有方法中的最佳。
+- **模型定案**：BIC 流程與玩家 intercept/slope 比較均已完成。報告介紹論文模型在三種用時的結果，不宣稱全面勝過共用係數模型；RD interaction 與 spline 留於研究文件。BIC 模型保存在 `outputs/tables/prediction_models.json`；報告模型的 posterior 來源見 `outputs/tables/hierarchical_report_models.json`。規格見 [時間外驗證](docs/temporal-validation.md)與[玩家差異模型比較](docs/hierarchical-replication.md)。其他長歷史、HMM、樹模型、MLP 與 GAM／GLMM 結果保留作取捨，不以不同基準或選模流程直接排名，也不宣稱所採模型為所有方法中的最佳。
 
 - **報告**：第二次報告已整合主要分析、模型選擇與驗證，以額外資訊、模型複雜度與適用範圍為主線，交付 [簡報](report/baseline.pdf)、[逐頁口稿](report/baseline_script.md) 與可重現的預測模型；見 [報告定位](docs/report-focus.md)。方法與診斷隨分析問題放入正文，不設附錄，也不列時間估計。`make check-slides` 檢查頁面溢出。最終繳交的頁數、格式與期限仍待決定。
 - **研究延伸**：新增確認性證據不列第二次報告的完成前提。新手延伸屬探索；若要確認新假設，須另留未使用資料並另立登記。OGS 的嚴格開局前驗證需要開局時間，目前資料不能完成。
@@ -174,5 +176,6 @@ outputs/           腳本輸出的表與圖（不入版控，重跑產生）
 
 - Python 環境以 `uv sync` 建立；腳本一律在專案根目錄執行，如 `.venv/bin/python scripts/calibration.py`
 - 腳本頂端讀入的檔案即其依賴；重分析的記憶體與執行緒限制見 `docs/internal/computing.md`
+- 論文模型的報告圖表與來源：`.venv/bin/python scripts/hierarchical_report.py`
 - 報告：`typst compile --root . report/baseline.typ`
 - 術語見 `GLOSSARY.md`

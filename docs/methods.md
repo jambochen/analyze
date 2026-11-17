@@ -16,6 +16,10 @@ Lichess 的主分析在每個向前切分中，以相同 arena 訓練玩家局�
 
 每局只用開局前已完成對局的資訊；測試期可向前更新已知歷史，不能回看未來結果。輸出包含資料範圍、樣本、候選資訊準則、LRT、固定模型設定、時間外比較及校準。已看過的時段仍屬探索與穩健性分析，不能稱為新的前瞻確認。
 
+### TrueSkill 的逐局預測
+
+一對一含和局的 TrueSkill 由 arena 對手與賽果維護 Normal skill posterior，採 Gaussian moment matching，測試期間依可用時間更新。訓練期最後一月選 hyperparameters，與既有 logistic 使用相同測試紀錄、權重及三類 log loss、score MSE、RPS 與 calibration。API 最後下棋時間作結果可用時間代理；輸入範圍與平台評分不同，不能僅解讀為 CDF 的比較。方法與有限候選見 [復現規格](trueskill-replication.md)，本地結果見 [預測比較](results/trueskill-prediction.md)。
+
 ### 跨遊戲適用範圍
 
 - Lichess 建立方法；OGS 與 AoE2 各自估計與評估，保留訓練內驗證 NLL 選模的外部參照流程，未套用 Lichess 的共同估計 BIC。共用「是否失準、近況是否有增量、改善集中在哪些玩家」三個問題，模型依結果類別及可用欄位調整。

@@ -106,7 +106,7 @@ outputs/tables/    表
 
 ## 技術棧
 
-**Python**。腳本副檔名 `.py`。Rust 擴充只限實測過的熱點，條件見 `docs/internal/computing.md`。
+分析腳本用 **Python**，副檔名 `.py`。後續大型模擬與抽樣的主要計算統一使用 **Rust**，Python 負責資料整理、呼叫與輸出；執行前依 `docs/internal/computing.md`「Rust 計算核心」核對實作、數值一致性與效能。其他分析的 Rust 擴充仍以實測熱點為限。
 
 `report/` 用 **Typst**。腳本負責算數與產圖，圖以檔案輸出到 `outputs/figures/`，
 Typst 端只排版與 `image()` 引入，不在文件內執行程式碼。簡報用 touying 的
