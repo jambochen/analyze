@@ -194,8 +194,6 @@ $ S_i ~ cal(N)(mu_i,sigma_i^2), quad X_i | S_i ~ cal(N)(S_i,beta^2) $
 [$p_"draw"$], [換算成和局門檻 $epsilon$，值越大，和局區間越寬], [#candidates("draw_probability")], rt,
 )
 
-#text(size: 0.85em)[逐組重放對局，選驗證月三類 log loss 最低者。]
-
 == TrueSkill 的測試期誤差
 #stage[同場已有前局的玩家｜兩期合併得分 MSE；下表負值表示 TrueSkill 較準。]
 
