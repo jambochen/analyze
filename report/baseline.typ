@@ -74,7 +74,6 @@ rt,
 #text(size: 0.85em)[以 logistic CDF 求出白勝與白方不輸的機率。$P("draw") = P("win or draw") - P("win")$。#linebreak()白方的預測得分為 $hat(s) = P("win") + 0.5 P("draw")$。]
 
 == 訓練期選入的上一局資訊
-#stage[各用時在兩個訓練期分別以相依修正 BIC 選模。]
 
 同場上一局的候選資訊：只用結果、只用評分變動、兩者都用，與純評分基準比較。四個候選在同一批訓練對局重估全部參數。
 
@@ -87,7 +86,7 @@ rt,
 )).flatten(), rt,
 ))
 
-#text(size: 0.8em)[每格選出的模型固定係數，用於該列測試期。含上一局結果的模型也標記對手紀錄缺失。]
+#text(size: 0.8em)[每格選出的模型固定係數，用於該列測試期。]
 
 == 選定模型的測試期誤差
 #stage[$Delta = "MSE"_"selected" - "MSE"_"baseline"$]
@@ -128,6 +127,8 @@ rt,
 
 $ eta_H = eta_"fixed" + (a_i-a_j) + (b_i t_i-b_j t_j) $
 
+$ theta_i = (a_i,b_i)^T, quad theta_i | Sigma ~ cal(N)_2(0,Sigma) $
+
 #table(columns: (auto, 1fr), rt,
 [$a_i-a_j$], [random intercept：控制評分與近期資訊後，白方與黑方的個人優勢之差。], rm,
 [$b_i t_i-b_j t_j$], [random slope：兩位玩家各自對近期結果的額外修正，再取白減黑。], rt,
@@ -138,8 +139,6 @@ $ t_i = bold(1) {"previous arena result" = "win"} - macron(p)_i $
 
 == GLMM：個人係數如何估計
 #stage[利用全體玩家的資料估計個人斜率。]
-
-$ theta_i = (a_i,b_i)^T, quad theta_i | Sigma ~ cal(N)_2(0,Sigma) $
 
 $ underbrace(p(theta_i | "data", "other parameters"), "conditional posterior") prop underbrace(L_i(theta_i), "likelihood for games involving " i) times underbrace(p(theta_i | Sigma), "shared prior") $
 
